@@ -827,7 +827,8 @@ local function findAttackTarget(rootPos, ball)
                     if ws.Bools.HPG.Value == otherPlayer or ws.Bools.APG.Value == otherPlayer then
                         isEnemy = false
                     end
-                })
+                end
+            )
                 
                 if isEnemy then
                     local distToTarget = (rootPos - targetRoot.Position).Magnitude
