@@ -93,7 +93,7 @@ local CONFIG = {
     -- === PREDICTION SETTINGS ===
     PRED_STEPS = 140,               -- Шаги предсказания траектории (больше точности!)
     CURVE_MULT = 42,                -- Множитель кривой
-    DT = 1/90,                      -- Дельта-тайм для физики (выше частота!)
+    DT = 1/120,                      -- Дельта-тайм для физики (выше частота!)
     GRAVITY = 108,                  -- Гравитация для предсказания
     DRAG = 0.984,                   -- Сопротивление воздуха
     BOUNCE_XZ = 0.74,               -- Горизонтальный отскок
@@ -524,7 +524,7 @@ local function drawAttackTarget(pos)
         
         if l then
             l.From = Vector2.new(s1.X, s1.Y) 
-            l.To = Vector2.new(s2.X, sb.Y)
+            l.To = Vector2.new(s2.X, s2.Y)
             l.Visible = s1.Z > 0 and s2.Z > 0
         end
     end
@@ -2267,3 +2267,4 @@ function GKHelperModule:Destroy()
 end
 
 return GKHelperModule
+
