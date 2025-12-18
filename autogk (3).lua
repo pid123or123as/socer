@@ -625,7 +625,7 @@ end
 
 local function forceJump(hum)
     local oldPower = hum.JumpPower
-    hum.JumpPower = 72
+    hum.JumpPower = 42
     hum.Jump = true
     hum:ChangeState(Enum.HumanoidStateType.Jumping)
     playJumpAnimation(hum)
@@ -2058,4 +2058,5 @@ function GKHelperModule:Destroy()
 end
 
 return GKHelperModule
+
 
