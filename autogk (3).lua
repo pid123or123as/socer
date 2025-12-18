@@ -1,103 +1,106 @@
--- GK Helper v49 — Advanced AI Defense Module with Improved Accuracy
--- Enhanced version with smarter positioning, faster reactions, and intelligent dive/jump logic
+-- GK Helper v50 — Advanced AI Defense Module with Fixed Dive
+-- Enhanced version with stable dive physics and improved accuracy
 
 local player = game.Players.LocalPlayer
 local ws = workspace
 local rs = game:GetService("RunService")
 local uis = game:GetService("UserInputService")
 local ts = game:GetService("TweenService")
-local tweenInfo = TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out) -- Быстрее!
+local tweenInfo = TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- V49 ADVANCED AI DEFENSE - CONFIGURATION
+-- V50 ADVANCED AI DEFENSE - CONFIGURATION
 local CONFIG = {
     -- === BASIC SETTINGS ===
     ENABLED = false,
     
     -- === MOVEMENT ===
-    SPEED = 36,                     -- Быстрее базовая скорость
-    STAND_DIST = 2.4,               -- Стандартная дистанция от ворот
-    MIN_DIST = 0.8,                 -- Минимальная дистанция для начала движения
-    MAX_CHASE_DIST = 38,            -- Максимальная дистанция преследования
+    SPEED = 36,
+    STAND_DIST = 2.4,
+    MIN_DIST = 0.8,
+    MAX_CHASE_DIST = 38,
     
     -- === DISTANCES ===
-    AGGRO_THRES = 32,               -- Дистанция до врага для агрессивного режима (ближе!)
-    DIVE_DIST = 12,                 -- Максимальная дистанция для ныряния
-    ENDPOINT_DIVE = 3.2,            -- Дистанция до конечной точки для ныряния
-    TOUCH_RANGE = 7.5,              -- Дистанция касания рукой
-    NEAR_BALL_DIST = 6,             -- Дистанция "рядом с мячом" для авто-сейва
+    AGGRO_THRES = 32,
+    DIVE_DIST = 12,
+    ENDPOINT_DIVE = 3.2,
+    TOUCH_RANGE = 7.5,
+    NEAR_BALL_DIST = 6,
     
     -- === DEFENSE ZONE ===
-    ZONE_DIST = 48,                 -- Глубина зоны защиты (зеленый куб)
-    ZONE_WIDTH = 2.3,               -- Ширина зоны относительно ширины ворот
+    ZONE_DIST = 48,
+    ZONE_WIDTH = 2.3,
     
     -- === THRESHOLDS ===
-    DIVE_VEL_THRES = 16,            -- Минимальная скорость мяча для ныряния
-    JUMP_VEL_THRES = 28,            -- Минимальная скорость мяча для прыжка
-    HIGH_BALL_THRES = 5.8,          -- Высота мяча для прыжка
-    CLOSE_THREAT_DIST = 3.2,        -- Дистанция близкой угрозы
-    JUMP_THRES = 4.5,               -- Порог высоты для прыжка
-    GATE_COVERAGE = 1.02,           -- Покрытие ворот (1.0 = полное покрытие)
-    CENTER_BIAS_DIST = 18,          -- Дистанция смещения к центру
-    LATERAL_MAX_MULT = 0.48,        -- Максимальное боковое движение относительно ширины ворот
+    DIVE_VEL_THRES = 16,
+    JUMP_VEL_THRES = 28,
+    HIGH_BALL_THRES = 5.8,
+    CLOSE_THREAT_DIST = 3.2,
+    JUMP_THRES = 4.5,
+    GATE_COVERAGE = 1.02,
+    CENTER_BIAS_DIST = 18,
+    LATERAL_MAX_MULT = 0.48,
     
     -- === COOLDOWNS ===
-    DIVE_COOLDOWN = 1.1,            -- Кулдаун между ныряниями
-    JUMP_COOLDOWN = 0.8,            -- Кулдаун между прыжками
-    ATTACK_COOLDOWN = 1.2,          -- Кулдаун между сменами целей атаки
+    DIVE_COOLDOWN = 1.1,
+    JUMP_COOLDOWN = 0.8,
+    ATTACK_COOLDOWN = 1.2,
     
-    -- === DIVE SPEED ===
-    DIVE_SPEED = 42,                -- Скорость ныряния
+    -- === DIVE SETTINGS ===
+    DIVE_SPEED = 38,
+    DIVE_DURATION = 0.35,
+    DIVE_STABILIZE_FORCE = 4000000,
+    DIVE_MAX_VERTICAL = 15,
     
     -- === VISUAL SETTINGS ===
-    SHOW_TRAJECTORY = true,         -- Показывать траекторию
-    SHOW_ENDPOINT = true,           -- Показывать конечную точку
-    SHOW_GOAL_CUBE = true,          -- Показывать куб ворот (красный)
-    SHOW_ZONE = true,               -- Показывать зону защиты (зеленый куб)
-    SHOW_BALL_BOX = true,           -- Показывать куб мяча
-    SHOW_ATTACK_TARGET = true,      -- Показывать цель атаки
+    SHOW_TRAJECTORY = true,
+    SHOW_ENDPOINT = true,
+    SHOW_GOAL_CUBE = true,
+    SHOW_ZONE = true,
+    SHOW_BALL_BOX = true,
+    SHOW_ATTACK_TARGET = true,
     
     -- === VISUAL COLORS ===
-    TRAJECTORY_COLOR = Color3.fromRGB(0, 255, 255),    -- Голубой
-    ENDPOINT_COLOR = Color3.fromRGB(255, 255, 0),      -- Желтый
-    GOAL_CUBE_COLOR = Color3.fromRGB(255, 0, 0),       -- Красный
-    ZONE_COLOR = Color3.fromRGB(0, 255, 0),           -- Зеленый
-    BALL_BOX_SAFE_COLOR = Color3.fromRGB(0, 255, 0),  -- Зеленый (безопасно)
-    BALL_BOX_THREAT_COLOR = Color3.fromRGB(255, 0, 0),-- Красный (угроза)
-    BALL_BOX_HIGH_COLOR = Color3.fromRGB(255, 255, 0),-- Желтый (высокий)
-    BALL_BOX_NORMAL_COLOR = Color3.fromRGB(0, 200, 255), -- Светло-голубой (нормальный)
-    ATTACK_TARGET_COLOR = Color3.fromRGB(255, 105, 180), -- Розовый
+    TRAJECTORY_COLOR = Color3.fromRGB(0, 255, 255),
+    ENDPOINT_COLOR = Color3.fromRGB(255, 255, 0),
+    GOAL_CUBE_COLOR = Color3.fromRGB(255, 0, 0),
+    ZONE_COLOR = Color3.fromRGB(0, 255, 0),
+    BALL_BOX_SAFE_COLOR = Color3.fromRGB(0, 255, 0),
+    BALL_BOX_THREAT_COLOR = Color3.fromRGB(255, 0, 0),
+    BALL_BOX_HIGH_COLOR = Color3.fromRGB(255, 255, 0),
+    BALL_BOX_NORMAL_COLOR = Color3.fromRGB(0, 200, 255),
+    ATTACK_TARGET_COLOR = Color3.fromRGB(255, 105, 180),
     
     -- === ROTATION ===
-    ROT_SMOOTH = 0.82,              -- Плавность вращения (0-1, выше = плавнее)
+    ROT_SMOOTH = 0.82,
     
     -- === ADVANCED DEFENSE ===
-    BALL_INTERCEPT_RANGE = 4.0,     -- Диапазон перехвата мяча
-    MIN_INTERCEPT_TIME = 0.08,      -- Минимальное время перехвата
-    ADVANCE_DISTANCE = 3.2,         -- Дистанция выдвижения вперед
-    DIVE_LOOK_AHEAD = 0.18,         -- Взгляд вперед при нырянии
+    BALL_INTERCEPT_RANGE = 4.0,
+    MIN_INTERCEPT_TIME = 0.08,
+    ADVANCE_DISTANCE = 3.2,
+    DIVE_LOOK_AHEAD = 0.18,
     
     -- === INTELLIGENT POSITIONING ===
-    REACTION_TIME = 0.15,           -- Время реакции на угрозу (быстрее!)
-    ANTICIPATION_DIST = 1.5,        -- Дистанция предвосхищения удара
-    CORNER_BIAS = 0.7,              -- Смещение при угловых (0-1)
-    SIDE_POSITIONING = 0.65,        -- Боковое позиционирование (0-1)
+    REACTION_TIME = 0.15,
+    ANTICIPATION_DIST = 1.5,
+    CORNER_BIAS = 0.7,
+    SIDE_POSITIONING = 0.65,
     
     -- === ATTACK SETTINGS ===
-    PRIORITY = "defense",           -- Приоритет: "defense" или "attack"
-    AUTO_ATTACK_IN_ZONE = true,     -- Авто-атака врагов в зоне защиты
-    ATTACK_DISTANCE = 30,           -- Дистанция приближения к врагу
-    ATTACK_PREDICT_TIME = 0.12,     -- Время предсказания позиции врага (компенсация лагов)
-    AGGRESSIVE_MODE = false,        -- Агрессивный режим (постоянное преследование врага)
+    PRIORITY = "defense",
+    AUTO_ATTACK_IN_ZONE = true,
+    ATTACK_DISTANCE = 30,
+    ATTACK_PREDICT_TIME = 0.12,
+    AGGRESSIVE_MODE = false,
     
     -- === PREDICTION SETTINGS ===
-    PRED_STEPS = 140,               -- Шаги предсказания траектории (больше точности!)
-    CURVE_MULT = 42,                -- Множитель кривой
-    DT = 1/120,                      -- Дельта-тайм для физики (выше частота!)
-    GRAVITY = 108,                  -- Гравитация для предсказания
-    DRAG = 0.984,                   -- Сопротивление воздуха
-    BOUNCE_XZ = 0.74,               -- Горизонтальный отскок
-    BOUNCE_Y = 0.72                 -- Вертикальный отскок
+    PRED_STEPS = 140,
+    CURVE_MULT = 42,
+    DT = 1/90,
+    GRAVITY = 108,
+    DRAG = 0.984,
+    BOUNCE_XZ = 0.74,
+    BOUNCE_Y = 0.72
 }
 
 -- Module state
@@ -126,7 +129,12 @@ local moduleState = {
     attackTargetVisible = false,
     colorPickers = {},
     
-    -- Новые состояния для улучшенного AI
+    -- Dive physics control
+    activeDiveBV = nil,
+    activeDiveGyro = nil,
+    diveStartTime = 0,
+    
+    -- Threat analysis
     threatAnalysis = {
         lastThreatPos = nil,
         threatDirection = nil,
@@ -136,18 +144,17 @@ local moduleState = {
     },
     positioning = {
         optimalPosition = nil,
-        lastSideChoice = 0, -- -1 = left, 0 = center, 1 = right
+        lastSideChoice = 0,
         sideBiasTimer = 0
     }
 }
 
--- Глобальные переменные
+-- Global variables
 local GoalCFrame, GoalForward, GoalWidth = nil, nil, 0
 local maxDistFromGoal = 50
 
 -- Create visuals function
 local function createVisuals()
-    -- Clear old visuals if exist
     for _, objList in pairs(moduleState.visualObjects) do
         if type(objList) == "table" then
             for _, drawing in pairs(objList) do
@@ -233,7 +240,6 @@ end
 
 -- Update all visual colors
 local function updateVisualColors()
-    -- Update Goal Cube color
     if moduleState.visualObjects.GoalCube then
         for _, line in ipairs(moduleState.visualObjects.GoalCube) do
             if line then
@@ -242,7 +248,6 @@ local function updateVisualColors()
         end
     end
     
-    -- Update Zone color
     if moduleState.visualObjects.LimitCube then
         for _, line in ipairs(moduleState.visualObjects.LimitCube) do
             if line then
@@ -251,7 +256,6 @@ local function updateVisualColors()
         end
     end
     
-    -- Update Endpoint color
     if moduleState.visualObjects.endpointLines then
         for _, line in ipairs(moduleState.visualObjects.endpointLines) do
             if line then
@@ -260,7 +264,6 @@ local function updateVisualColors()
         end
     end
     
-    -- Update Attack Target color
     if moduleState.visualObjects.attackTarget then
         for _, line in ipairs(moduleState.visualObjects.attackTarget) do
             if line then
@@ -269,7 +272,6 @@ local function updateVisualColors()
         end
     end
     
-    -- Update Trajectory color
     if moduleState.visualObjects.trajLines then
         local baseH, baseS, baseV = CONFIG.TRAJECTORY_COLOR:ToHSV()
         for i, line in ipairs(moduleState.visualObjects.trajLines) do
@@ -327,6 +329,8 @@ local function checkIfGoalkeeper()
         hideAllVisuals()
         if moduleState.currentBV then pcall(function() moduleState.currentBV:Destroy() end) moduleState.currentBV = nil end
         if moduleState.currentGyro then pcall(function() moduleState.currentGyro:Destroy() end) moduleState.currentGyro = nil end
+        if moduleState.activeDiveBV then pcall(function() moduleState.activeDiveBV:Destroy() end) moduleState.activeDiveBV = nil end
+        if moduleState.activeDiveGyro then pcall(function() moduleState.activeDiveGyro:Destroy() end) moduleState.activeDiveGyro = nil end
     end
     
     if moduleState.isGoalkeeper and not wasGoalkeeper and moduleState.enabled then
@@ -336,7 +340,7 @@ local function checkIfGoalkeeper()
     return moduleState.isGoalkeeper
 end
 
--- Улучшенная функция обновления ворот с кэшированием
+-- Goal update with caching
 local lastGoalUpdate = 0
 local goalCacheValid = false
 
@@ -542,7 +546,7 @@ local function hideAttackTarget()
     moduleState.currentAttackTarget = nil
 end
 
--- УЛУЧШЕННОЕ предсказание траектории с большей точностью
+-- Trajectory prediction
 local function predictTrajectory(ball)
     local points = {ball.Position}
     local pos, vel = ball.Position, ball.Velocity
@@ -576,7 +580,7 @@ local function predictTrajectory(ball)
     return points
 end
 
--- Быстрое движение к цели
+-- Movement to target
 local function moveToTarget(root, targetPos)
     if moduleState.currentBV then 
         pcall(function() moduleState.currentBV:Destroy() end) 
@@ -596,7 +600,7 @@ local function moveToTarget(root, targetPos)
     end
 end
 
--- УЛУЧШЕННОЕ вращение с учетом ныряния
+-- Smooth rotation
 local function rotateSmooth(root, targetPos, isOwner, isDivingNow, ballVel)
     if isOwner then 
         if moduleState.currentGyro then 
@@ -612,20 +616,16 @@ local function rotateSmooth(root, targetPos, isOwner, isDivingNow, ballVel)
     local finalLookPos
     
     if isDivingNow and ballVel then
-        -- При нырянии смотрим в сторону движения мяча, НО НЕ В СВОИ ВОРОТА!
         local diveDir = ballVel.Unit
         local goalDir = GoalForward
         
-        -- Проверяем, не смотрим ли мы в свои ворота
         if diveDir:Dot(goalDir) > 0.3 then
-            -- Если смотрим в ворота, немного корректируем направление
             diveDir = (diveDir - goalDir * 0.4).Unit
         end
         
         finalLookPos = targetPos + diveDir * CONFIG.DIVE_LOOK_AHEAD
         moduleState.currentTargetType = "dive"
     else
-        -- Обычный взгляд на мяч
         finalLookPos = targetPos
         moduleState.currentTargetType = "ball"
     end
@@ -646,7 +646,7 @@ local function rotateSmooth(root, targetPos, isOwner, isDivingNow, ballVel)
     game.Debris:AddItem(moduleState.currentGyro, 0.18)
 end
 
--- Функция прыжка с фиксированной высотой 32
+-- Jump function with fixed height
 local function playJumpAnimation(hum)
     pcall(function()
         local anim = hum:LoadAnimation(ReplicatedStorage.Animations.GK.Jump)
@@ -657,7 +657,7 @@ end
 
 local function forceJump(hum)
     local oldPower = hum.JumpPower
-    hum.JumpPower = 32 -- Фиксированная высота прыжка для легитимности
+    hum.JumpPower = 32
     hum.Jump = true
     hum:ChangeState(Enum.HumanoidStateType.Jumping)
     playJumpAnimation(hum)
@@ -665,50 +665,41 @@ local function forceJump(hum)
     hum.JumpPower = oldPower
 end
 
--- УЛУЧШЕННОЕ интеллектуальное позиционирование
+-- Smart positioning
 local function getSmartPosition(defenseBase, rightVec, lateral, goalWidth, threatLateral, enemyLateral, isAggro, ballPos)
     local maxLateral = goalWidth * CONFIG.LATERAL_MAX_MULT
     local baseLateral = math.clamp(lateral, -maxLateral, maxLateral)
     
-    -- Анализ угрозы
     if threatLateral ~= 0 then 
         local threatWeight = 0.97
         
-        -- Усиливаем реакцию на близкие угрозы
         if ballPos then
             local ballDist = (ballPos - GoalCFrame.Position).Magnitude
             if ballDist < 20 then
-                threatWeight = 0.99 -- Сильнее реагируем на близкие удары
+                threatWeight = 0.99
             end
         end
         
         baseLateral = threatLateral * threatWeight 
     end
     
-    -- Учитываем позицию врага при агрессивном режиме
     if enemyLateral ~= 0 and isAggro then 
         baseLateral = enemyLateral * 0.92 
     end
     
-    -- Предвосхищение удара (интеллектуальное смещение)
     if ballPos and threatLateral ~= 0 then
         local ballToGoal = (GoalCFrame.Position - ballPos).Unit
         local rightDot = ballToGoal:Dot(rightVec)
         
-        -- Если мяч сбоку, смещаемся в ту же сторону
         if math.abs(rightDot) > 0.3 then
             local anticipation = rightDot * CONFIG.ANTICIPATION_DIST * 2
             baseLateral = baseLateral + anticipation
         end
     end
     
-    -- Ограничиваем движение с учетом покрытия ворот
     local finalLateral = math.clamp(baseLateral, -maxLateral * CONFIG.GATE_COVERAGE, maxLateral * CONFIG.GATE_COVERAGE)
-    
-    -- Корректируем высоту позиции
     local finalPos = Vector3.new(defenseBase.X + rightVec.X * finalLateral, defenseBase.Y, defenseBase.Z + rightVec.Z * finalLateral)
     
-    -- Сохраняем оптимальную позицию для анализа
     moduleState.positioning.optimalPosition = finalPos
     
     return finalPos
@@ -728,19 +719,18 @@ local function clearTrajAndEndpoint()
     end
 end
 
--- УЛУЧШЕННЫЙ поиск точки перехвата
+-- Find intercept point
 local function findBestInterceptPoint(rootPos, ballPos, ballVel, points)
     if not points or #points < 2 then return nil end
     
     local bestPoint = nil
     local bestScore = math.huge
     
-    for i = 2, math.min(#points, 80) do -- Ограничиваем для скорости
+    for i = 2, math.min(#points, 80) do
         local point = points[i]
         local distToPoint = (rootPos - point).Magnitude
         local ballTravelDist = 0
         
-        -- Быстрый расчет дистанции мяча
         for j = 1, i-1 do
             ballTravelDist = ballTravelDist + (points[j+1] - points[j]).Magnitude
         end
@@ -748,7 +738,6 @@ local function findBestInterceptPoint(rootPos, ballPos, ballVel, points)
         local timeToPoint = ballTravelDist / math.max(1, ballVel.Magnitude)
         local timeToReach = distToPoint / CONFIG.SPEED
         
-        -- Если можем достичь точки раньше мяча
         if timeToReach < timeToPoint - CONFIG.MIN_INTERCEPT_TIME then
             local score = distToPoint + (point - GoalCFrame.Position):Dot(GoalForward) * 0.3
             if score < bestScore then
@@ -761,7 +750,7 @@ local function findBestInterceptPoint(rootPos, ballPos, ballVel, points)
     return bestPoint
 end
 
--- Проверка нахождения в зоне защиты
+-- Check if in defense zone
 local function isInDefenseZone(position)
     if not (GoalCFrame and GoalForward) then return false end
     
@@ -773,7 +762,7 @@ local function isInDefenseZone(position)
            distLateral < (GoalWidth * CONFIG.ZONE_WIDTH) / 2
 end
 
--- Предсказание позиции врага
+-- Predict enemy position
 local function predictEnemyPosition(enemyRoot)
     if not enemyRoot then return enemyRoot.Position end
     
@@ -822,7 +811,7 @@ local function predictEnemyPosition(enemyRoot)
     return enemyRoot.Position
 end
 
--- Поиск цели для атаки
+-- Find attack target
 local function findAttackTarget(rootPos, ball)
     local bestTarget = nil
     local bestScore = -math.huge
@@ -838,7 +827,7 @@ local function findAttackTarget(rootPos, ball)
                     if ws.Bools.HPG.Value == otherPlayer or ws.Bools.APG.Value == otherPlayer then
                         isEnemy = false
                     end
-                end)
+                })
                 
                 if isEnemy then
                     local distToTarget = (rootPos - targetRoot.Position).Magnitude
@@ -884,7 +873,7 @@ local function findAttackTarget(rootPos, ball)
     return bestTarget
 end
 
--- Интеллектуальная блокировка врага
+-- Smart block enemy
 local function smartBlockEnemyView(root, targetPlayer, ball)
     if tick() - moduleState.lastAttackTime < CONFIG.ATTACK_COOLDOWN then
         return false
@@ -961,21 +950,35 @@ local function smartBlockEnemyView(root, targetPlayer, ball)
     return false
 end
 
--- УЛУЧШЕННАЯ функция ныряния с фиксом полетов
+-- FIXED DIVE FUNCTION - NO MORE FLYING BUG
 local function performDive(root, hum, diveTarget)
+    if moduleState.isDiving then return end
+    
     moduleState.isDiving = true
     moduleState.lastDiveTime = tick()
+    moduleState.diveStartTime = tick()
     
-    -- Определяем направление ныряния относительно ворот
+    -- Clean up any existing physics
+    if moduleState.activeDiveBV then 
+        pcall(function() moduleState.activeDiveBV:Destroy() end) 
+        moduleState.activeDiveBV = nil 
+    end
+    if moduleState.activeDiveGyro then 
+        pcall(function() moduleState.activeDiveGyro:Destroy() end) 
+        moduleState.activeDiveGyro = nil 
+    end
+    
+    -- Determine dive direction
     local relToGoal = diveTarget - GoalCFrame.Position
     local lateralDist = relToGoal:Dot(GoalCFrame.RightVector)
     local dir = lateralDist > 0 and "Right" or "Left"
 
+    -- Fire server event
     pcall(function()
         ReplicatedStorage.Remotes.Action:FireServer(dir.."Dive", root.CFrame)
     end)
 
-    -- Вычисляем направление ныряния с ограничениями
+    -- Calculate dive direction
     local toTarget = diveTarget - root.Position
     local horizontalDir = Vector3.new(toTarget.X, 0, toTarget.Z)
     
@@ -990,26 +993,31 @@ local function performDive(root, hum, diveTarget)
         end
     end
     
-    -- Сильно ограничиваем скорость ныряния
-    local diveSpeed = math.min(CONFIG.DIVE_SPEED, 32)
+    -- SAFE DIVE PHYSICS - ограничиваем скорость и силу
+    local diveSpeed = math.min(CONFIG.DIVE_SPEED, 35)
     
-    -- Создаем физику ныряния
-    local diveBV = Instance.new("BodyVelocity", root)
-    diveBV.MaxForce = Vector3.new(1800000, 1800000, 1800000)
-    diveBV.Velocity = horizontalDir * diveSpeed + Vector3.new(0, 6, 0)
+    -- Create dive velocity with controlled force
+    moduleState.activeDiveBV = Instance.new("BodyVelocity", root)
+    moduleState.activeDiveBV.MaxForce = Vector3.new(1500000, 1000000, 1500000) -- Ограниченная вертикальная сила
+    moduleState.activeDiveBV.Velocity = horizontalDir * diveSpeed + Vector3.new(0, 5, 0) -- Минимальный вертикальный компонент
     
-    game.Debris:AddItem(diveBV, 0.25)
+    -- Краткая длительность ныряния
+    game.Debris:AddItem(moduleState.activeDiveBV, CONFIG.DIVE_DURATION)
     
+    -- Быстрое замедление
     if ts then
-        ts:Create(diveBV, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Velocity = Vector3.new()}):Play()
+        ts:Create(moduleState.activeDiveBV, 
+            TweenInfo.new(CONFIG.DIVE_DURATION * 0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+            {Velocity = Vector3.new()}
+        ):Play()
     end
 
-    -- Гироскоп для стабилизации
-    local diveGyro = Instance.new("BodyGyro", root)
-    diveGyro.P = 1400000
-    diveGyro.MaxTorque = Vector3.new(0, 1800000, 0)
+    -- Стабилизирующий гироскоп с ограниченной силой
+    moduleState.activeDiveGyro = Instance.new("BodyGyro", root)
+    moduleState.activeDiveGyro.P = 1200000
+    moduleState.activeDiveGyro.MaxTorque = Vector3.new(800000, 1000000, 800000) -- Ограниченный крутящий момент
     
-    -- Смотрим в сторону мяча, НЕ в свои ворота
+    -- Смотрим в сторону мяча, но не в свои ворота
     local lookDir = (diveTarget - root.Position).Unit
     local goalDir = GoalForward
     
@@ -1017,10 +1025,10 @@ local function performDive(root, hum, diveTarget)
         lookDir = (lookDir - goalDir * 0.3).Unit
     end
     
-    diveGyro.CFrame = CFrame.lookAt(root.Position, root.Position + lookDir)
-    game.Debris:AddItem(diveGyro, 0.4)
+    moduleState.activeDiveGyro.CFrame = CFrame.lookAt(root.Position, root.Position + lookDir)
+    game.Debris:AddItem(moduleState.activeDiveGyro, CONFIG.DIVE_DURATION * 1.2)
 
-    -- Анимация ныряния
+    -- Dive animation
     local lowDive = (diveTarget.Y <= 3.5)
     pcall(function()
         local animName = dir .. (lowDive and "LowDive" or "Dive")
@@ -1029,38 +1037,68 @@ local function performDive(root, hum, diveTarget)
         anim:Play()
     end)
 
+    -- Disable jumping during dive
     hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
     
-    -- Сильная сила вниз после ныряния
-    task.delay(0.12, function()
+    -- Стабилизирующая сила вниз - включаем сразу
+    task.spawn(function()
+        task.wait(0.1) -- Небольшая задержка
+        
         if root and root.Parent then
             local downForce = Instance.new("BodyVelocity", root)
-            downForce.MaxForce = Vector3.new(0, 5000000, 0)
-            downForce.Velocity = Vector3.new(0, -30, 0)
-            game.Debris:AddItem(downForce, 0.2)
+            downForce.Name = "DiveDownForce"
+            downForce.MaxForce = Vector3.new(0, CONFIG.DIVE_STABILIZE_FORCE, 0)
+            downForce.Velocity = Vector3.new(0, -CONFIG.DIVE_MAX_VERTICAL, 0)
+            game.Debris:AddItem(downForce, CONFIG.DIVE_DURATION * 0.8)
             
             if ts then
-                ts:Create(downForce, TweenInfo.new(0.12), {Velocity = Vector3.new()}):Play()
+                ts:Create(downForce, 
+                    TweenInfo.new(CONFIG.DIVE_DURATION * 0.5), 
+                    {Velocity = Vector3.new()}
+                ):Play()
             end
         end
     end)
     
-    task.delay(0.7, function()
+    -- Ограничиваем вращение во время ныряния
+    hum.AutoRotate = false
+    
+    -- Автоматическое восстановление после ныряния
+    task.spawn(function()
+        task.wait(CONFIG.DIVE_DURATION * 1.5)
+        
         if hum then
             hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+            hum.AutoRotate = true
         end
-        moduleState.isDiving = false
         
-        if diveBV then 
-            pcall(function() diveBV:Destroy() end) 
+        -- Очистка физики ныряния
+        if moduleState.activeDiveBV then 
+            pcall(function() 
+                moduleState.activeDiveBV.Velocity = Vector3.new()
+                moduleState.activeDiveBV:Destroy() 
+            end) 
+            moduleState.activeDiveBV = nil 
         end
-        if diveGyro then 
-            pcall(function() diveGyro:Destroy() end) 
+        
+        if moduleState.activeDiveGyro then 
+            pcall(function() 
+                moduleState.activeDiveGyro.CFrame = CFrame.new()
+                moduleState.activeDiveGyro:Destroy() 
+            end) 
+            moduleState.activeDiveGyro = nil 
         end
+        
+        moduleState.isDiving = false
+    end)
+    
+    -- Автоматическое выключение ныряния через фиксированное время
+    task.delay(CONFIG.DIVE_DURATION * 2, function()
+        moduleState.isDiving = false
     end)
 end
 
--- Анализ угрозы (новая функция для интеллектуального позиционирования)
+-- Threat analysis
 local function analyzeThreat(ballPos, ballVel, endpoint, points)
     local analysis = {
         threatLevel = 0,
@@ -1072,20 +1110,16 @@ local function analyzeThreat(ballPos, ballVel, endpoint, points)
     
     if not ballPos or not GoalCFrame then return analysis end
     
-    -- Дистанция до мяча
     local ballDist = (ballPos - GoalCFrame.Position).Magnitude
     analysis.isCloseRange = ballDist < 25
     
-    -- Скорость мяча
     local ballSpeed = ballVel.Magnitude
     analysis.urgency = math.min(ballSpeed / 50, 1)
     
-    -- Угол к воротам
     local toGoal = (GoalCFrame.Position - ballPos).Unit
     local angleToGoal = math.deg(math.acos(math.clamp(ballVel.Unit:Dot(toGoal), -1, 1)))
     analysis.isDirectShot = angleToGoal < 30
     
-    -- Уровень угрозы
     if analysis.isCloseRange then
         analysis.threatLevel = analysis.threatLevel + 2
     end
@@ -1098,35 +1132,29 @@ local function analyzeThreat(ballPos, ballVel, endpoint, points)
         analysis.threatLevel = analysis.threatLevel + 1
     end
     
-    -- Рекомендуемое действие
     if analysis.threatLevel >= 3 and ballSpeed > 25 then
         analysis.recommendedAction = "dive"
     elseif ballPos.Y > CONFIG.HIGH_BALL_THRES and ballSpeed > CONFIG.JUMP_VEL_THRES then
         analysis.recommendedAction = "jump"
     end
     
-    -- Сохраняем анализ
     moduleState.threatAnalysis = analysis
     
     return analysis
 end
 
--- Интеллектуальное решение о прыжке
+-- Intelligent jump decision
 local function shouldJump(ballPos, ballVel, endpoint, rootPos)
     if tick() - moduleState.lastJumpTime < CONFIG.JUMP_COOLDOWN then
         return false
     end
     
-    -- Высота мяча
     if endpoint and endpoint.Y > CONFIG.HIGH_BALL_THRES then
-        -- Скорость мяча
         if ballVel.Magnitude > CONFIG.JUMP_VEL_THRES then
-            -- Дистанция до конечной точки
             local distToEndpoint = (endpoint - rootPos).Magnitude
             if distToEndpoint < 12 then
-                -- Угол подлета
                 local verticalAngle = math.deg(math.asin(math.clamp(ballVel.Y / ballVel.Magnitude, -1, 1)))
-                if verticalAngle > 15 then -- Мяч летит достаточно высоко
+                if verticalAngle > 15 then
                     return true
                 end
             end
@@ -1136,7 +1164,7 @@ local function shouldJump(ballPos, ballVel, endpoint, rootPos)
     return false
 end
 
--- Интеллектуальное решение о нырянии
+-- Intelligent dive decision
 local function shouldDive(ballPos, ballVel, endpoint, rootPos, points)
     if tick() - moduleState.lastDiveTime < CONFIG.DIVE_COOLDOWN then
         return false
@@ -1147,17 +1175,14 @@ local function shouldDive(ballPos, ballVel, endpoint, rootPos, points)
     local distToEndpoint = (endpoint - rootPos).Magnitude
     local ballSpeed = ballVel.Magnitude
     
-    -- Близкая угроза
     if distToEndpoint < CONFIG.ENDPOINT_DIVE then
         return true
     end
     
-    -- Быстрый мяч рядом
     if distToEndpoint < CONFIG.DIVE_DIST and ballSpeed > CONFIG.DIVE_VEL_THRES then
         return true
     end
     
-    -- Экстренная ситуация
     if points then
         local timeToEndpoint = 999
         for i = 1, #points - 1 do
@@ -1173,18 +1198,16 @@ local function shouldDive(ballPos, ballVel, endpoint, rootPos, points)
     return false
 end
 
--- УЛУЧШЕННОЕ позиционирование при угловых
+-- Corner positioning
 local function handleCornerPositioning(root, ballPos)
     if not ballPos then return end
     
     local rightVec = GoalCFrame.RightVector
     local ballLateral = (ballPos - GoalCFrame.Position):Dot(rightVec)
     
-    -- Определяем сторону углового
     local sideChoice = ballLateral > 0 and 1 or -1
     moduleState.positioning.lastSideChoice = sideChoice
     
-    -- Смещаемся к дальней штанге при угловых
     local lateralOffset = sideChoice * GoalWidth * 0.35 * CONFIG.CORNER_BIAS
     local basePos = GoalCFrame.Position + GoalForward * 1.8
     
@@ -1195,8 +1218,6 @@ local function handleCornerPositioning(root, ballPos)
     )
     
     moveToTarget(root, targetPos)
-    
-    -- Смотрим на мяч
     rotateSmooth(root, ballPos, false, false, Vector3.new())
     
     return targetPos
@@ -1212,6 +1233,16 @@ local function cleanup()
     if moduleState.currentGyro then 
         pcall(function() moduleState.currentGyro:Destroy() end) 
         moduleState.currentGyro = nil 
+    end
+    
+    if moduleState.activeDiveBV then 
+        pcall(function() moduleState.activeDiveBV:Destroy() end) 
+        moduleState.activeDiveBV = nil 
+    end
+    
+    if moduleState.activeDiveGyro then 
+        pcall(function() moduleState.activeDiveGyro:Destroy() end) 
+        moduleState.activeDiveGyro = nil 
     end
     
     clearAllVisuals()
@@ -1236,7 +1267,7 @@ local function cleanup()
     }
 end
 
--- УЛУЧШЕННЫЙ основной цикл
+-- Main heartbeat cycle
 local function startHeartbeat()
     moduleState.heartbeatConnection = rs.Heartbeat:Connect(function()
         if not moduleState.enabled then 
@@ -1246,11 +1277,12 @@ local function startHeartbeat()
         
         moduleState.frameCounter = moduleState.frameCounter + 1
         
-        -- Быстрая проверка вратаря
         if not checkIfGoalkeeper() then
             hideAllVisuals()
             if moduleState.currentBV then pcall(function() moduleState.currentBV:Destroy() end) moduleState.currentBV = nil end
             if moduleState.currentGyro then pcall(function() moduleState.currentGyro:Destroy() end) moduleState.currentGyro = nil end
+            if moduleState.activeDiveBV then pcall(function() moduleState.activeDiveBV:Destroy() end) moduleState.activeDiveBV = nil end
+            if moduleState.activeDiveGyro then pcall(function() moduleState.activeDiveGyro:Destroy() end) moduleState.activeDiveGyro = nil end
             return
         end
         
@@ -1283,7 +1315,6 @@ local function startHeartbeat()
             return 
         end
 
-        -- Отрисовка визуалов
         if CONFIG.SHOW_GOAL_CUBE and moduleState.visualObjects.GoalCube then
             drawCube(moduleState.visualObjects.GoalCube, GoalCFrame, Vector3.new(GoalWidth, 8, 2), CONFIG.GOAL_CUBE_COLOR)
         end
@@ -1303,7 +1334,6 @@ local function startHeartbeat()
         local smartBlockActive = false
         local attackTargetPlayer = nil
 
-        -- Поиск цели для атаки
         if CONFIG.PRIORITY == "attack" or CONFIG.AUTO_ATTACK_IN_ZONE then
             attackTargetPlayer = findAttackTarget(root.Position, ball)
             
@@ -1346,7 +1376,6 @@ local function startHeartbeat()
             end
         end
 
-        -- Агрессивный режим
         if CONFIG.AGGRESSIVE_MODE and owner and owner ~= player and oRoot and not smartBlockActive then
             local predictedPos = predictEnemyPosition(oRoot)
             local targetPos = predictedPos + GoalForward * CONFIG.ATTACK_DISTANCE
@@ -1375,7 +1404,6 @@ local function startHeartbeat()
         local isThreat = false
         local timeToEndpoint = 999
 
-        -- Быстрое обновление предсказания
         local freshShot = false
         if velMag > 16 and moduleState.lastBallVelMag <= 16 then
             freshShot = true
@@ -1400,10 +1428,8 @@ local function startHeartbeat()
             clearTrajAndEndpoint()
         end
 
-        -- Анализ угрозы
         local threatAnalysis = analyzeThreat(ball.Position, ball.Velocity, endpoint, points)
 
-        -- Отрисовка траектории
         if CONFIG.SHOW_TRAJECTORY and points and moduleState.visualObjects.trajLines then
             local cam = ws.CurrentCamera
             for i = 1, math.min(CONFIG.PRED_STEPS, #points - 1) do
@@ -1423,7 +1449,6 @@ local function startHeartbeat()
             clearTrajAndEndpoint() 
         end
 
-        -- Отрисовка куба мяча
         if CONFIG.SHOW_BALL_BOX and distBall < 70 and moduleState.visualObjects.BallBox then 
             local col
             if endpoint then
@@ -1446,7 +1471,6 @@ local function startHeartbeat()
         local defenseBase = GoalCFrame.Position + GoalForward * CONFIG.STAND_DIST
         local lateral = 0
 
-        -- Позиционирование при угловых
         local isCornerKick = false
         if ball.Position.Y > 8 and distBall > 30 and math.abs(threatLateral) > GoalWidth * 0.4 then
             isCornerKick = true
@@ -1457,7 +1481,6 @@ local function startHeartbeat()
             end
         end
 
-        -- Основное позиционирование (если не блокируем врага)
         if not smartBlockActive and not isCornerKick then
             if isMyBall then
                 lateral = 0
@@ -1468,7 +1491,6 @@ local function startHeartbeat()
             elseif not hasWeld then
                 lateral = threatLateral * 0.85
                 
-                -- Адаптивное выдвижение вперед в зависимости от скорости мяча
                 local advanceMultiplier = math.min(1.0, velMag / 40)
                 defenseBase = GoalCFrame.Position + GoalForward * math.min(5.5, distBall * 0.1 + advanceMultiplier * 2)
             else
@@ -1483,7 +1505,6 @@ local function startHeartbeat()
 
             local bestPos = getSmartPosition(defenseBase, rightVec, lateral, GoalWidth, threatLateral, enemyLateral, isAggro, ball.Position)
             
-            -- Интеллектуальное позиционирование при ударе
             if isShot and points and isThreat then
                 local interceptPoint = findBestInterceptPoint(root.Position, ball.Position, ball.Velocity, points)
                 if interceptPoint then
@@ -1499,7 +1520,6 @@ local function startHeartbeat()
             moveToTarget(root, bestPos)
         end
 
-        -- Вращение
         if smartBlockActive and attackTargetPlayer then
             local targetRoot = attackTargetPlayer.Character and attackTargetPlayer.Character:FindFirstChild("HumanoidRootPart")
             if targetRoot then
@@ -1512,9 +1532,7 @@ local function startHeartbeat()
             rotateSmooth(root, ball.Position, isMyBall, moduleState.isDiving, ball.Velocity)
         end
 
-        -- УЛУЧШЕННЫЕ ДЕЙСТВИЯ
         if not isMyBall and not moduleState.isDiving then
-            -- Быстрый перехват мяча рядом
             if distBall < CONFIG.BALL_INTERCEPT_RANGE and velMag < CONFIG.DIVE_VEL_THRES * 0.85 then
                 for _, hand in {char:FindFirstChild("RightHand"), char:FindFirstChild("LeftHand")} do
                     if hand and (hand.Position - ball.Position).Magnitude < CONFIG.TOUCH_RANGE then
@@ -1525,13 +1543,11 @@ local function startHeartbeat()
                 end
             end
 
-            -- ИНТЕЛЛЕКТУАЛЬНЫЙ ПРЫЖОК
             if shouldJump(ball.Position, ball.Velocity, endpoint, root.Position) then
                 forceJump(hum)
                 moduleState.lastJumpTime = tick()
             end
 
-            -- ИНТЕЛЛЕКТУАЛЬНОЕ НЫРЯНИЕ
             if shouldDive(ball.Position, ball.Velocity, endpoint, root.Position, points) then
                 performDive(root, hum, endpoint or ball.Position)
             end
@@ -1557,6 +1573,9 @@ local function syncConfig()
     CONFIG.TOUCH_RANGE = moduleState.uiElements.TouchRange and moduleState.uiElements.TouchRange:GetValue()
     CONFIG.NEAR_BALL_DIST = moduleState.uiElements.NearBallDist and moduleState.uiElements.NearBallDist:GetValue()
     CONFIG.DIVE_SPEED = moduleState.uiElements.DiveSpeed and moduleState.uiElements.DiveSpeed:GetValue()
+    CONFIG.DIVE_DURATION = moduleState.uiElements.DiveDuration and moduleState.uiElements.DiveDuration:GetValue()
+    CONFIG.DIVE_STABILIZE_FORCE = moduleState.uiElements.DiveStabilizeForce and moduleState.uiElements.DiveStabilizeForce:GetValue()
+    CONFIG.DIVE_MAX_VERTICAL = moduleState.uiElements.DiveMaxVertical and moduleState.uiElements.DiveMaxVertical:GetValue()
     CONFIG.DIVE_VEL_THRES = moduleState.uiElements.DiveVelThresh and moduleState.uiElements.DiveVelThresh:GetValue()
     CONFIG.DIVE_COOLDOWN = moduleState.uiElements.DiveCooldown and moduleState.uiElements.DiveCooldown:GetValue()
     CONFIG.JUMP_VEL_THRES = moduleState.uiElements.JumpVelThresh and moduleState.uiElements.JumpVelThresh:GetValue()
@@ -1727,6 +1746,33 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
             Precision = 1,
             Callback = function(v) CONFIG.DIVE_SPEED = v end
         }, 'DiveSpeedGK')
+        
+        moduleState.uiElements.DiveDuration = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Dive Duration",
+            Minimum = 0.2,
+            Maximum = 1.0,
+            Default = CONFIG.DIVE_DURATION,
+            Precision = 2,
+            Callback = function(v) CONFIG.DIVE_DURATION = v end
+        }, 'DiveDurationGK')
+        
+        moduleState.uiElements.DiveStabilizeForce = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Dive Stabilize Force",
+            Minimum = 2000000,
+            Maximum = 8000000,
+            Default = CONFIG.DIVE_STABILIZE_FORCE,
+            Precision = 0,
+            Callback = function(v) CONFIG.DIVE_STABILIZE_FORCE = v end
+        }, 'DiveStabilizeForceGK')
+        
+        moduleState.uiElements.DiveMaxVertical = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Dive Max Vertical",
+            Minimum = 5,
+            Maximum = 30,
+            Default = CONFIG.DIVE_MAX_VERTICAL,
+            Precision = 1,
+            Callback = function(v) CONFIG.DIVE_MAX_VERTICAL = v end
+        }, 'DiveMaxVerticalGK')
         
         moduleState.uiElements.DiveVelThresh = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Dive Velocity Threshold",
@@ -2199,44 +2245,47 @@ DIVE & JUMP:
 4 Hand Touch Range: Distance for automatic ball touching
 5 Near Ball Distance: Distance considered "close" to ball
 6 Dive Speed: Speed of dive movement
-7 Dive Velocity Threshold: Minimum ball speed to trigger dive
-8 Jump Velocity Threshold: Minimum ball speed to trigger jump
-9 High Ball Threshold: Ball height that requires a jump
+7 Dive Duration: How long the dive lasts
+8 Dive Stabilize Force: Downward force to prevent flying
+9 Dive Max Vertical: Maximum vertical speed during dive
+10 Dive Velocity Threshold: Minimum ball speed to trigger dive
+11 Jump Velocity Threshold: Minimum ball speed to trigger jump
+12 High Ball Threshold: Ball height that requires a jump
 
 DEFENSE ZONE:
-10 Zone Distance: Depth of green defense zone
-11 Zone Width: Width of defense zone relative to goal
-12 Aggro Threshold: Distance to enemy for aggressive mode
-13 Max Chase Distance: Maximum distance to chase enemies
-14 Goal Coverage: How much of goal to cover (1.0 = full)
-15 Lateral Movement: Side-to-side movement multiplier
+13 Zone Distance: Depth of green defense zone
+14 Zone Width: Width of defense zone relative to goal
+15 Aggro Threshold: Distance to enemy for aggressive mode
+16 Max Chase Distance: Maximum distance to chase enemies
+17 Goal Coverage: How much of goal to cover (1.0 = full)
+18 Lateral Movement: Side-to-side movement multiplier
 
 SMART ATTACK:
-16 Priority: Defense = protect goal, Attack = pressure enemies
-17 Auto Attack in Zone: Attack enemies inside defense zone
-18 Attack Distance: Distance to approach enemy for blocking
-19 Attack Predict Time: Time to predict enemy position (server lag)
-20 Attack Cooldown: Time between attack target changes
+19 Priority: Defense = protect goal, Attack = pressure enemies
+20 Auto Attack in Zone: Attack enemies inside defense zone
+21 Attack Distance: Distance to approach enemy for blocking
+22 Attack Predict Time: Time to predict enemy position (server lag)
+23 Attack Cooldown: Time between attack target changes
 
 INTELLIGENT POSITIONING:
-21 Reaction Time: How fast the goalkeeper reacts to threats
-22 Anticipation Distance: How far to anticipate shot direction
-23 Corner Bias: Positioning adjustment for corner kicks
-24 Side Positioning: Lateral positioning intelligence
+24 Reaction Time: How fast the goalkeeper reacts to threats
+25 Anticipation Distance: How far to anticipate shot direction
+26 Corner Bias: Positioning adjustment for corner kicks
+27 Side Positioning: Lateral positioning intelligence
 
 PREDICTION:
-25 Prediction Steps: Accuracy of ball trajectory prediction
-26 Gravity: Ball gravity in prediction
-27 Air Drag: Air resistance for ball
-28 Curve Multiplier: How much curve affects trajectory
-29 Bounce settings: How ball bounces off surfaces
+28 Prediction Steps: Accuracy of ball trajectory prediction
+29 Gravity: Ball gravity in prediction
+30 Air Drag: Air resistance for ball
+31 Curve Multiplier: How much curve affects trajectory
+32 Bounce settings: How ball bounces off surfaces
 
 ADVANCED DEFENSE:
-30 Ball Intercept Range: Distance for intercepting ball
-31 Min Intercept Time: Minimum time needed to intercept
-32 Advance Distance: How far to advance from goal
-33 Rotation Smoothness: Smoothness of turning
-34 Dive Look Ahead: How far ahead to look during dive
+33 Ball Intercept Range: Distance for intercepting ball
+34 Min Intercept Time: Minimum time needed to intercept
+35 Advance Distance: How far to advance from goal
+36 Rotation Smoothness: Smoothness of turning
+37 Dive Look Ahead: How far ahead to look during dive
 ]]
         })
     end
@@ -2267,4 +2316,3 @@ function GKHelperModule:Destroy()
 end
 
 return GKHelperModule
-
