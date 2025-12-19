@@ -1,5 +1,5 @@
--- GK Helper v51 — Advanced AI Defense Module with Aggressive Attack
--- Enhanced version with enemy pressure, legit jump, and optimized rotation
+-- GK Helper v51 — Advanced AI Defense Module with Intelligent Defense
+-- Enhanced version with smart enemy blocking and goal protection
 
 local player = game.Players.LocalPlayer
 local ws = workspace
@@ -21,7 +21,7 @@ local CONFIG = {
     MAX_CHASE_DIST = 38,
     
     -- === DISTANCES ===
-    AGGRO_THRES = 15, -- Уменьшено для более агрессивной атаки
+    ENEMY_THREAT_RANGE = 25, -- Дистанция для отслеживания врагов
     DIVE_DIST = 12,
     ENDPOINT_DIVE = 3.2,
     TOUCH_RANGE = 7.5,
@@ -44,15 +44,14 @@ local CONFIG = {
     -- === COOLDOWNS ===
     DIVE_COOLDOWN = 1.1,
     JUMP_COOLDOWN = 0.8,
-    ATTACK_COOLDOWN = 1.2,
     
     -- === DIVE SETTINGS ===
     DIVE_SPEED = 38,
     
-    -- === AGGRESSIVE ATTACK SETTINGS ===
-    ATTACK_RANGE = 6, -- Дистанция для агрессивной атаки
-    PRESSURE_DISTANCE = 3, -- Дистанция давления на врага
-    ATTACK_SPEED_MULT = 1.3, -- Множитель скорости при атаке
+    -- === ENEMY BLOCKING SETTINGS ===
+    BLOCK_DISTANCE = 6, -- Дистанция для блокировки врага
+    BLOCK_SPEED_MULT = 1.2, -- Множитель скорости при блокировке
+    MIN_BLOCK_ANGLE = 30, -- Минимальный угол между врагом и воротами для блокировки
     
     -- === VISUAL SETTINGS ===
     SHOW_TRAJECTORY = true,
@@ -60,7 +59,7 @@ local CONFIG = {
     SHOW_GOAL_CUBE = true,
     SHOW_ZONE = true,
     SHOW_BALL_BOX = true,
-    SHOW_ATTACK_TARGET = true,
+    SHOW_ENEMY_TARGET = true,
     
     -- === VISUAL COLORS ===
     TRAJECTORY_COLOR = Color3.fromRGB(0, 255, 255),
@@ -71,11 +70,11 @@ local CONFIG = {
     BALL_BOX_THREAT_COLOR = Color3.fromRGB(255, 0, 0),
     BALL_BOX_HIGH_COLOR = Color3.fromRGB(255, 255, 0),
     BALL_BOX_NORMAL_COLOR = Color3.fromRGB(0, 200, 255),
-    ATTACK_TARGET_COLOR = Color3.fromRGB(255, 105, 180),
+    ENEMY_TARGET_COLOR = Color3.fromRGB(255, 105, 180),
     
     -- === ROTATION ===
     ROT_SMOOTH = 0.82,
-    ROTATION_ENABLED = true, -- Включать ли вращение
+    ROTATION_ENABLED = true,
     
     -- === ADVANCED DEFENSE ===
     BALL_INTERCEPT_RANGE = 4.0,
@@ -88,13 +87,6 @@ local CONFIG = {
     ANTICIPATION_DIST = 1.5,
     CORNER_BIAS = 0.7,
     SIDE_POSITIONING = 0.65,
-    
-    -- === ATTACK SETTINGS ===
-    PRIORITY = "defense",
-    AUTO_ATTACK_IN_ZONE = true,
-    ATTACK_DISTANCE = 30,
-    ATTACK_PREDICT_TIME = 0.12,
-    AGGRESSIVE_MODE = true, -- Включен агрессивный режим
     
     -- === PREDICTION SETTINGS ===
     PRED_STEPS = 140,
@@ -111,7 +103,6 @@ local moduleState = {
     enabled = false,
     lastDiveTime = 0,
     lastJumpTime = 0,
-    lastAttackTime = 0,
     isDiving = false,
     endpointRadius = 3.5,
     currentTargetType = nil,
@@ -128,8 +119,8 @@ local moduleState = {
     uiElements = {},
     attackTargetHistory = {},
     predictedEnemyPositions = {},
-    currentAttackTarget = nil,
-    attackTargetVisible = false,
+    currentEnemyTarget = nil,
+    enemyTargetVisible = false,
     colorPickers = {},
     
     -- Decision making
@@ -146,12 +137,11 @@ local moduleState = {
         sideBiasTimer = 0
     },
     
-    -- Attack state
-    attackState = {
-        isAttacking = false,
-        attackTarget = nil,
-        attackStartTime = 0,
-        lastPressureTime = 0
+    -- Defense state
+    defenseState = {
+        isBlockingEnemy = false,
+        blockingTarget = nil,
+        blockStartTime = 0
     },
     
     -- Physics control
@@ -238,15 +228,15 @@ local function createVisuals()
         end
     end
     
-    if CONFIG.SHOW_ATTACK_TARGET then
-        moduleState.visualObjects.attackTarget = {}
+    if CONFIG.SHOW_ENEMY_TARGET then
+        moduleState.visualObjects.enemyTarget = {}
         for i = 1, 36 do
             local line = Drawing.new("Line")
             line.Thickness = 3 
-            line.Color = CONFIG.ATTACK_TARGET_COLOR
+            line.Color = CONFIG.ENEMY_TARGET_COLOR
             line.Transparency = 0.7
             line.Visible = false
-            moduleState.visualObjects.attackTarget[i] = line
+            moduleState.visualObjects.enemyTarget[i] = line
         end
     end
 end
@@ -277,10 +267,10 @@ local function updateVisualColors()
         end
     end
     
-    if moduleState.visualObjects.attackTarget then
-        for _, line in ipairs(moduleState.visualObjects.attackTarget) do
+    if moduleState.visualObjects.enemyTarget then
+        for _, line in ipairs(moduleState.visualObjects.enemyTarget) do
             if line then
-                line.Color = CONFIG.ATTACK_TARGET_COLOR
+                line.Color = CONFIG.ENEMY_TARGET_COLOR
             end
         end
     end
@@ -310,9 +300,9 @@ local function clearAllVisuals()
         end
     end
     moduleState.visualObjects = {}
-    moduleState.attackTargetVisible = false
-    moduleState.currentAttackTarget = nil
-    moduleState.attackState.isAttacking = false
+    moduleState.enemyTargetVisible = false
+    moduleState.currentEnemyTarget = nil
+    moduleState.defenseState.isBlockingEnemy = false
 end
 
 local function hideAllVisuals()
@@ -325,7 +315,7 @@ local function hideAllVisuals()
             end
         end
     end
-    moduleState.attackTargetVisible = false
+    moduleState.enemyTargetVisible = false
 end
 
 -- Check if goalkeeper
@@ -344,7 +334,7 @@ local function checkIfGoalkeeper()
         if moduleState.currentBV then pcall(function() moduleState.currentBV:Destroy() end) moduleState.currentBV = nil end
         if moduleState.currentGyro then pcall(function() moduleState.currentGyro:Destroy() end) moduleState.currentGyro = nil end
         if moduleState.divePhysics.activeBV then pcall(function() moduleState.divePhysics.activeBV:Destroy() end) moduleState.divePhysics.activeBV = nil end
-        moduleState.attackState.isAttacking = false
+        moduleState.defenseState.isBlockingEnemy = false
     end
     
     if moduleState.isGoalkeeper and not wasGoalkeeper and moduleState.enabled then
@@ -514,14 +504,14 @@ local function drawEndpoint(pos)
     end
 end
 
-local function drawAttackTarget(pos)
-    if not pos or not moduleState.visualObjects.attackTarget then 
-        if moduleState.visualObjects.attackTarget then
-            for _, l in moduleState.visualObjects.attackTarget do 
+local function drawEnemyTarget(pos)
+    if not pos or not moduleState.visualObjects.enemyTarget then 
+        if moduleState.visualObjects.enemyTarget then
+            for _, l in moduleState.visualObjects.enemyTarget do 
                 if l then l.Visible = false end 
             end 
         end
-        moduleState.attackTargetVisible = false
+        moduleState.enemyTargetVisible = false
         return 
     end
     
@@ -538,7 +528,7 @@ local function drawAttackTarget(pos)
         local p1 = footPos + Vector3.new(math.cos(a1)*radius, 0.1, math.sin(a1)*radius)
         local p2 = footPos + Vector3.new(math.cos(a2)*radius, 0.1, math.sin(a2)*radius)
         local s1, s2 = cam:WorldToViewportPoint(p1), cam:WorldToViewportPoint(p2)
-        local l = moduleState.visualObjects.attackTarget[i]
+        local l = moduleState.visualObjects.enemyTarget[i]
         
         if l then
             l.From = Vector2.new(s1.X, s1.Y) 
@@ -547,17 +537,17 @@ local function drawAttackTarget(pos)
         end
     end
     
-    moduleState.attackTargetVisible = true
+    moduleState.enemyTargetVisible = true
 end
 
-local function hideAttackTarget()
-    if moduleState.visualObjects.attackTarget then
-        for _, l in moduleState.visualObjects.attackTarget do 
+local function hideEnemyTarget()
+    if moduleState.visualObjects.enemyTarget then
+        for _, l in moduleState.visualObjects.enemyTarget do 
             if l then l.Visible = false end 
         end
     end
-    moduleState.attackTargetVisible = false
-    moduleState.currentAttackTarget = nil
+    moduleState.enemyTargetVisible = false
+    moduleState.currentEnemyTarget = nil
 end
 
 -- Trajectory prediction
@@ -594,8 +584,8 @@ local function predictTrajectory(ball)
     return points
 end
 
--- Movement to target with attack speed
-local function moveToTarget(root, targetPos, isAttacking)
+-- Movement to target
+local function moveToTarget(root, targetPos, isBlocking)
     if moduleState.currentBV then 
         pcall(function() moduleState.currentBV:Destroy() end) 
         moduleState.currentBV = nil 
@@ -605,8 +595,8 @@ local function moveToTarget(root, targetPos, isAttacking)
     if dirVec.Magnitude < CONFIG.MIN_DIST then return end
     
     local speed = CONFIG.SPEED
-    if isAttacking then
-        speed = speed * CONFIG.ATTACK_SPEED_MULT
+    if isBlocking then
+        speed = speed * CONFIG.BLOCK_SPEED_MULT
     end
     
     moduleState.currentBV = Instance.new("BodyVelocity", root)
@@ -620,7 +610,7 @@ local function moveToTarget(root, targetPos, isAttacking)
 end
 
 -- OPTIMIZED ROTATION - только когда нужно
-local function rotateIfNeeded(root, targetPos, isOwner, isDivingNow, ballVel)
+local function rotateIfNeeded(root, targetPos, isOwner, isDivingNow)
     if isOwner then 
         if moduleState.currentGyro then 
             pcall(function() moduleState.currentGyro:Destroy() end) 
@@ -649,9 +639,9 @@ local function rotateIfNeeded(root, targetPos, isOwner, isDivingNow, ballVel)
         return
     end
     
-    -- Вращаемся только если мяч достаточно близко
-    local distToBall = (targetPos - root.Position).Magnitude
-    if distToBall > 30 then -- Не вращаемся на дальние дистанции
+    -- Вращаемся только если цель достаточно близко
+    local distToTarget = (targetPos - root.Position).Magnitude
+    if distToTarget > 30 then
         if moduleState.currentGyro then 
             pcall(function() moduleState.currentGyro:Destroy() end) 
             moduleState.currentGyro = nil
@@ -680,7 +670,7 @@ local function rotateIfNeeded(root, targetPos, isOwner, isDivingNow, ballVel)
     game.Debris:AddItem(moduleState.currentGyro, 0.18)
 end
 
--- Legit jump function - использует стандартный JumpPower
+-- Legit jump function
 local function playJumpAnimation(hum)
     pcall(function()
         local anim = hum:LoadAnimation(ReplicatedStorage.Animations.GK.Jump)
@@ -696,7 +686,7 @@ local function forceJump(hum)
 end
 
 -- Smart positioning
-local function getSmartPosition(defenseBase, rightVec, lateral, goalWidth, threatLateral, enemyLateral, isAggro, ballPos)
+local function getSmartPosition(defenseBase, rightVec, lateral, goalWidth, threatLateral, enemyLateral, ballPos)
     local maxLateral = goalWidth * CONFIG.LATERAL_MAX_MULT
     local baseLateral = math.clamp(lateral, -maxLateral, maxLateral)
     
@@ -711,10 +701,6 @@ local function getSmartPosition(defenseBase, rightVec, lateral, goalWidth, threa
         end
         
         baseLateral = threatLateral * threatWeight 
-    end
-    
-    if enemyLateral ~= 0 and isAggro then 
-        baseLateral = enemyLateral * 0.92 
     end
     
     if ballPos and threatLateral ~= 0 then
@@ -780,138 +766,216 @@ local function findBestInterceptPoint(rootPos, ballPos, ballVel, points)
     return bestPoint
 end
 
--- Check if in defense zone
-local function isInDefenseZone(position)
-    if not (GoalCFrame and GoalForward) then return false end
+-- Check if enemy is threat to goal
+local function isEnemyThreat(enemyPos, ball)
+    if not GoalCFrame then return false end
     
-    local relPos = position - GoalCFrame.Position
-    local distForward = relPos:Dot(GoalForward)
-    local distLateral = math.abs(relPos:Dot(GoalCFrame.RightVector))
-    
-    return distForward > 0 and distForward < CONFIG.ZONE_DIST and 
-           distLateral < (GoalWidth * CONFIG.ZONE_WIDTH) / 2
-end
-
--- Predict enemy position
-local function predictEnemyPosition(enemyRoot)
-    if not enemyRoot then return enemyRoot.Position end
-    
-    local currentTime = tick()
-    local enemyId = tostring(enemyRoot.Parent:GetDebugId())
-    
-    if not moduleState.attackTargetHistory[enemyId] then
-        moduleState.attackTargetHistory[enemyId] = {}
-    end
-    
-    local history = moduleState.attackTargetHistory[enemyId]
-    
-    table.insert(history, {
-        time = currentTime,
-        position = enemyRoot.Position,
-        velocity = enemyRoot.Velocity
-    })
-    
-    while #history > 0 and currentTime - history[1].time > 0.5 do
-        table.remove(history, 1)
-    end
-    
-    if #history >= 2 then
-        local avgVelocity = Vector3.new(0, 0, 0)
-        local count = 0
-        
-        for i = 2, #history do
-            local timeDiff = history[i].time - history[i-1].time
-            if timeDiff > 0 then
-                local vel = (history[i].position - history[i-1].position) / timeDiff
-                avgVelocity = avgVelocity + vel
-                count = count + 1
-            end
-        end
-        
-        if count > 0 then
-            avgVelocity = avgVelocity / count
-            local predictedPos = enemyRoot.Position + avgVelocity * CONFIG.ATTACK_PREDICT_TIME
-            
-            moduleState.predictedEnemyPositions[enemyId] = predictedPos
-            
-            return predictedPos
-        end
-    end
-    
-    return enemyRoot.Position
-end
-
--- AGGRESSIVE ATTACK FUNCTION - давим врага
-local function aggressiveAttackEnemy(root, enemyRoot, ball)
-    if not enemyRoot or not enemyRoot.Parent then
-        moduleState.attackState.isAttacking = false
+    -- Проверяем дистанцию до ворот
+    local distToGoal = (enemyPos - GoalCFrame.Position).Magnitude
+    if distToGoal > CONFIG.ENEMY_THREAT_RANGE then
         return false
     end
     
-    local currentTime = tick()
-    local enemyPos = enemyRoot.Position
-    local enemyVel = enemyRoot.Velocity
-    local enemySpeed = enemyVel.Magnitude
+    -- Проверяем угол между врагом и воротами
+    local toGoal = (GoalCFrame.Position - enemyPos).Unit
+    local enemyLook = Vector3.new(1, 0, 0) -- Предполагаем, что враг смотрит вперед
     
-    -- Предсказываем позицию врага
-    local predictedPos = enemyPos
-    if enemySpeed > 2 then
-        predictedPos = enemyPos + enemyVel.Unit * CONFIG.ATTACK_PREDICT_TIME * 1.5
-    end
-    
-    -- Вычисляем направление к врагу
-    local toEnemy = predictedPos - root.Position
-    local horizontalDir = Vector3.new(toEnemy.X, 0, toEnemy.Z)
-    local distanceToEnemy = horizontalDir.Magnitude
-    
-    -- АГРЕССИВНОЕ ПРИБЛИЖЕНИЕ - подходим очень близко
-    local targetDistance = CONFIG.PRESSURE_DISTANCE
-    local attackPos = predictedPos
-    
-    -- Если враг слишком близко к воротам, атакуем агрессивнее
-    local enemyToGoalDist = (enemyPos - GoalCFrame.Position).Magnitude
-    if enemyToGoalDist < 20 then
-        targetDistance = CONFIG.PRESSURE_DISTANCE * 0.7
-    end
-    
-    -- Если враг с мячом, подходим еще ближе
-    local hasBall = false
+    -- Если у врага есть Character, получаем реальное направление взгляда
+    local enemyPlayer = nil
     pcall(function()
-        if ball:FindFirstChild("creator") and ball.creator.Value == enemyRoot.Parent then
-            hasBall = true
-            targetDistance = CONFIG.PRESSURE_DISTANCE * 0.5
+        if ball:FindFirstChild("creator") then
+            enemyPlayer = ball.creator.Value
+            if enemyPlayer and enemyPlayer.Character then
+                local enemyRoot = enemyPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if enemyRoot then
+                    enemyLook = enemyRoot.CFrame.LookVector
+                end
+            end
         end
     end)
     
-    -- Вычисляем позицию для атаки - ПРЯМО ПЕРЕД ВРАГОМ
-    if distanceToEnemy > targetDistance then
-        attackPos = predictedPos - horizontalDir.Unit * targetDistance
-    else
-        -- Если уже достаточно близко, просто немного двигаемся к врагу
-        attackPos = predictedPos - horizontalDir.Unit * math.max(1.5, distanceToEnemy * 0.3)
+    local angleToGoal = math.deg(math.acos(math.clamp(enemyLook:Dot(toGoal), -1, 1)))
+    
+    -- Враг считается угрозой если смотрит на ворота под достаточно малым углом
+    return angleToGoal < CONFIG.MIN_BLOCK_ANGLE
+end
+
+-- Find most dangerous enemy
+local function findMostDangerousEnemy(root, ball)
+    local mostDangerous = nil
+    local highestThreat = 0
+    
+    for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character then
+            local enemyRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local enemyHum = otherPlayer.Character:FindFirstChild("Humanoid")
+            
+            if enemyRoot and enemyHum and enemyHum.Health > 0 then
+                local isEnemy = true
+                pcall(function()
+                    if ws.Bools.HPG.Value == otherPlayer or ws.Bools.APG.Value == otherPlayer then
+                        isEnemy = false
+                    end
+                end
+                )
+                
+                if isEnemy then
+                    local threatLevel = 0
+                    
+                    -- Дистанция до ворот
+                    local distToGoal = (enemyRoot.Position - GoalCFrame.Position).Magnitude
+                    if distToGoal < 15 then threatLevel = threatLevel + 30 end
+                    if distToGoal < 25 then threatLevel = threatLevel + 20 end
+                    
+                    -- Дистанция до вратаря
+                    local distToKeeper = (root.Position - enemyRoot.Position).Magnitude
+                    if distToKeeper < 10 then threatLevel = threatLevel + 15 end
+                    
+                    -- Направление взгляда
+                    local toGoal = (GoalCFrame.Position - enemyRoot.Position).Unit
+                    local enemyLook = enemyRoot.CFrame.LookVector
+                    local angleToGoal = math.deg(math.acos(math.clamp(enemyLook:Dot(toGoal), -1, 1)))
+                    
+                    if angleToGoal < 30 then threatLevel = threatLevel + 25 end
+                    if angleToGoal < 45 then threatLevel = threatLevel + 15 end
+                    
+                    -- Владение мячом
+                    local hasBall = false
+                    pcall(function()
+                        if ball:FindFirstChild("creator") and ball.creator.Value == otherPlayer then
+                            hasBall = true
+                            threatLevel = threatLevel + 40
+                        end
+                    end)
+                    
+                    -- Скорость врага
+                    local enemySpeed = enemyRoot.Velocity.Magnitude
+                    if enemySpeed > 20 then threatLevel = threatLevel + 10 end
+                    
+                    -- Обновляем самого опасного врага
+                    if threatLevel > highestThreat then
+                        highestThreat = threatLevel
+                        mostDangerous = otherPlayer
+                    end
+                end
+            end
+        end
     end
     
-    -- Ограничиваем высоту
-    attackPos = Vector3.new(attackPos.X, root.Position.Y, attackPos.Z)
+    return mostDangerous, highestThreat
+end
+
+-- INTELLIGENT ENEMY BLOCKING - защита ворот через блокировку врага
+local function blockEnemyIfNeeded(root, hum, ball)
+    if not GoalCFrame then return false end
     
-    -- Отрисовываем цель атаки
-    if CONFIG.SHOW_ATTACK_TARGET and moduleState.enabled then
-        drawAttackTarget(predictedPos)
+    -- Находим самого опасного врага
+    local dangerousEnemy, threatLevel = findMostDangerousEnemy(root, ball)
+    
+    -- Если нет опасных врагов, прекращаем блокировку
+    if not dangerousEnemy or threatLevel < 50 then
+        if moduleState.defenseState.isBlockingEnemy then
+            moduleState.defenseState.isBlockingEnemy = false
+            moduleState.defenseState.blockingTarget = nil
+        end
+        hideEnemyTarget()
+        return false
     end
     
-    -- Быстро движемся к врагу с повышенной скоростью
-    moveToTarget(root, attackPos, true)
+    local enemyChar = dangerousEnemy.Character
+    if not enemyChar then return false end
     
-    -- Смотрим на врага только если он достаточно близко
-    if distanceToEnemy < 15 then
-        rotateIfNeeded(root, enemyPos, false, false, Vector3.new())
+    local enemyRoot = enemyChar:FindFirstChild("HumanoidRootPart")
+    if not enemyRoot then return false end
+    
+    -- Обновляем состояние блокировки
+    moduleState.defenseState.isBlockingEnemy = true
+    moduleState.defenseState.blockingTarget = dangerousEnemy
+    moduleState.currentEnemyTarget = dangerousEnemy
+    
+    -- Получаем позицию врага
+    local enemyPos = enemyRoot.Position
+    
+    -- FIXED: Проверяем velocity перед использованием
+    local predictedPos = enemyPos
+    local enemyVel = enemyRoot.Velocity
+    local enemySpeed = enemyVel.Magnitude
+    
+    if enemySpeed > 0.1 then -- Используем небольшой порог
+        -- Нормализуем вектор скорости
+        local enemyDir = enemyVel.Unit
+        predictedPos = enemyPos + enemyDir * 0.2 -- Небольшое предсказание
     end
     
-    -- Если враг очень близко и у него мяч - можно попытаться отобрать
-    if distanceToEnemy < CONFIG.TOUCH_RANGE and hasBall then
-        moduleState.attackState.lastPressureTime = currentTime
+    -- Вычисляем позицию для блокировки
+    local toEnemy = predictedPos - GoalCFrame.Position
+    local enemyDist = toEnemy.Magnitude
+    
+    -- Если враг слишком далеко, просто следим за ним
+    if enemyDist > CONFIG.ENEMY_THREAT_RANGE then
+        moveToTarget(root, GoalCFrame.Position + GoalForward * CONFIG.STAND_DIST, false)
+        rotateIfNeeded(root, enemyPos, false, false)
         
-        -- Попытка коснуться мяча
+        if CONFIG.SHOW_ENEMY_TARGET then
+            drawEnemyTarget(enemyPos)
+        end
+        
+        return true
+    end
+    
+    -- Вычисляем оптимальную позицию блокировки
+    local blockPos = nil
+    
+    -- Если враг близко к воротам, блокируем линию выстрела
+    if enemyDist < 15 then
+        -- Блокируем между врагом и центром ворот
+        local goalCenter = GoalCFrame.Position
+        local toGoal = (goalCenter - predictedPos).Unit
+        blockPos = predictedPos + toGoal * CONFIG.BLOCK_DISTANCE
+        
+        -- Корректируем высоту
+        blockPos = Vector3.new(blockPos.X, root.Position.Y, blockPos.Z)
+        
+        -- Ограничиваем движение в пределах ворот
+        local rightVec = GoalCFrame.RightVector
+        local lateralDist = (blockPos - GoalCFrame.Position):Dot(rightVec)
+        local maxLateral = GoalWidth * 0.4
+        
+        if math.abs(lateralDist) > maxLateral then
+            blockPos = GoalCFrame.Position + rightVec * (math.sign(lateralDist) * maxLateral) + GoalForward * CONFIG.STAND_DIST
+        end
+    else
+        -- Если враг далеко, просто защищаем ворота
+        blockPos = GoalCFrame.Position + GoalForward * CONFIG.STAND_DIST
+    end
+    
+    -- Двигаемся к позиции блокировки
+    moveToTarget(root, blockPos, true)
+    
+    -- Смотрим на врага или мяч
+    local lookTarget = enemyPos
+    pcall(function()
+        if ball:FindFirstChild("creator") and ball.creator.Value == dangerousEnemy then
+            lookTarget = ball.Position
+        end
+    end)
+    
+    rotateIfNeeded(root, lookTarget, false, false)
+    
+    -- Отрисовываем цель
+    if CONFIG.SHOW_ENEMY_TARGET then
+        drawEnemyTarget(enemyPos)
+    end
+    
+    -- Если враг очень близко и у него мяч, пытаемся перехватить
+    local enemyHasBall = false
+    pcall(function()
+        if ball:FindFirstChild("creator") and ball.creator.Value == dangerousEnemy then
+            enemyHasBall = true
+        end
+    end)
+    
+    if enemyHasBall and (root.Position - enemyPos).Magnitude < CONFIG.TOUCH_RANGE then
         local char = root.Parent
         if char then
             for _, hand in {char:FindFirstChild("RightHand"), char:FindFirstChild("LeftHand")} do
@@ -925,79 +989,13 @@ local function aggressiveAttackEnemy(root, enemyRoot, ball)
         end
     end
     
-    moduleState.attackState.isAttacking = true
-    moduleState.lastAttackTime = currentTime
-    
     return true
-end
-
--- Find and attack nearest enemy
-local function findAndAttackEnemy(root, ball)
-    local nearestEnemy = nil
-    local nearestDist = math.huge
-    local nearestRoot = nil
-    
-    for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
-        if otherPlayer ~= player and otherPlayer.Character then
-            local targetRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local targetHum = otherPlayer.Character:FindFirstChild("Humanoid")
-            
-            if targetRoot and targetHum and targetHum.Health > 0 then
-                local isEnemy = true
-                pcall(function()
-                    if ws.Bools.HPG.Value == otherPlayer or ws.Bools.APG.Value == otherPlayer then
-                        isEnemy = false
-                    end
-                end
-                )
-                
-                if isEnemy then
-                    local distToTarget = (root.Position - targetRoot.Position).Magnitude
-                    
-                    -- Приоритет врагам в зоне защиты и с мячом
-                    local priorityScore = 0
-                    local inZone = isInDefenseZone(targetRoot.Position)
-                    local hasBall = false
-                    
-                    pcall(function()
-                        if ball:FindFirstChild("creator") and ball.creator.Value == otherPlayer then
-                            hasBall = true
-                            priorityScore = priorityScore + 100
-                        end
-                    end)
-                    
-                    if inZone then
-                        priorityScore = priorityScore + 50
-                    end
-                    
-                    if distToTarget < CONFIG.AGGRO_THRES then
-                        priorityScore = priorityScore + 30
-                    end
-                    
-                    -- Выбираем ближайшего врага с высоким приоритетом
-                    local adjustedDist = distToTarget - (priorityScore * 0.5)
-                    if adjustedDist < nearestDist then
-                        nearestDist = adjustedDist
-                        nearestEnemy = otherPlayer
-                        nearestRoot = targetRoot
-                    end
-                end
-            end
-        end
-    end
-    
-    if nearestEnemy and nearestRoot then
-        -- Агрессивно атакуем врага
-        return aggressiveAttackEnemy(root, nearestRoot, ball), nearestEnemy
-    end
-    
-    return false, nil
 end
 
 -- ИНТЕЛЛЕКТУАЛЬНЫЙ АНАЛИЗ СИТУАЦИИ
 local function analyzeShotSituation(ballPos, ballVel, endpoint, rootPos, points)
     local analysis = {
-        action = "none", -- "jump", "dive", "stand", "touch"
+        action = "none",
         confidence = 0,
         reason = ""
     }
@@ -1008,7 +1006,6 @@ local function analyzeShotSituation(ballPos, ballVel, endpoint, rootPos, points)
     local ballSpeed = ballVel.Magnitude
     local endpointHeight = endpoint.Y
     local distToEndpoint = (endpoint - rootPos).Magnitude
-    local toEndpoint = (endpoint - rootPos).Unit
     
     -- Анализ высоты мяча
     local isHighBall = ballHeight > CONFIG.HIGH_BALL_THRES
@@ -1029,7 +1026,7 @@ local function analyzeShotSituation(ballPos, ballVel, endpoint, rootPos, points)
     local isHighAngle = verticalAngle > 25
     local isLowAngle = verticalAngle < 15
     
-    -- ПРИНЯТИЕ РЕШЕНИЙ С ПРИОРИТЕТОМ:
+    -- ПРИНЯТИЕ РЕШЕНИЙ:
     
     -- 1. Близкий высокий мяч = ПРЫЖОК
     if isEndpointHigh and isReachable and isFastBall and isHighAngle then
@@ -1079,7 +1076,7 @@ local function analyzeShotSituation(ballPos, ballVel, endpoint, rootPos, points)
     return analysis
 end
 
--- FIXED DIVE FUNCTION - NO ROTATION, NO FLYING
+-- FIXED DIVE FUNCTION
 local function performDive(root, hum, diveTarget)
     if moduleState.isDiving then return end
     
@@ -1090,10 +1087,6 @@ local function performDive(root, hum, diveTarget)
     if moduleState.divePhysics.activeBV then 
         pcall(function() moduleState.divePhysics.activeBV:Destroy() end) 
         moduleState.divePhysics.activeBV = nil 
-    end
-    if moduleState.divePhysics.activeGyro then 
-        pcall(function() moduleState.divePhysics.activeGyro:Destroy() end) 
-        moduleState.divePhysics.activeGyro = nil 
     end
     
     -- Определяем направление ныряния
@@ -1113,21 +1106,18 @@ local function performDive(root, hum, diveTarget)
     if horizontalDir.Magnitude > 0.1 then
         horizontalDir = horizontalDir.Unit
     else
-        horizontalDir = GoalForward * -1 -- Двигаемся вперед от ворот
+        horizontalDir = GoalForward * -1
     end
     
-    -- SAFE DIVE - минимальная физика
+    -- SAFE DIVE
     local diveSpeed = math.min(CONFIG.DIVE_SPEED, 32)
     
-    -- ТОЛЬКО горизонтальное движение, НЕТ вертикальной составляющей
     moduleState.divePhysics.activeBV = Instance.new("BodyVelocity", root)
-    moduleState.divePhysics.activeBV.MaxForce = Vector3.new(1000000, 0, 1000000) -- НЕТ вертикальной силы!
+    moduleState.divePhysics.activeBV.MaxForce = Vector3.new(1000000, 0, 1000000)
     moduleState.divePhysics.activeBV.Velocity = horizontalDir * diveSpeed
     
-    -- Очень короткая длительность
     game.Debris:AddItem(moduleState.divePhysics.activeBV, 0.25)
     
-    -- Быстрое замедление
     if ts then
         ts:Create(moduleState.divePhysics.activeBV, 
             TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
@@ -1135,8 +1125,6 @@ local function performDive(root, hum, diveTarget)
         ):Play()
     end
 
-    -- НИКАКОГО ГИРОСКОПА - это вызывает вращение!
-    -- Вместо этого просто отключаем AutoRotate
     hum.AutoRotate = false
 
     -- Dive animation
@@ -1148,7 +1136,6 @@ local function performDive(root, hum, diveTarget)
         anim:Play()
     end)
 
-    -- Disable jumping during dive
     hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
     
     -- Автоматическое восстановление
@@ -1158,7 +1145,6 @@ local function performDive(root, hum, diveTarget)
             hum.AutoRotate = true
         end
         
-        -- Очистка физики
         if moduleState.divePhysics.activeBV then 
             pcall(function() 
                 moduleState.divePhysics.activeBV.Velocity = Vector3.new()
@@ -1170,7 +1156,6 @@ local function performDive(root, hum, diveTarget)
         moduleState.isDiving = false
     end)
     
-    -- Гарантированное выключение ныряния
     task.delay(1.0, function()
         moduleState.isDiving = false
     end)
@@ -1196,7 +1181,7 @@ local function handleCornerPositioning(root, ballPos)
     )
     
     moveToTarget(root, targetPos, false)
-    rotateIfNeeded(root, ballPos, false, false, Vector3.new())
+    rotateIfNeeded(root, ballPos, false, false)
     
     return targetPos
 end
@@ -1224,8 +1209,8 @@ local function cleanup()
     moduleState.smoothCFrame = nil
     moduleState.attackTargetHistory = {}
     moduleState.predictedEnemyPositions = {}
-    moduleState.currentAttackTarget = nil
-    moduleState.attackTargetVisible = false
+    moduleState.currentEnemyTarget = nil
+    moduleState.enemyTargetVisible = false
     moduleState.threatAnalysis = {
         lastThreatPos = nil,
         threatDirection = nil,
@@ -1238,11 +1223,10 @@ local function cleanup()
         lastSideChoice = 0,
         sideBiasTimer = 0
     }
-    moduleState.attackState = {
-        isAttacking = false,
-        attackTarget = nil,
-        attackStartTime = 0,
-        lastPressureTime = 0
+    moduleState.defenseState = {
+        isBlockingEnemy = false,
+        blockingTarget = nil,
+        blockStartTime = 0
     }
 end
 
@@ -1261,7 +1245,7 @@ local function startHeartbeat()
             if moduleState.currentBV then pcall(function() moduleState.currentBV:Destroy() end) moduleState.currentBV = nil end
             if moduleState.currentGyro then pcall(function() moduleState.currentGyro:Destroy() end) moduleState.currentGyro = nil end
             if moduleState.divePhysics.activeBV then pcall(function() moduleState.divePhysics.activeBV:Destroy() end) moduleState.divePhysics.activeBV = nil end
-            moduleState.attackState.isAttacking = false
+            moduleState.defenseState.isBlockingEnemy = false
             return
         end
         
@@ -1277,21 +1261,21 @@ local function startHeartbeat()
         
         if not ball then 
             clearTrajAndEndpoint()
-            hideAttackTarget()
+            hideEnemyTarget()
             if GoalCFrame then 
                 moveToTarget(root, GoalCFrame.Position + GoalForward * CONFIG.STAND_DIST, false) 
             end
             moduleState.isDiving = false
             moduleState.currentTargetType = nil
             moduleState.cachedPoints = nil
-            moduleState.currentAttackTarget = nil
-            moduleState.attackState.isAttacking = false
+            moduleState.currentEnemyTarget = nil
+            moduleState.defenseState.isBlockingEnemy = false
             return 
         end
         
         if not updateGoals() then 
             clearTrajAndEndpoint()
-            hideAttackTarget()
+            hideEnemyTarget()
             return 
         end
 
@@ -1306,56 +1290,9 @@ local function startHeartbeat()
         local hasWeld = ball:FindFirstChild("playerWeld")
         local owner = ball:FindFirstChild("creator") and ball.creator.Value
         local isMyBall = owner == player
-        local oRoot = nil
-        local enemyDistFromLine = math.huge
-        local enemyLateral = 0
-        local distToEnemy = math.huge
-        local isAggro = false
-        local isAttackingEnemy = false
-        local attackTargetPlayer = nil
-
-        -- АГРЕССИВНАЯ АТАКА ВРАГА
-        local shouldAttackEnemy = false
         
-        -- Всегда атакуем врага в зоне защиты
-        if CONFIG.AGGRESSIVE_MODE or CONFIG.AUTO_ATTACK_IN_ZONE then
-            isAttackingEnemy, attackTargetPlayer = findAndAttackEnemy(root, ball)
-            if isAttackingEnemy then
-                shouldAttackEnemy = true
-                moduleState.currentAttackTarget = attackTargetPlayer
-            else
-                hideAttackTarget()
-                moduleState.attackState.isAttacking = false
-            end
-        else
-            hideAttackTarget()
-        end
-
-        if owner and owner ~= player and owner.Character then
-            oRoot = owner.Character:FindFirstChild("HumanoidRootPart")
-            if oRoot then
-                local rel = oRoot.Position - GoalCFrame.Position
-                enemyDistFromLine = rel:Dot(GoalForward)
-                enemyLateral = rel:Dot(GoalCFrame.RightVector)
-                distToEnemy = (root.Position - oRoot.Position).Magnitude
-                
-                -- Агрессивный режим: атакуем если враг близко к воротам
-                if enemyDistFromLine < CONFIG.AGGRO_THRES and distToEnemy < CONFIG.ATTACK_RANGE and not shouldAttackEnemy then
-                    isAttackingEnemy = aggressiveAttackEnemy(root, oRoot, ball)
-                    if isAttackingEnemy then
-                        shouldAttackEnemy = true
-                        moduleState.currentAttackTarget = owner
-                    end
-                elseif not shouldAttackEnemy and moduleState.currentAttackTarget == owner then
-                    hideAttackTarget()
-                end
-            end
-        end
-
-        if not shouldAttackEnemy and moduleState.currentAttackTarget then
-            hideAttackTarget()
-            moduleState.attackState.isAttacking = false
-        end
+        -- ИНТЕЛЛЕКТУАЛЬНАЯ БЛОКИРОВКА ВРАГОВ (защита ворот)
+        local isBlockingEnemy = blockEnemyIfNeeded(root, hum, ball)
 
         local points, endpoint = nil, nil
         local threatLateral = 0
@@ -1390,7 +1327,7 @@ local function startHeartbeat()
             clearTrajAndEndpoint()
         end
 
-        -- ИНТЕЛЛЕКТУАЛЬНЫЙ АНАЛИЗ СИТУАЦИИ (только если не атакуем врага)
+        -- ИНТЕЛЛЕКТУАЛЬНЫЙ АНАЛИЗ СИТУАЦИИ (только если не блокируем врага)
         local shotAnalysis = analyzeShotSituation(ball.Position, ball.Velocity, endpoint, root.Position, points)
 
         if CONFIG.SHOW_TRAJECTORY and points and moduleState.visualObjects.trajLines then
@@ -1430,8 +1367,8 @@ local function startHeartbeat()
             drawCube(moduleState.visualObjects.BallBox, nil) 
         end
 
-        -- ОСНОВНОЕ ПОЗИЦИОНИРОВАНИЕ (только если не атакуем врага)
-        if not shouldAttackEnemy then
+        -- ОСНОВНОЕ ПОЗИЦИОНИРОВАНИЕ (только если не блокируем врага активно)
+        if not isBlockingEnemy or not moduleState.defenseState.isBlockingEnemy then
             local rightVec = GoalCFrame.RightVector
             local defenseBase = GoalCFrame.Position + GoalForward * CONFIG.STAND_DIST
             local lateral = 0
@@ -1449,26 +1386,20 @@ local function startHeartbeat()
             if not isCornerKick then
                 if isMyBall then
                     lateral = 0
-                elseif oRoot and isAggro then
-                    local targetDist = math.max(1.8, enemyDistFromLine - 1.2)
-                    defenseBase = GoalCFrame.Position + GoalForward * targetDist
-                    lateral = enemyLateral * 1.02
                 elseif not hasWeld then
                     lateral = threatLateral * 0.85
                     
                     local advanceMultiplier = math.min(1.0, velMag / 40)
                     defenseBase = GoalCFrame.Position + GoalForward * math.min(5.5, distBall * 0.1 + advanceMultiplier * 2)
                 else
-                    local targetDist = math.max(CONFIG.STAND_DIST, math.min(7.5, enemyDistFromLine * 0.48))
-                    defenseBase = GoalCFrame.Position + GoalForward * targetDist
-                    local centerBias = math.max(0, 1 - (enemyDistFromLine / CONFIG.CENTER_BIAS_DIST))
-                    lateral = enemyLateral * centerBias
+                    lateral = 0
+                    defenseBase = GoalCFrame.Position + GoalForward * CONFIG.STAND_DIST
                 end
 
                 local threatWeight = isThreat and 0.99 or (distEnd < CONFIG.CLOSE_THREAT_DIST and 0.97 or 0.42)
                 lateral = threatLateral * threatWeight + lateral * (1 - threatWeight)
 
-                local bestPos = getSmartPosition(defenseBase, rightVec, lateral, GoalWidth, threatLateral, enemyLateral, isAggro, ball.Position)
+                local bestPos = getSmartPosition(defenseBase, rightVec, lateral, GoalWidth, threatLateral, 0, ball.Position)
                 
                 if isShot and points and isThreat then
                     local interceptPoint = findBestInterceptPoint(root.Position, ball.Position, ball.Velocity, points)
@@ -1485,14 +1416,14 @@ local function startHeartbeat()
                 moveToTarget(root, bestPos, false)
             end
             
-            -- Вращение только если нужно
-            if not shouldAttackEnemy then
-                rotateIfNeeded(root, ball.Position, isMyBall, moduleState.isDiving, ball.Velocity)
+            -- Вращение
+            if not isBlockingEnemy then
+                rotateIfNeeded(root, ball.Position, isMyBall, false)
             end
         end
 
-        -- ИНТЕЛЛЕКТУАЛЬНЫЕ ДЕЙСТВИЯ НА ОСНОВЕ АНАЛИЗА (только если не атакуем врага)
-        if not isMyBall and not moduleState.isDiving and not shouldAttackEnemy then
+        -- ИНТЕЛЛЕКТУАЛЬНЫЕ ДЕЙСТВИЯ (только если не блокируем врага)
+        if not isMyBall and not moduleState.isDiving then
             
             -- Касание мяча
             if shotAnalysis.action == "touch" then
@@ -1505,7 +1436,7 @@ local function startHeartbeat()
                 end
             end
             
-            -- Прыжок (легитимный, без изменения JumpPower)
+            -- Прыжок
             if shotAnalysis.action == "jump" and tick() - moduleState.lastJumpTime > CONFIG.JUMP_COOLDOWN then
                 forceJump(hum)
                 moduleState.lastJumpTime = tick()
@@ -1544,29 +1475,15 @@ local function syncConfig()
     CONFIG.JUMP_COOLDOWN = moduleState.uiElements.JumpCooldown and moduleState.uiElements.JumpCooldown:GetValue()
     CONFIG.ZONE_DIST = moduleState.uiElements.ZoneDist and moduleState.uiElements.ZoneDist:GetValue()
     CONFIG.ZONE_WIDTH = moduleState.uiElements.ZoneWidth and moduleState.uiElements.ZoneWidth:GetValue()
-    CONFIG.AGGRO_THRES = moduleState.uiElements.AggroThresh and moduleState.uiElements.AggroThresh:GetValue()
-    CONFIG.MAX_CHASE_DIST = moduleState.uiElements.MaxChaseDist and moduleState.uiElements.MaxChaseDist:GetValue()
-    CONFIG.GATE_COVERAGE = moduleState.uiElements.GateCoverage and moduleState.uiElements.GateCoverage:GetValue()
-    CONFIG.LATERAL_MAX_MULT = moduleState.uiElements.LateralMaxMult and moduleState.uiElements.LateralMaxMult:GetValue()
-    CONFIG.AUTO_ATTACK_IN_ZONE = moduleState.uiElements.AutoAttackInZone and moduleState.uiElements.AutoAttackInZone:GetState()
-    CONFIG.ATTACK_DISTANCE = moduleState.uiElements.AttackDistance and moduleState.uiElements.AttackDistance:GetValue()
-    CONFIG.ATTACK_PREDICT_TIME = moduleState.uiElements.AttackPredictTime and moduleState.uiElements.AttackPredictTime:GetValue()
-    CONFIG.ATTACK_COOLDOWN = moduleState.uiElements.AttackCooldown and moduleState.uiElements.AttackCooldown:GetValue()
-    CONFIG.ATTACK_RANGE = moduleState.uiElements.AttackRange and moduleState.uiElements.AttackRange:GetValue()
-    CONFIG.PRESSURE_DISTANCE = moduleState.uiElements.PressureDistance and moduleState.uiElements.PressureDistance:GetValue()
-    CONFIG.ATTACK_SPEED_MULT = moduleState.uiElements.AttackSpeedMult and moduleState.uiElements.AttackSpeedMult:GetValue()
+    CONFIG.ENEMY_THREAT_RANGE = moduleState.uiElements.EnemyThreatRange and moduleState.uiElements.EnemyThreatRange:GetValue()
+    CONFIG.BLOCK_DISTANCE = moduleState.uiElements.BlockDistance and moduleState.uiElements.BlockDistance:GetValue()
+    CONFIG.BLOCK_SPEED_MULT = moduleState.uiElements.BlockSpeedMult and moduleState.uiElements.BlockSpeedMult:GetValue()
+    CONFIG.MIN_BLOCK_ANGLE = moduleState.uiElements.MinBlockAngle and moduleState.uiElements.MinBlockAngle:GetValue()
     CONFIG.ROTATION_ENABLED = moduleState.uiElements.RotationEnabled and moduleState.uiElements.RotationEnabled:GetState()
-    CONFIG.AGGRESSIVE_MODE = moduleState.uiElements.AggressiveMode and moduleState.uiElements.AggressiveMode:GetState()
-    CONFIG.PRED_STEPS = moduleState.uiElements.PredSteps and moduleState.uiElements.PredSteps:GetValue()
-    CONFIG.GRAVITY = moduleState.uiElements.Gravity and moduleState.uiElements.Gravity:GetValue()
-    CONFIG.DRAG = moduleState.uiElements.Drag and moduleState.uiElements.Drag:GetValue()
-    CONFIG.CURVE_MULT = moduleState.uiElements.CurveMult and moduleState.uiElements.CurveMult:GetValue()
-    CONFIG.BOUNCE_XZ = moduleState.uiElements.BounceXZ and moduleState.uiElements.BounceXZ:GetValue()
-    CONFIG.BOUNCE_Y = moduleState.uiElements.BounceY and moduleState.uiElements.BounceY:GetValue()
+    CONFIG.ROT_SMOOTH = moduleState.uiElements.RotSmooth and moduleState.uiElements.RotSmooth:GetValue()
     CONFIG.BALL_INTERCEPT_RANGE = moduleState.uiElements.BallInterceptRange and moduleState.uiElements.BallInterceptRange:GetValue()
     CONFIG.MIN_INTERCEPT_TIME = moduleState.uiElements.MinInterceptTime and moduleState.uiElements.MinInterceptTime:GetValue()
     CONFIG.ADVANCE_DISTANCE = moduleState.uiElements.AdvanceDistance and moduleState.uiElements.AdvanceDistance:GetValue()
-    CONFIG.ROT_SMOOTH = moduleState.uiElements.RotSmooth and moduleState.uiElements.RotSmooth:GetValue()
     CONFIG.DIVE_LOOK_AHEAD = moduleState.uiElements.DiveLookAhead and moduleState.uiElements.DiveLookAhead:GetValue()
     CONFIG.REACTION_TIME = moduleState.uiElements.ReactionTime and moduleState.uiElements.ReactionTime:GetValue()
     CONFIG.ANTICIPATION_DIST = moduleState.uiElements.AnticipationDist and moduleState.uiElements.AnticipationDist:GetValue()
@@ -1577,7 +1494,13 @@ local function syncConfig()
     CONFIG.SHOW_GOAL_CUBE = moduleState.uiElements.ShowGoalCube and moduleState.uiElements.ShowGoalCube:GetState()
     CONFIG.SHOW_ZONE = moduleState.uiElements.ShowZone and moduleState.uiElements.ShowZone:GetState()
     CONFIG.SHOW_BALL_BOX = moduleState.uiElements.ShowBallBox and moduleState.uiElements.ShowBallBox:GetState()
-    CONFIG.SHOW_ATTACK_TARGET = moduleState.uiElements.ShowAttackTarget and moduleState.uiElements.ShowAttackTarget:GetState()
+    CONFIG.SHOW_ENEMY_TARGET = moduleState.uiElements.ShowEnemyTarget and moduleState.uiElements.ShowEnemyTarget:GetState()
+    CONFIG.PRED_STEPS = moduleState.uiElements.PredSteps and moduleState.uiElements.PredSteps:GetValue()
+    CONFIG.GRAVITY = moduleState.uiElements.Gravity and moduleState.uiElements.Gravity:GetValue()
+    CONFIG.DRAG = moduleState.uiElements.Drag and moduleState.uiElements.Drag:GetValue()
+    CONFIG.CURVE_MULT = moduleState.uiElements.CurveMult and moduleState.uiElements.CurveMult:GetValue()
+    CONFIG.BOUNCE_XZ = moduleState.uiElements.BounceXZ and moduleState.uiElements.BounceXZ:GetValue()
+    CONFIG.BOUNCE_Y = moduleState.uiElements.BounceY and moduleState.uiElements.BounceY:GetValue()
     
     updateVisualColors()
     
