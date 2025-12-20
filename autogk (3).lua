@@ -1148,65 +1148,7 @@ local function cleanup()
     moduleState.willJump = false
 end
 
--- Синхронизация конфигурации
-local function syncConfig()
-    for key, element in pairs(moduleState.uiElements) do
-        if element and element.GetState then
-            CONFIG[key] = element:GetState()
-        elseif element and element.GetValue then
-            CONFIG[key] = element:GetValue()
-        end
-    end
-    
-    moduleState.enabled = CONFIG.ENABLED
-    
-    if CONFIG.ENABLED then
-        createVisuals()
-        startRenderLoop()
-        startHeartbeat()
-        
-        -- Подписка на ввод
-        if not moduleState.inputConnection then
-            moduleState.inputConnection = uis.InputBegan:Connect(function(inp)
-                if inp.KeyCode == Enum.KeyCode.Insert then
-                    moduleState.enabled = not moduleState.enabled
-                    CONFIG.ENABLED = moduleState.enabled
-                    
-                    if moduleState.uiElements.Enabled then
-                        moduleState.uiElements.Enabled:SetState(moduleState.enabled)
-                    end
-                    
-                    if not moduleState.enabled then
-                        cleanup()
-                    else
-                        createVisuals()
-                        startRenderLoop()
-                        startHeartbeat()
-                    end
-                    
-                    if moduleState.notify then
-                        moduleState.notify("AutoGK ULTRA", moduleState.enabled and "ВКЛ" or "ВЫКЛ", true)
-                    end
-                end
-            end)
-        end
-        
-        if moduleState.notify then
-            moduleState.notify("AutoGK ULTRA", "Enabled v9.6", true)
-        end
-    else
-        cleanup()
-        if moduleState.notify then
-            moduleState.notify("AutoGK ULTRA", "Disabled", true)
-        end
-    end
-    
-    if moduleState.notify then
-        moduleState.notify("AutoGK ULTRA", "Configuration synchronized", true)
-    end
-end
 
--- Модуль AutoGK ULTRA
 local AutoGKUltraModule = {}
 
 function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
@@ -1223,7 +1165,15 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Callback = function(v) 
                 CONFIG.ENABLED = v
                 moduleState.enabled = v
-                syncConfig()
+                if v then
+                    createVisuals()
+                    startRenderLoop()
+                    startHeartbeat()
+                    notifyFunc("Syllinse", "AutoGK Enabled", true)
+                else
+                    cleanup()
+                    notifyFunc("Syllinse", "AutoGK Disabled", true)
+                end
             end
         }, 'AutoGKUltraEnabled')
         
@@ -1259,6 +1209,15 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Callback = function(v) CONFIG.STAND_DIST = v end
         }, 'AutoGKUltraStandDist')
         
+        moduleState.uiElements.MIN_DIST = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Min Distance",
+            Minimum = 0.1,
+            Maximum = 2.0,
+            Default = CONFIG.MIN_DIST,
+            Precision = 1,
+            Callback = function(v) CONFIG.MIN_DIST = v end
+        }, 'AutoGKUltraMinDist')
+        
         UI.Sections.AutoGoalKeeper:Divider()
         
         -- Настройки нырка
@@ -1274,7 +1233,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         }, 'AutoGKUltraDiveDist')
         
         moduleState.uiElements.DIVE_VEL_THRES = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Dive Velocity Threshold",
+            Name = "Dive Velocity",
             Minimum = 15,
             Maximum = 40,
             Default = CONFIG.DIVE_VEL_THRES,
@@ -1323,10 +1282,19 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Callback = function(v) CONFIG.JUMP_RADIUS = v end
         }, 'AutoGKUltraJumpRadius')
         
+        moduleState.uiElements.JUMP_MIN_HEIGHT_DIFF = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Height Difference",
+            Minimum = 0.1,
+            Maximum = 3.0,
+            Default = CONFIG.JUMP_MIN_HEIGHT_DIFF,
+            Precision = 1,
+            Callback = function(v) CONFIG.JUMP_MIN_HEIGHT_DIFF = v end
+        }, 'AutoGKUltraJumpMinHeightDiff')
+        
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Настройки перехвата
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Intercept Settings" })
+        -- Настройки перехвата и касания
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Intercept & Touch Settings" })
         
         moduleState.uiElements.INTERCEPT_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Intercept Distance",
@@ -1338,7 +1306,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         }, 'AutoGKUltraInterceptDist')
         
         moduleState.uiElements.INTERCEPT_SPEED_MULT = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Intercept Speed Multiplier",
+            Name = "Intercept Speed",
             Minimum = 1.0,
             Maximum = 2.0,
             Default = CONFIG.INTERCEPT_SPEED_MULT,
@@ -1346,9 +1314,51 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Callback = function(v) CONFIG.INTERCEPT_SPEED_MULT = v end
         }, 'AutoGKUltraInterceptSpeedMult')
         
+        moduleState.uiElements.TOUCH_RANGE = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Touch Distance",
+            Minimum = 5,
+            Maximum = 30,
+            Default = CONFIG.TOUCH_RANGE,
+            Precision = 1,
+            Callback = function(v) CONFIG.TOUCH_RANGE = v end
+        }, 'AutoGKUltraTouchRange')
+        
+        moduleState.uiElements.NEAR_BALL_DIST = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Near Ball Dist",
+            Minimum = 2,
+            Maximum = 10,
+            Default = CONFIG.NEAR_BALL_DIST,
+            Precision = 1,
+            Callback = function(v) CONFIG.NEAR_BALL_DIST = v end
+        }, 'AutoGKUltraNearBallDist')
+        
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Визуальные настройки
+        -- Настройки зоны защиты
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Defense Zone Settings" })
+        
+        moduleState.uiElements.ZONE_WIDTH_MULTIPLIER = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Zone Width",
+            Minimum = 1.0,
+            Maximum = 4.0,
+            Default = CONFIG.ZONE_WIDTH_MULTIPLIER,
+            Precision = 1,
+            Callback = function(v) CONFIG.ZONE_WIDTH_MULTIPLIER = v end
+        }, 'AutoGKUltraZoneWidthMult')
+        
+        moduleState.uiElements.ZONE_DEPTH = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Zone Depth",
+            Minimum = 30,
+            Maximum = 80,
+            Default = CONFIG.ZONE_DEPTH,
+            Precision = 1,
+            Callback = function(v) CONFIG.ZONE_DEPTH = v end
+        }, 'AutoGKUltraZoneDepth')
+        
+        
+        UI.Sections.AutoGoalKeeper:Divider()
+        
+        -- Настройки визуализации
         UI.Sections.AutoGoalKeeper:Header({ Name = "Visual Settings" })
         
         moduleState.uiElements.SHOW_TRAJECTORY = UI.Sections.AutoGoalKeeper:Toggle({
@@ -1356,7 +1366,9 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Default = CONFIG.SHOW_TRAJECTORY,
             Callback = function(v) 
                 CONFIG.SHOW_TRAJECTORY = v 
-                syncConfig()
+                if moduleState.enabled then
+                    createVisuals()
+                end
             end
         }, 'AutoGKUltraShowTrajectory')
         
@@ -1365,7 +1377,9 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Default = CONFIG.SHOW_ENDPOINT,
             Callback = function(v) 
                 CONFIG.SHOW_ENDPOINT = v 
-                syncConfig()
+                if moduleState.enabled then
+                    createVisuals()
+                end
             end
         }, 'AutoGKUltraShowEndpoint')
         
@@ -1374,7 +1388,9 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Default = CONFIG.SHOW_GOAL_CUBE,
             Callback = function(v) 
                 CONFIG.SHOW_GOAL_CUBE = v 
-                syncConfig()
+                if moduleState.enabled then
+                    createVisuals()
+                end
             end
         }, 'AutoGKUltraShowGoalCube')
         
@@ -1383,7 +1399,9 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Default = CONFIG.SHOW_ZONE,
             Callback = function(v) 
                 CONFIG.SHOW_ZONE = v 
-                syncConfig()
+                if moduleState.enabled then
+                    createVisuals()
+                end
             end
         }, 'AutoGKUltraShowZone')
         
@@ -1392,67 +1410,257 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Default = CONFIG.SHOW_BALL_BOX,
             Callback = function(v) 
                 CONFIG.SHOW_BALL_BOX = v 
-                syncConfig()
+                if moduleState.enabled then
+                    createVisuals()
+                end
             end
         }, 'AutoGKUltraShowBallBox')
         
         UI.Sections.AutoGoalKeeper:Divider()
         
+        -- Цветовые настройки
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Color Settings" })
+        
+        moduleState.uiElements.TRAJECTORY_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
+            Name = "Trajectory Color",
+            Default = CONFIG.TRAJECTORY_COLOR,
+            Callback = function(v) 
+                CONFIG.TRAJECTORY_COLOR = v
+                if moduleState.enabled and moduleState.visualObjects.trajLines then
+                    local baseH, baseS, baseV = v:ToHSV()
+                    for i, line in ipairs(moduleState.visualObjects.trajLines) do
+                        if line then
+                            local hue = (baseH + (i / CONFIG.PRED_STEPS) * 0.3) % 1
+                            line.Color = Color3.fromHSV(hue, baseS, baseV)
+                        end
+                    end
+                end
+            end
+        }, 'AutoGKUltraTrajectoryColor')
+        
+        moduleState.uiElements.ENDPOINT_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
+            Name = "Endpoint Color",
+            Default = CONFIG.ENDPOINT_COLOR,
+            Callback = function(v) 
+                CONFIG.ENDPOINT_COLOR = v
+                if moduleState.enabled and moduleState.visualObjects.endpointLines then
+                    for _, line in ipairs(moduleState.visualObjects.endpointLines) do
+                        if line then
+                            line.Color = v
+                        end
+                    end
+                end
+            end
+        }, 'AutoGKUltraEndpointColor')
+        
+        moduleState.uiElements.GOAL_CUBE_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
+            Name = "Goal Cube Color",
+            Default = CONFIG.GOAL_CUBE_COLOR,
+            Callback = function(v) 
+                CONFIG.GOAL_CUBE_COLOR = v
+                if moduleState.enabled and moduleState.visualObjects.GoalCube then
+                    for _, line in ipairs(moduleState.visualObjects.GoalCube) do
+                        if line then
+                            line.Color = v
+                        end
+                    end
+                end
+            end
+        }, 'AutoGKUltraGoalCubeColor')
+        
+        moduleState.uiElements.ZONE_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
+            Name = "Zone Color",
+            Default = CONFIG.ZONE_COLOR,
+            Callback = function(v) 
+                CONFIG.ZONE_COLOR = v
+                if moduleState.enabled and moduleState.visualObjects.LimitCube then
+                    for _, line in ipairs(moduleState.visualObjects.LimitCube) do
+                        if line then
+                            line.Color = v
+                        end
+                    end
+                end
+            end
+        }, 'AutoGKUltraZoneColor')
+        
+        moduleState.uiElements.BALL_BOX_COLOR = UI.Sections.AutoGoalKeeper:ColorPicker({
+            Name = "Ball Box Color",
+            Default = CONFIG.BALL_BOX_COLOR,
+            Callback = function(v) 
+                CONFIG.BALL_BOX_COLOR = v
+            end
+        }, 'AutoGKUltraBallBoxColor')
+        
+        moduleState.uiElements.BALL_BOX_JUMP_COLOR = UI.Sections.AutoGoalKeeper:ColorPicker({
+            Name = "Ball Box Jump Color",
+            Default = CONFIG.BALL_BOX_JUMP_COLOR,
+            Callback = function(v) 
+                CONFIG.BALL_BOX_JUMP_COLOR = v
+            end
+        }, 'AutoGKUltraBallBoxJumpColor')
+        
+        UI.Sections.AutoGoalKeeper:Divider()
+        
+        -- Настройки производительности
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Performance Settings" })
+        
+        
+        moduleState.uiElements.ROT_SMOOTH = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Rotation Smoothness",
+            Minimum = 0.1,
+            Maximum = 0.5,
+            Default = CONFIG.ROT_SMOOTH,
+            Precision = 2,
+            Callback = function(v) CONFIG.ROT_SMOOTH = v end
+        }, 'AutoGKUltraRotSmooth')
+        
+        UI.Sections.AutoGoalKeeper:Divider()
+        
         -- Информация
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Information" })
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Settings Information" })
         
         UI.Sections.AutoGoalKeeper:Paragraph({
-            Header = "AutoGK ULTRA v9.6",
+            Header = "Settings Guide",
             Body = [[
-Функции:
-1. Умное позиционирование
-2. Автоматические нырки
-3. Прыжки по необходимости
-4. Перехват мяча
-5. Блокировка ударов
-6. Полная визуализация
+Movement Settings:
+1 Normal Speed: Base movement speed when positioning
+2 Aggressive Speed: Speed used for urgent situations like intercepts
+3 Stand Distance: How far to stand from the goal line (2.8 = good default)
+4 Minimum Distance: Stop moving when this close to target position
 
-Управление:
-- Insert: Включение/выключение
-- Автоматическая работа при назначении вратарем
+Dive Settings:
+5 Dive Distance: Maximum distance at which the GK will attempt a dive
+6 Dive Velocity Threshold: Minimum ball speed required to trigger a dive
+7 Dive Cooldown: Time that must pass between consecutive dives
 
-Особенности:
-- Автоопределение больших/малых ворот
-- Адаптивная логика под размер ворот
-- Физика с отскоками от стоек
-- Плавное вращение и движение
+Jump Settings:
+8 Jump Velocity Threshold: Ball speed needed to consider jumping
+9 Jump Cooldown: Recovery time between jumps
+10 Jump Radius: Maximum distance from ball to attempt a jump
+11 Jump Min Height Diff: Required height difference between ball and GK to jump
+
+Intercept & Touch Settings:
+12 Intercept Distance: Maximum range for intercepting the ball
+13 Intercept Speed Multiplier: Speed boost applied during intercepts
+14 Touch Distance: How far the GK's hands can reach to touch the ball
+15 Near Ball Distance: Auto-block when ball is within this range
+
+Defense Zone Settings:
+16 Zone Width Multiplier: Controls width of defensive area (higher = wider)
+17 Zone Depth: How far forward the defensive zone extends
+18 Zone Offset Multiplier: Distance from goal line to zone center
+
+Visual Settings:
+19 Toggle visibility of different visual elements
+20 Helps with debugging and understanding AI behavior
+
+Color Settings:
+21 Customize colors for all visual elements
+22 Helps distinguish between different elements
+
+Performance Settings:
+23 Rotation Smoothness: How smoothly the GK rotates (higher = smoother but slower response)
 ]]
         })
         
-        -- Кнопка синхронизации
-        UI.Sections.AutoGoalKeeper:Button({
-            Name = "Sync Configuration",
-            Callback = function()
-                syncConfig()
-            end
-        })
-    end
     
     -- Секция синхронизации в Config
     if UI.Tabs.Config then
         local syncSection = UI.Tabs.Config:Section({Name = 'AutoGK ULTRA Sync', Side = 'Right'})
         
         syncSection:Header({ Name = "AutoGK ULTRA Config Sync" })
-        syncSection:Divider()
         
         syncSection:Button({
-            Name = "Sync Current Config",
+            Name = "Sync Configuration Now",
             Callback = function()
-                syncConfig()
+                -- Правильная синхронизация как в примере - каждый элемент отдельно
+                CONFIG.ENABLED = moduleState.uiElements.Enabled and moduleState.uiElements.Enabled:GetState()
+                CONFIG.SPEED = moduleState.uiElements.SPEED and moduleState.uiElements.SPEED:GetValue()
+                CONFIG.AGGRESSIVE_SPEED = moduleState.uiElements.AGGRESSIVE_SPEED and moduleState.uiElements.AGGRESSIVE_SPEED:GetValue()
+                CONFIG.STAND_DIST = moduleState.uiElements.STAND_DIST and moduleState.uiElements.STAND_DIST:GetValue()
+                CONFIG.MIN_DIST = moduleState.uiElements.MIN_DIST and moduleState.uiElements.MIN_DIST:GetValue() 
+                CONFIG.DIVE_DIST = moduleState.uiElements.DIVE_DIST and moduleState.uiElements.DIVE_DIST:GetValue()
+                CONFIG.DIVE_VEL_THRES = moduleState.uiElements.DIVE_VEL_THRES and moduleState.uiElements.DIVE_VEL_THRES:GetValue()
+                CONFIG.DIVE_COOLDOWN = moduleState.uiElements.DIVE_COOLDOWN and moduleState.uiElements.DIVE_COOLDOWN:GetValue()
+                CONFIG.JUMP_VEL_THRES = moduleState.uiElements.JUMP_VEL_THRES and moduleState.uiElements.JUMP_VEL_THRES:GetValue()
+                CONFIG.JUMP_COOLDOWN = moduleState.uiElements.JUMP_COOLDOWN and moduleState.uiElements.JUMP_COOLDOWN:GetValue()
+                CONFIG.JUMP_RADIUS = moduleState.uiElements.JUMP_RADIUS and moduleState.uiElements.JUMP_RADIUS:GetValue()
+                CONFIG.JUMP_MIN_HEIGHT_DIFF = moduleState.uiElements.JUMP_MIN_HEIGHT_DIFF and moduleState.uiElements.JUMP_MIN_HEIGHT_DIFF:GetValue()
+                CONFIG.INTERCEPT_DISTANCE = moduleState.uiElements.INTERCEPT_DISTANCE and moduleState.uiElements.INTERCEPT_DISTANCE:GetValue()
+                CONFIG.INTERCEPT_SPEED_MULT = moduleState.uiElements.INTERCEPT_SPEED_MULT and moduleState.uiElements.INTERCEPT_SPEED_MULT:GetValue()
+                CONFIG.TOUCH_RANGE = moduleState.uiElements.TOUCH_RANGE and moduleState.uiElements.TOUCH_RANGE:GetValue()
+                CONFIG.NEAR_BALL_DIST = moduleState.uiElements.NEAR_BALL_DIST and moduleState.uiElements.NEAR_BALL_DIST:GetValue()
+                CONFIG.ZONE_WIDTH_MULTIPLIER = moduleState.uiElements.ZONE_WIDTH_MULTIPLIER and moduleState.uiElements.ZONE_WIDTH_MULTIPLIER:GetValue()
+                CONFIG.ZONE_DEPTH = moduleState.uiElements.ZONE_DEPTH and moduleState.uiElements.ZONE_DEPTH:GetValue()
+                CONFIG.ZONE_OFFSET_MULTIPLIER = moduleState.uiElements.ZONE_OFFSET_MULTIPLIER and moduleState.uiElements.ZONE_OFFSET_MULTIPLIER:GetValue()
+                CONFIG.SHOW_TRAJECTORY = moduleState.uiElements.SHOW_TRAJECTORY and moduleState.uiElements.SHOW_TRAJECTORY:GetState()
+                CONFIG.SHOW_ENDPOINT = moduleState.uiElements.SHOW_ENDPOINT and moduleState.uiElements.SHOW_ENDPOINT:GetState()
+                CONFIG.SHOW_GOAL_CUBE = moduleState.uiElements.SHOW_GOAL_CUBE and moduleState.uiElements.SHOW_GOAL_CUBE:GetState()
+                CONFIG.SHOW_ZONE = moduleState.uiElements.SHOW_ZONE and moduleState.uiElements.SHOW_ZONE:GetState()
+                CONFIG.SHOW_BALL_BOX = moduleState.uiElements.SHOW_BALL_BOX and moduleState.uiElements.SHOW_BALL_BOX:GetState()
+                CONFIG.ROT_SMOOTH = moduleState.uiElements.ROT_SMOOTH and moduleState.uiElements.ROT_SMOOTH:GetValue()
+                
+                moduleState.enabled = CONFIG.ENABLED
+                
+                if CONFIG.ENABLED then
+                    createVisuals()
+                    startRenderLoop()
+                    startHeartbeat()
+                    
+                    if not moduleState.inputConnection then
+                        moduleState.inputConnection = uis.InputBegan:Connect(function(inp)
+                            if inp.KeyCode == Enum.KeyCode.Insert then
+                                moduleState.enabled = not moduleState.enabled
+                                CONFIG.ENABLED = moduleState.enabled
+                                
+                                if moduleState.uiElements.Enabled then
+                                    moduleState.uiElements.Enabled:SetState(moduleState.enabled)
+                                end
+                                
+                                if not moduleState.enabled then
+                                    cleanup()
+                                else
+                                    createVisuals()
+                                    startRenderLoop()
+                                    startHeartbeat()
+                                end
+                                
+                                if notifyFunc then
+                                    notifyFunc("AutoGK", moduleState.enabled and "ON" or "OFF", true)
+                                end
+                            end
+                        end)
+                    end
+                    
+                else
+                    cleanup()
+                end
+                
+                notifyFunc("Syllinse", "Configuration synchronized", true)
             end
         })
     end
 end
 
 function AutoGKUltraModule:Destroy()
+    if moduleState.heartbeatConnection then
+        moduleState.heartbeatConnection:Disconnect()
+        moduleState.heartbeatConnection = nil
+    end
+    
+    if moduleState.renderConnection then
+        moduleState.renderConnection:Disconnect()
+        moduleState.renderConnection = nil
+    end
+    
+    if moduleState.inputConnection then
+        moduleState.inputConnection:Disconnect()
+        moduleState.inputConnection = nil
+    end
+    
     cleanup()
     moduleState.enabled = false
     CONFIG.ENABLED = false
 end
-
+end
 return AutoGKUltraModule
