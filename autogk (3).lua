@@ -71,9 +71,9 @@ local CONFIG = {
     JUMP_MIN_HEIGHT_DIFF = 0.7,
     
     JUMP_HORIZONTAL_FORCE = 70,
-    SMALL_GOAL_DIVE_DISTANCE = 4,
+    SMALL_GOAL_DIVE_DISTANCE = 5,
     BIG_GOAL_DIVE_DISTANCE = 10,
-    DIVE_DURATION = 0.4,
+    DIVE_DURATION = 0.44,
     
     -- Зона защиты
     ZONE_WIDTH_MULTIPLIER = 2.5,
@@ -1664,4 +1664,5 @@ function AutoGKUltraModule:Destroy()
 end
 end
 return AutoGKUltraModule
+
 
