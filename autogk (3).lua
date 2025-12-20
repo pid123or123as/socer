@@ -1483,7 +1483,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             end
         }, 'AutoGKUltraZoneColor')
         
-        moduleState.uiElements.BALL_BOX_COLOR = UI.Sections.AutoGoalKeeper:ColorPicker({
+        moduleState.uiElements.BALL_BOX_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
             Name = "Ball Box Color",
             Default = CONFIG.BALL_BOX_COLOR,
             Callback = function(v) 
@@ -1491,7 +1491,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             end
         }, 'AutoGKUltraBallBoxColor')
         
-        moduleState.uiElements.BALL_BOX_JUMP_COLOR = UI.Sections.AutoGoalKeeper:ColorPicker({
+        moduleState.uiElements.BALL_BOX_JUMP_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
             Name = "Ball Box Jump Color",
             Default = CONFIG.BALL_BOX_JUMP_COLOR,
             Callback = function(v) 
@@ -1664,3 +1664,4 @@ function AutoGKUltraModule:Destroy()
 end
 end
 return AutoGKUltraModule
+
