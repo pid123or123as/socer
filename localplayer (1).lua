@@ -661,7 +661,7 @@ local function startAntiAFK()
                             break
                         end
                     end
-                end)
+                end
             end)
             
             -- Step 2: If candidate found, verify RenderStepped connection
@@ -1489,6 +1489,7 @@ local function SetupUI(UI)
     -- UnlockCelebrations Section
     if UI.Sections.UnlockCelebrations then
         UI.Sections.UnlockCelebrations:Header({ Name = "Unlock Celebrations" })
+        UI.Sections.UnlockCelebrations:SubLabel({ Text = "Unlocks all 4 celebration game passes"})
         
         UI.Sections.UnlockCelebrations:Toggle({
             Name = "Enabled",
