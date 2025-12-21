@@ -44,6 +44,19 @@ MovementEnhancements.Config = {
     },
     UnlockCelebrations = {
         Enabled = false
+    },
+    SkinRandomize = {
+        Enabled = false,
+        ToggleKey = nil,
+        ChangeInterval = 0.5,
+        SkinTone = {
+            Enabled = true,
+            Options = {"SkinTone1", "SkinTone2", "SkinTone3", "SkinTone4"}
+        },
+        Hair = {
+            Enabled = true,
+            Options = {"Messy Hair", "Female Hair", "Beautiful Hair", "Trecky Hair", "None"}
+        }
     }
 }
 
@@ -167,12 +180,20 @@ local UnlockCelebrationsStatus = {
     celebrationsGui = nil,
     celebrationsFrame = nil,
     gamePassIds = {
-        252525072,  -- Celebration 1
-        241552189,  -- Celebration 2
-        252525459,  -- Celebration 3
-        252525830   -- Celebration 4
+        252525072,
+        241552189,
+        252525459,
+        252525830
     },
     hookApplied = false
+}
+
+-- SkinRandomize Variables
+local SkinRandomizeStatus = {
+    Running = false,
+    Connection = nil,
+    LastChangeTime = 0,
+    Remote = nil
 }
 
 -- Helper functions
@@ -646,7 +667,7 @@ local function startAntiAFK()
     -- Optimized check every 3 seconds
     AntiAFKStatus.checkConnection = task.spawn(function()
         while AntiAFKStatus.Running and AntiAFKStatus.Enabled and not AntiAFKStatus.foundAndDisabled do
-            task.wait(3)  -- Check every 3 seconds, no FPS drop
+            task.wait(3)
             
             if AntiAFKStatus.foundAndDisabled then break end
             
@@ -738,31 +759,25 @@ local function findCelebrationsGUI()
 end
 
 local function setupCelebrationsHook()
-    -- Получаем MarketplaceService напрямую через game, если Services не инициализирован
     local marketplaceService = game:GetService("MarketplaceService")
     
-    -- Получаем метатаблицу
     local mt = getrawmetatable(marketplaceService)
     if not mt then
         notify("UnlockCelebrations", "Failed to get MarketplaceService metatable", true)
         return false
     end
     
-    -- Сохраняем оригинальный __namecall
     local originalNamecall = mt.__namecall
     
-    -- Делаем метатаблицу доступной для записи
     setreadonly(mt, false)
     
-    -- Заменяем __namecall
     mt.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
         local args = {...}
         
         if self == marketplaceService and method == "UserOwnsGamePassAsync" then
-            local gamePassId = args[2]  -- Второй аргумент — ID геймпасса
+            local gamePassId = args[2]
             
-            -- Проверяем, является ли ID одним из целевых
             for _, targetId in ipairs(UnlockCelebrationsStatus.gamePassIds) do
                 if gamePassId == targetId then
                     notify("UnlockCelebrations", "Unlocked game pass ID: " .. gamePassId, false)
@@ -771,14 +786,11 @@ local function setupCelebrationsHook()
             end
         end
         
-        -- Для всего остального вызываем оригинальную функцию
         return originalNamecall(self, ...)
     end)
     
-    -- Возвращаем защиту метатаблицы
     setreadonly(mt, true)
     
-    -- Сохраняем ссылки для возможности восстановления
     UnlockCelebrationsStatus.metatable = mt
     UnlockCelebrationsStatus.originalNamecall = originalNamecall
     UnlockCelebrationsStatus.hookApplied = true
@@ -797,7 +809,6 @@ local function removeCelebrationsHook()
 end
 
 local function toggleCelebrationsMenu()
-    -- Always try to find GUI first
     if not findCelebrationsGUI() then
         notify("UnlockCelebrations", "Celebrations GUI not found", true)
         return
@@ -808,7 +819,6 @@ local function toggleCelebrationsMenu()
         return
     end
     
-    -- Toggle visibility based on current state
     UnlockCelebrationsStatus.celebrationsFrame.Visible = not UnlockCelebrationsStatus.celebrationsFrame.Visible
     
     local state = UnlockCelebrationsStatus.celebrationsFrame.Visible and "shown" or "hidden"
@@ -826,7 +836,6 @@ local function startUnlockCelebrations()
         return
     end
     
-    -- Попытаемся найти GUI (но не обязательно)
     findCelebrationsGUI()
     
     notify("UnlockCelebrations", "Celebrations unlocked", false)
@@ -835,6 +844,108 @@ end
 local function stopUnlockCelebrations()
     removeCelebrationsHook()
     notify("UnlockCelebrations", "Celebrations lock restored", true)
+end
+
+-- SkinRandomize Functions
+local function initializeSkinRandomizeRemote()
+    if not Services then return false end
+    
+    local success, result = pcall(function()
+        SkinRandomizeStatus.Remote = Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Avatar")
+        return true
+    end)
+    
+    if not success then
+        warn("SkinRandomize: Failed to find Avatar remote:", result)
+        SkinRandomizeStatus.Remote = nil
+        return false
+    end
+    return true
+end
+
+local function getRandomOption(optionsTable)
+    if not optionsTable or #optionsTable == 0 then return nil end
+    return optionsTable[math.random(1, #optionsTable)]
+end
+
+local function sendRandomSkinTone()
+    if not MovementEnhancements.Config.SkinRandomize.SkinTone.Enabled then return end
+    
+    local skinTone = getRandomOption(MovementEnhancements.Config.SkinRandomize.SkinTone.Options)
+    if not skinTone then return end
+    
+    local args = {[1] = "SkinTone", [2] = skinTone}
+    
+    pcall(function()
+        if SkinRandomizeStatus.Remote then
+            SkinRandomizeStatus.Remote:FireServer(unpack(args))
+        end
+    end)
+end
+
+local function sendRandomHair()
+    if not MovementEnhancements.Config.SkinRandomize.Hair.Enabled then return end
+    
+    local hairStyle = getRandomOption(MovementEnhancements.Config.SkinRandomize.Hair.Options)
+    if not hairStyle then return end
+    
+    local args = {[1] = "Accessory1", [2] = hairStyle}
+    
+    pcall(function()
+        if SkinRandomizeStatus.Remote then
+            SkinRandomizeStatus.Remote:FireServer(unpack(args))
+        end
+    end)
+end
+
+local function skinRandomizeLoop()
+    if not MovementEnhancements.Config.SkinRandomize.Enabled then return end
+    
+    local currentTime = tick()
+    if currentTime - SkinRandomizeStatus.LastChangeTime >= MovementEnhancements.Config.SkinRandomize.ChangeInterval then
+        
+        if math.random(1, 2) == 1 then
+            sendRandomSkinTone()
+        else
+            sendRandomHair()
+        end
+        
+        SkinRandomizeStatus.LastChangeTime = currentTime
+    end
+end
+
+local function startSkinRandomize()
+    if SkinRandomizeStatus.Running then return end
+    
+    if not initializeSkinRandomizeRemote() then
+        notify("SkinRandomize", "Failed to find Avatar remote", true)
+        return
+    end
+    
+    math.randomseed(tick())
+    SkinRandomizeStatus.Running = true
+    
+    SkinRandomizeStatus.Connection = Services.RunService.Heartbeat:Connect(function()
+        skinRandomizeLoop()
+    end)
+    
+    notify("SkinRandomize", "Started with interval: " .. MovementEnhancements.Config.SkinRandomize.ChangeInterval .. "s", false)
+end
+
+local function stopSkinRandomize()
+    if SkinRandomizeStatus.Connection then
+        SkinRandomizeStatus.Connection:Disconnect()
+        SkinRandomizeStatus.Connection = nil
+    end
+    
+    SkinRandomizeStatus.Running = false
+    notify("SkinRandomize", "Stopped", true)
+end
+
+local function setSkinRandomizeInterval(newInterval)
+    newInterval = math.clamp(newInterval, 0.1, 5)
+    MovementEnhancements.Config.SkinRandomize.ChangeInterval = newInterval
+    notify("SkinRandomize", "Interval set to: " .. newInterval .. "s", false)
 end
 
 -- Timer Module
@@ -1458,7 +1569,6 @@ local function SetupUI(UI)
             end
         })
         
-        -- Label for AntiAFK status
         AntiAFKStatus.label = UI.Sections.AntiAFK:Label({
             Text = "AntiAFK pointer: " .. AntiAFKStatus.currentScriptName
         })
@@ -1468,7 +1578,7 @@ local function SetupUI(UI)
     if UI.Sections.JoinTeam then
         UI.Sections.JoinTeam:Header({ Name = "Team Joiner" })
         UI.Sections.JoinTeam:SubLabel({ Text = "bypasses limits, you can join a team with more people than the other"})
-        -- Team count labels
+        
         JoinTeamStatus.awayLabel = UI.Sections.JoinTeam:Label({
             Text = "Away Count: 0"
         })
@@ -1477,7 +1587,6 @@ local function SetupUI(UI)
             Text = "Home Count: 0"
         })
         
-        -- Buttons
         UI.Sections.JoinTeam:Button({
             Name = "Join Away",
             Callback = function()
@@ -1492,7 +1601,6 @@ local function SetupUI(UI)
             end
         })
         
-        -- Start monitoring team counts
         startTeamMonitoring()
     end
 
@@ -1518,6 +1626,77 @@ local function SetupUI(UI)
             Name = "Show/Unshow menu",
             Callback = function()
                 toggleCelebrationsMenu()
+            end
+        })
+    end
+
+    -- SkinRandomize Section
+    if UI.Sections.SkinRandomize then
+        UI.Sections.SkinRandomize:Header({ Name = "Skin Randomizer" })
+        
+        UI.Sections.SkinRandomize:Toggle({
+            Name = "Enabled",
+            Default = MovementEnhancements.Config.SkinRandomize.Enabled,
+            Callback = function(value)
+                MovementEnhancements.Config.SkinRandomize.Enabled = value
+                if value then 
+                    startSkinRandomize()
+                else 
+                    stopSkinRandomize()
+                end
+            end
+        })
+        
+        UI.Sections.SkinRandomize:Toggle({
+            Name = "Random Skin Tone",
+            Default = MovementEnhancements.Config.SkinRandomize.SkinTone.Enabled,
+            Callback = function(value)
+                MovementEnhancements.Config.SkinRandomize.SkinTone.Enabled = value
+                notify("SkinRandomize", "Skin tone randomization " .. (value and "enabled" or "disabled"), false)
+            end
+        })
+        
+        UI.Sections.SkinRandomize:Toggle({
+            Name = "Random Hair",
+            Default = MovementEnhancements.Config.SkinRandomize.Hair.Enabled,
+            Callback = function(value)
+                MovementEnhancements.Config.SkinRandomize.Hair.Enabled = value
+                notify("SkinRandomize", "Hair randomization " .. (value and "enabled" or "disabled"), false)
+            end
+        })
+        
+        UI.Sections.SkinRandomize:Slider({
+            Name = "Change Speed",
+            Minimum = 0.1,
+            Maximum = 5,
+            Default = MovementEnhancements.Config.SkinRandomize.ChangeInterval,
+            Precision = 1,
+            Callback = function(value)
+                setSkinRandomizeInterval(value)
+            end
+        })
+        
+        UI.Sections.SkinRandomize:Keybind({
+            Name = "Toggle Key",
+            Default = MovementEnhancements.Config.SkinRandomize.ToggleKey,
+            Callback = function(value)
+                MovementEnhancements.Config.SkinRandomize.ToggleKey = value
+                if isInputFocused() then return end
+                MovementEnhancements.Config.SkinRandomize.Enabled = not MovementEnhancements.Config.SkinRandomize.Enabled
+                if MovementEnhancements.Config.SkinRandomize.Enabled then 
+                    startSkinRandomize()
+                else 
+                    stopSkinRandomize()
+                end
+            end
+        })
+        
+        UI.Sections.SkinRandomize:Button({
+            Name = "Randomize Now",
+            Callback = function()
+                sendRandomSkinTone()
+                sendRandomHair()
+                notify("SkinRandomize", "Randomized appearance", false)
             end
         })
     end
@@ -1558,6 +1737,9 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
             if UnlockCelebrationsStatus.Enabled then
                 startUnlockCelebrations()
             end
+            if MovementEnhancements.Config.SkinRandomize.Enabled then
+                startSkinRandomize()
+            end
         end
         
         LocalPlayerObj.CharacterAdded:Connect(handleCharacterChange)
@@ -1579,6 +1761,7 @@ function MovementEnhancements:Destroy()
     stopAntiAFK()
     stopTeamMonitoring()
     stopUnlockCelebrations()
+    stopSkinRandomize()
     
     notify("MovementEnhancements", "All modules stopped", true)
 end
