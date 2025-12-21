@@ -130,8 +130,10 @@ local AntiAFKStatus = {
     LocalPlayer = nil,
     PlayerScripts = nil,
     AFKRemote = nil,
-    alreadyDisabled = {},
-    Connection = nil
+    foundAndDisabled = false,
+    currentScriptName = "None",
+    label = nil,
+    checkConnection = nil
 }
 
 -- Helper functions
@@ -398,8 +400,8 @@ local function stopAutoGK()
 end
 
 -- AntiAFK Functions
-local function disableAFKScript(afkScript)
-    if not afkScript or afkScript.Disabled then return end
+local function neutralizeAFKScript(afkScript)
+    if not afkScript or AntiAFKStatus.foundAndDisabled then return end
     
     local disabledCount = 0
     
@@ -422,7 +424,19 @@ local function disableAFKScript(afkScript)
     end)
     
     if disabledCount > 0 then
-        notify("AntiAFK", "AFKClient found and neutralized (disabled connections: " .. disabledCount .. ")", false)
+        AntiAFKStatus.foundAndDisabled = true
+        AntiAFKStatus.currentScriptName = afkScript.Name .. " (Neutralized)"
+        notify("AntiAFK", "AFKClient found and neutralized! Script: " .. afkScript.Name, false)
+        
+        if AntiAFKStatus.label then
+            AntiAFKStatus.label:UpdateName("AntiAFK pointer: " .. AntiAFKStatus.currentScriptName)
+        end
+    end
+end
+
+local function updateAntiAFKLabel()
+    if AntiAFKStatus.label then
+        AntiAFKStatus.label:UpdateName("AntiAFK pointer: " .. AntiAFKStatus.currentScriptName)
     end
 end
 
@@ -442,93 +456,92 @@ local function startAntiAFK()
     end)
     
     if not success then
+        AntiAFKStatus.currentScriptName = "AFKRemote not found"
+        updateAntiAFKLabel()
         notify("AntiAFK", "Failed to initialize: AFKRemote not found", true)
         return
     end
     
     AntiAFKStatus.Running = true
-    AntiAFKStatus.alreadyDisabled = {}
+    AntiAFKStatus.foundAndDisabled = false
+    AntiAFKStatus.currentScriptName = "Scanning..."
+    updateAntiAFKLabel()
     
-    -- Main monitoring loop
-    AntiAFKStatus.Connection = AntiAFKStatus.RunService.Heartbeat:Connect(function()
-        if not AntiAFKStatus.Enabled then return end
-        
-        local candidateScript = nil
-        
-        pcall(function()
-            for _, conn in pairs(getconnections(AntiAFKStatus.AFKRemote.OnClientEvent)) do
-                if conn.Function and conn.Enabled then
-                    local env = getfenv(conn.Function)
-                    if env and env.script and env.script:IsA("LocalScript") and env.script.Parent == AntiAFKStatus.PlayerScripts then
-                        candidateScript = env.script
-                        break
-                    end
-                end
-            end
-        end)
-        
-        if candidateScript then
-            if AntiAFKStatus.alreadyDisabled[candidateScript] then return end
+    -- Optimized check every 3 seconds
+    AntiAFKStatus.checkConnection = task.spawn(function()
+        while AntiAFKStatus.Running and AntiAFKStatus.Enabled and not AntiAFKStatus.foundAndDisabled do
+            task.wait(3)  -- Check every 3 seconds, no FPS drop
             
-            local hasRenderStepped = false
-            pcall(function()
-                for _, conn in pairs(getconnections(AntiAFKStatus.RunService.RenderStepped)) do
-                    if conn.Function and getfenv(conn.Function).script == candidateScript then
-                        hasRenderStepped = true
-                        break
-                    end
-                end
-            end)
+            if AntiAFKStatus.foundAndDisabled then break end
             
-            if hasRenderStepped then
-                disableAFKScript(candidateScript)
-                AntiAFKStatus.alreadyDisabled[candidateScript] = true
-            end
-        end
-    end)
-    
-    -- Backup check every 3 seconds
-    task.spawn(function()
-        while AntiAFKStatus.Running and AntiAFKStatus.Enabled do
-            task.wait(3)
+            local candidateScript = nil
             
+            -- Step 1: Check AFKRemote.OnClientEvent connections
             pcall(function()
                 for _, conn in pairs(getconnections(AntiAFKStatus.AFKRemote.OnClientEvent)) do
                     if conn.Function and conn.Enabled then
                         local env = getfenv(conn.Function)
                         if env and env.script and env.script:IsA("LocalScript") and env.script.Parent == AntiAFKStatus.PlayerScripts then
-                            local scriptObj = env.script
-                            if not AntiAFKStatus.alreadyDisabled[scriptObj] then
-                                local hasRS = false
-                                for _, c in pairs(getconnections(AntiAFKStatus.RunService.RenderStepped)) do
-                                    if c.Function and getfenv(c.Function).script == scriptObj then
-                                        hasRS = true
-                                        break
-                                    end
-                                end
-                                if hasRS then
-                                    disableAFKScript(scriptObj)
-                                    AntiAFKStatus.alreadyDisabled[scriptObj] = true
-                                end
-                            end
+                            candidateScript = env.script
+                            break
                         end
                     end
                 end
             end)
+            
+            -- Step 2: If candidate found, verify RenderStepped connection
+            if candidateScript then
+                AntiAFKStatus.currentScriptName = candidateScript.Name .. " (Checking)"
+                updateAntiAFKLabel()
+                
+                local hasRenderStepped = false
+                
+                pcall(function()
+                    for _, conn in pairs(getconnections(AntiAFKStatus.RunService.RenderStepped)) do
+                        if conn.Function and getfenv(conn.Function).script == candidateScript then
+                            hasRenderStepped = true
+                            break
+                        end
+                    end
+                end)
+                
+                if hasRenderStepped then
+                    neutralizeAFKScript(candidateScript)
+                else
+                    AntiAFKStatus.currentScriptName = candidateScript.Name .. " (No RenderStepped)"
+                    updateAntiAFKLabel()
+                end
+            else
+                AntiAFKStatus.currentScriptName = "No AFK script found"
+                updateAntiAFKLabel()
+            end
         end
+        
+        -- Final state update
+        if AntiAFKStatus.foundAndDisabled then
+            AntiAFKStatus.currentScriptName = AntiAFKStatus.currentScriptName or "Neutralized"
+            notify("AntiAFK", "AntiAFK monitoring completed successfully", false)
+        else
+            AntiAFKStatus.currentScriptName = "Monitoring stopped"
+        end
+        updateAntiAFKLabel()
     end)
     
-    notify("AntiAFK", "AntiAFK started", true)
+    notify("AntiAFK", "AntiAFK started (checking every 3s)", true)
 end
 
 local function stopAntiAFK()
-    if AntiAFKStatus.Connection then
-        AntiAFKStatus.Connection:Disconnect()
-        AntiAFKStatus.Connection = nil
+    AntiAFKStatus.Running = false
+    AntiAFKStatus.foundAndDisabled = false
+    
+    if AntiAFKStatus.checkConnection then
+        task.cancel(AntiAFKStatus.checkConnection)
+        AntiAFKStatus.checkConnection = nil
     end
     
-    AntiAFKStatus.Running = false
-    AntiAFKStatus.alreadyDisabled = {}
+    AntiAFKStatus.currentScriptName = "Disabled"
+    updateAntiAFKLabel()
+    
     notify("AntiAFK", "AntiAFK stopped", true)
 end
 
@@ -1151,6 +1164,11 @@ local function SetupUI(UI)
                     stopAntiAFK()
                 end
             end
+        })
+        
+        -- Label for AntiAFK status
+        AntiAFKStatus.label = UI.Sections.AntiAFK:Label({
+            Text = "AntiAFK pointer: " .. AntiAFKStatus.currentScriptName
         })
     end
 end
