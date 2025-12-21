@@ -193,7 +193,23 @@ local SkinRandomizeStatus = {
     Running = false,
     Connection = nil,
     LastChangeTime = 0,
-    Remote = nil
+    Remote = nil,
+    LastSkinToneChange = 0,
+    LastHairChange = 0,
+    ChangeDelay = 0.05  -- Задержка перед отправкой
+}
+
+-- UI Elements для Config Sync
+local UIElements = {
+    Timer = {},
+    Disabler = {},
+    Speed = {},
+    InfStamina = {},
+    AutoGKSelect = {},
+    AntiAFK = {},
+    JoinTeam = {},
+    UnlockCelebrations = {},
+    SkinRandomize = {}
 }
 
 -- Helper functions
@@ -871,14 +887,20 @@ end
 local function sendRandomSkinTone()
     if not MovementEnhancements.Config.SkinRandomize.SkinTone.Enabled then return end
     
+    local currentTime = tick()
+    if currentTime - SkinRandomizeStatus.LastSkinToneChange < SkinRandomizeStatus.ChangeDelay then return end
+    
     local skinTone = getRandomOption(MovementEnhancements.Config.SkinRandomize.SkinTone.Options)
     if not skinTone then return end
     
     local args = {[1] = "SkinTone", [2] = skinTone}
     
+    task.wait(SkinRandomizeStatus.ChangeDelay)
+    
     pcall(function()
         if SkinRandomizeStatus.Remote then
             SkinRandomizeStatus.Remote:FireServer(unpack(args))
+            SkinRandomizeStatus.LastSkinToneChange = currentTime
         end
     end)
 end
@@ -886,14 +908,20 @@ end
 local function sendRandomHair()
     if not MovementEnhancements.Config.SkinRandomize.Hair.Enabled then return end
     
+    local currentTime = tick()
+    if currentTime - SkinRandomizeStatus.LastHairChange < SkinRandomizeStatus.ChangeDelay then return end
+    
     local hairStyle = getRandomOption(MovementEnhancements.Config.SkinRandomize.Hair.Options)
     if not hairStyle then return end
     
     local args = {[1] = "Accessory1", [2] = hairStyle}
     
+    task.wait(SkinRandomizeStatus.ChangeDelay)
+    
     pcall(function()
         if SkinRandomizeStatus.Remote then
             SkinRandomizeStatus.Remote:FireServer(unpack(args))
+            SkinRandomizeStatus.LastHairChange = currentTime
         end
     end)
 end
@@ -1288,12 +1316,13 @@ InfStamina.SetRestoreGui = function(enabled)
     notify("InfStamina", "Restore GUI " .. (enabled and "enabled" or "disabled"), false)
 end
 
+
 -- UI Setup
 local function SetupUI(UI)
     -- Timer Section
     if UI.Sections.Timer then
         UI.Sections.Timer:Header({ Name = "Timer" })
-        UI.Sections.Timer:Toggle({
+        UIElements.Timer.Enabled = UI.Sections.Timer:Toggle({
             Name = "Enabled",
             Default = MovementEnhancements.Config.Timer.Enabled,
             Callback = function(value)
@@ -1301,9 +1330,9 @@ local function SetupUI(UI)
                 MovementEnhancements.Config.Timer.Enabled = value
                 if value then Timer.Start() else Timer.Stop() end
             end
-        })
+        }, 'TimerToggle')
         
-        UI.Sections.Timer:Slider({
+        UIElements.Timer.Speed = UI.Sections.Timer:Slider({
             Name = "Speed",
             Minimum = 1,
             Maximum = 15,
@@ -1312,9 +1341,9 @@ local function SetupUI(UI)
             Callback = function(value)
                 Timer.SetSpeed(value)
             end
-        })
+        }, 'TimerSpeed123')
         
-        UI.Sections.Timer:Keybind({
+        UIElements.Timer.Keybind = UI.Sections.Timer:Keybind({
             Name = "Toggle Key",
             Default = MovementEnhancements.Config.Timer.ToggleKey,
             Callback = function(value)
@@ -1327,13 +1356,13 @@ local function SetupUI(UI)
                     notify("Timer", "Enable Timer to use keybind.", true)
                 end
             end
-        })
+        }, 'TimerToggle123')
     end
 
     -- Disabler Section
     if UI.Sections.Disabler then
         UI.Sections.Disabler:Header({ Name = "Disabler" })
-        UI.Sections.Disabler:Toggle({
+        UIElements.Disabler.Enabled = UI.Sections.Disabler:Toggle({
             Name = "Enabled",
             Default = MovementEnhancements.Config.Disabler.Enabled,
             Callback = function(value)
@@ -1341,9 +1370,9 @@ local function SetupUI(UI)
                 MovementEnhancements.Config.Disabler.Enabled = value
                 if value then Disabler.Start() else Disabler.Stop() end
             end
-        })
+        }, 'DisablerToggle')
         
-        UI.Sections.Disabler:Keybind({
+        UIElements.Disabler.Keybind = UI.Sections.Disabler:Keybind({
             Name = "Toggle Key",
             Default = MovementEnhancements.Config.Disabler.ToggleKey,
             Callback = function(value)
@@ -1356,13 +1385,13 @@ local function SetupUI(UI)
                     notify("Disabler", "Enable Disabler to use keybind.", true)
                 end
             end
-        })
+        }, 'DisablerToggle123')
     end
 
     -- Speed Section
     if UI.Sections.Speed then
         UI.Sections.Speed:Header({ Name = "Speed" })
-        UI.Sections.Speed:Toggle({
+        UIElements.Speed.Enabled = UI.Sections.Speed:Toggle({
             Name = "Enabled",
             Default = MovementEnhancements.Config.Speed.Enabled,
             Callback = function(value)
@@ -1370,27 +1399,27 @@ local function SetupUI(UI)
                 MovementEnhancements.Config.Speed.Enabled = value
                 if value then Speed.Start() else Speed.Stop() end
             end
-        })
+        }, 'SpeedToggle')
         
-        UI.Sections.Speed:Toggle({
+        UIElements.Speed.AutoJump = UI.Sections.Speed:Toggle({
             Name = "Auto Jump",
             Default = MovementEnhancements.Config.Speed.AutoJump,
             Callback = function(value)
                 SpeedStatus.AutoJump = value
                 MovementEnhancements.Config.Speed.AutoJump = value
             end
-        })
+        }, 'AutoJump')
         
-        UI.Sections.Speed:Dropdown({
+        UIElements.Speed.Method = UI.Sections.Speed:Dropdown({
             Name = "Method",
             Options = {"CFrame", "PulseTP"},
             Default = MovementEnhancements.Config.Speed.Method,
             Callback = function(value)
                 Speed.SetMethod(value)
             end
-        })
+        }, 'MethodCframe')
         
-        UI.Sections.Speed:Slider({
+        UIElements.Speed.Speed = UI.Sections.Speed:Slider({
             Name = "Speed",
             Minimum = 16,
             Maximum = 250,
@@ -1399,9 +1428,9 @@ local function SetupUI(UI)
             Callback = function(value)
                 Speed.SetSpeed(value)
             end
-        })
+        }, 'Speed')
         
-        UI.Sections.Speed:Slider({
+        UIElements.Speed.JumpInterval = UI.Sections.Speed:Slider({
             Name = "Jump Interval",
             Minimum = 0.1,
             Maximum = 2,
@@ -1412,9 +1441,9 @@ local function SetupUI(UI)
                 MovementEnhancements.Config.Speed.JumpInterval = value
                 notify("Speed", "Jump Interval set to: " .. value, false)
             end
-        })
+        }, 'JumpInterval')
         
-        UI.Sections.Speed:Slider({
+        UIElements.Speed.PulseTPDistance = UI.Sections.Speed:Slider({
             Name = "Pulse TP Distance",
             Minimum = 1,
             Maximum = 20,
@@ -1423,9 +1452,9 @@ local function SetupUI(UI)
             Callback = function(value)
                 Speed.SetPulseTPDistance(value)
             end
-        })
+        }, 'PulseTPDistance')
         
-        UI.Sections.Speed:Slider({
+        UIElements.Speed.PulseTPFrequency = UI.Sections.Speed:Slider({
             Name = "Pulse TP Frequency",
             Minimum = 0.1,
             Maximum = 2,
@@ -1434,9 +1463,9 @@ local function SetupUI(UI)
             Callback = function(value)
                 Speed.SetPulseTPFrequency(value)
             end
-        })
+        }, 'PulseTPFrequency')
         
-        UI.Sections.Speed:Slider({
+        UIElements.Speed.SmoothnessFactor = UI.Sections.Speed:Slider({
             Name = "Smoothness Factor",
             Minimum = 0,
             Maximum = 1,
@@ -1445,9 +1474,9 @@ local function SetupUI(UI)
             Callback = function(value)
                 Speed.SetSmoothnessFactor(value)
             end
-        })
+        }, 'SmoothnessFactor')
         
-        UI.Sections.Speed:Keybind({
+        UIElements.Speed.Keybind = UI.Sections.Speed:Keybind({
             Name = "Toggle Key",
             Default = MovementEnhancements.Config.Speed.ToggleKey,
             Callback = function(value)
@@ -1460,14 +1489,14 @@ local function SetupUI(UI)
                     notify("Speed", "Enable Speed to use keybind.", true)
                 end
             end
-        })
+        }, 'SpeedToggle')
     end
 
     -- InfStamina Section
     if UI.Sections.InfStamina then
         UI.Sections.InfStamina:Header({ Name = "Infinity Stamina" })
         
-        UI.Sections.InfStamina:Toggle({
+        UIElements.InfStamina.Enabled = UI.Sections.InfStamina:Toggle({
             Name = "Enabled",
             Default = MovementEnhancements.Config.InfStamina.Enabled,
             Callback = function(value)
@@ -1475,34 +1504,34 @@ local function SetupUI(UI)
                 MovementEnhancements.Config.InfStamina.Enabled = value
                 if value then InfStamina.Start() else InfStamina.Stop() end
             end
-        })
+        }, 'InfStaminaEnabled')
         
-        UI.Sections.InfStamina:Toggle({
+        UIElements.InfStamina.AlwaysSprint = UI.Sections.InfStamina:Toggle({
             Name = "Always Sprint",
             Default = MovementEnhancements.Config.InfStamina.AlwaysSprint,
             Callback = function(value)
                 InfStamina.SetAlwaysSprint(value)
             end
-        })
+        }, 'AlwaysSprint')
         
-        UI.Sections.InfStamina:Toggle({
+        UIElements.InfStamina.RestoreGui = UI.Sections.InfStamina:Toggle({
             Name = "Restore GUI",
             Default = MovementEnhancements.Config.InfStamina.RestoreGui,
             Callback = function(value)
                 InfStamina.SetRestoreGui(value)
             end
-        })
+        }, 'RestoreGui')
         
-        UI.Sections.InfStamina:Dropdown({
+        UIElements.InfStamina.SprintKey = UI.Sections.InfStamina:Dropdown({
             Name = "Sprint Key",
             Options = {"LeftShift", "Space", "C", "V"},
             Default = MovementEnhancements.Config.InfStamina.SprintKey,
             Callback = function(value)
                 InfStamina.SetSprintKey(value)
             end
-        })
+        }, 'SprintKey')
         
-        UI.Sections.InfStamina:Keybind({
+        UIElements.InfStamina.Keybind = UI.Sections.InfStamina:Keybind({
             Name = "Toggle Key",
             Default = MovementEnhancements.Config.InfStamina.ToggleKey,
             Callback = function(value)
@@ -1515,14 +1544,14 @@ local function SetupUI(UI)
                     notify("InfStamina", "Enable InfStamina to use keybind.", true)
                 end
             end
-        })
+        }, 'InfStaminaToggle')
     end
 
     -- AutoGKSelect Section
     if UI.Sections.AutoGKSelect then
         UI.Sections.AutoGKSelect:Header({ Name = "AutoGK Selector" })
         
-        UI.Sections.AutoGKSelect:Toggle({
+        UIElements.AutoGKSelect.Enabled = UI.Sections.AutoGKSelect:Toggle({
             Name = "Enabled",
             Default = MovementEnhancements.Config.AutoGKSelect.Enabled,
             Callback = function(value)
@@ -1534,7 +1563,7 @@ local function SetupUI(UI)
                     stopAutoGK()
                 end
             end
-        })
+        }, 'AutoGKSelectEnabled')
         
         UI.Sections.AutoGKSelect:Button({
             Name = "Select GK Away",
@@ -1555,7 +1584,7 @@ local function SetupUI(UI)
     if UI.Sections.AntiAFK then
         UI.Sections.AntiAFK:Header({ Name = "AntiAFK" })
         
-        UI.Sections.AntiAFK:Toggle({
+        UIElements.AntiAFK.Enabled = UI.Sections.AntiAFK:Toggle({
             Name = "Enabled",
             Default = MovementEnhancements.Config.AntiAFK.Enabled,
             Callback = function(value)
@@ -1567,8 +1596,9 @@ local function SetupUI(UI)
                     stopAntiAFK()
                 end
             end
-        })
+        }, 'AntiAFKEEnabled')
         
+        -- Label for AntiAFK status
         AntiAFKStatus.label = UI.Sections.AntiAFK:Label({
             Text = "AntiAFK pointer: " .. AntiAFKStatus.currentScriptName
         })
@@ -1608,7 +1638,7 @@ local function SetupUI(UI)
     if UI.Sections.UnlockCelebrations then
         UI.Sections.UnlockCelebrations:Header({ Name = "Unlock Celebrations" })
         
-        UI.Sections.UnlockCelebrations:Toggle({
+        UIElements.UnlockCelebrations.Enabled = UI.Sections.UnlockCelebrations:Toggle({
             Name = "Enabled",
             Default = MovementEnhancements.Config.UnlockCelebrations.Enabled,
             Callback = function(value)
@@ -1620,7 +1650,7 @@ local function SetupUI(UI)
                     stopUnlockCelebrations()
                 end
             end
-        })
+        }, 'UnlockCelebrations')
         
         UI.Sections.UnlockCelebrations:Button({
             Name = "Show/Unshow menu",
@@ -1634,7 +1664,7 @@ local function SetupUI(UI)
     if UI.Sections.SkinRandomize then
         UI.Sections.SkinRandomize:Header({ Name = "Skin Randomizer" })
         
-        UI.Sections.SkinRandomize:Toggle({
+        UIElements.SkinRandomize.Enabled = UI.Sections.SkinRandomize:Toggle({
             Name = "Enabled",
             Default = MovementEnhancements.Config.SkinRandomize.Enabled,
             Callback = function(value)
@@ -1645,27 +1675,27 @@ local function SetupUI(UI)
                     stopSkinRandomize()
                 end
             end
-        })
+        }, 'SkinRandom124')
         
-        UI.Sections.SkinRandomize:Toggle({
+        UIElements.SkinRandomize.SkinTone = UI.Sections.SkinRandomize:Toggle({
             Name = "Random Skin Tone",
             Default = MovementEnhancements.Config.SkinRandomize.SkinTone.Enabled,
             Callback = function(value)
                 MovementEnhancements.Config.SkinRandomize.SkinTone.Enabled = value
                 notify("SkinRandomize", "Skin tone randomization " .. (value and "enabled" or "disabled"), false)
             end
-        })
+        }, 'RandomSkiNTone')
         
-        UI.Sections.SkinRandomize:Toggle({
+        UIElements.SkinRandomize.Hair = UI.Sections.SkinRandomize:Toggle({
             Name = "Random Hair",
             Default = MovementEnhancements.Config.SkinRandomize.Hair.Enabled,
             Callback = function(value)
                 MovementEnhancements.Config.SkinRandomize.Hair.Enabled = value
                 notify("SkinRandomize", "Hair randomization " .. (value and "enabled" or "disabled"), false)
             end
-        })
+        }, 'RandomHair')
         
-        UI.Sections.SkinRandomize:Slider({
+        UIElements.SkinRandomize.ChangeSpeed = UI.Sections.SkinRandomize:Slider({
             Name = "Change Speed",
             Minimum = 0.1,
             Maximum = 5,
@@ -1674,22 +1704,7 @@ local function SetupUI(UI)
             Callback = function(value)
                 setSkinRandomizeInterval(value)
             end
-        })
-        
-        UI.Sections.SkinRandomize:Keybind({
-            Name = "Toggle Key",
-            Default = MovementEnhancements.Config.SkinRandomize.ToggleKey,
-            Callback = function(value)
-                MovementEnhancements.Config.SkinRandomize.ToggleKey = value
-                if isInputFocused() then return end
-                MovementEnhancements.Config.SkinRandomize.Enabled = not MovementEnhancements.Config.SkinRandomize.Enabled
-                if MovementEnhancements.Config.SkinRandomize.Enabled then 
-                    startSkinRandomize()
-                else 
-                    stopSkinRandomize()
-                end
-            end
-        })
+        }, 'ChangeSpeed123')
         
         UI.Sections.SkinRandomize:Button({
             Name = "Randomize Now",
@@ -1697,6 +1712,39 @@ local function SetupUI(UI)
                 sendRandomSkinTone()
                 sendRandomHair()
                 notify("SkinRandomize", "Randomized appearance", false)
+            end
+        })
+    end
+    
+    -- Config Sync Section
+    if UI.Tabs and UI.Tabs.Config then
+        local configSection = UI.Tabs.Config:Section({ Name = "MovementEnhancements Sync", Side = "Right" })
+        configSection:Header({ Name = "LocalPlayer Sync" })
+        configSection:Button({
+            Name = "Sync Config",
+            Callback = function()
+                -- Timer Sync
+                TimerStatus.Speed = UIElements.Timer.Speed:GetValue()
+                
+                -- Speed Sync
+                SpeedStatus.Speed = UIElements.Speed.Speed:GetValue()
+                SpeedStatus.AutoJump = UIElements.Speed.AutoJump:GetState()
+                SpeedStatus.JumpInterval = UIElements.Speed.JumpInterval:GetValue()
+                SpeedStatus.PulseTPDistance = UIElements.Speed.PulseTPDistance:GetValue()
+                SpeedStatus.PulseTPFrequency = UIElements.Speed.PulseTPFrequency:GetValue()
+                SpeedStatus.SmoothnessFactor = UIElements.Speed.SmoothnessFactor:GetValue()
+                
+                -- InfStamina Sync
+                InfStaminaStatus.SprintKey = UIElements.InfStamina.SprintKey:GetState()
+                InfStaminaStatus.AlwaysSprint = UIElements.InfStamina.AlwaysSprint:GetState()
+                InfStaminaStatus.RestoreGui = UIElements.InfStamina.RestoreGui:GetState()
+                
+                -- SkinRandomize Sync
+                MovementEnhancements.Config.SkinRandomize.ChangeInterval = UIElements.SkinRandomize.ChangeSpeed:GetValue()
+                MovementEnhancements.Config.SkinRandomize.SkinTone.Enabled = UIElements.SkinRandomize.SkinTone:GetValue()
+                MovementEnhancements.Config.SkinRandomize.Hair.Enabled = UIElements.SkinRandomize.Hair:GetState()
+                
+                notify("LocalPlayer", "Config synchronized!", true)
             end
         })
     end
