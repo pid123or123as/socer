@@ -27,14 +27,6 @@ MovementEnhancements.Config = {
         ToggleKey = nil,
         SmoothnessFactor = 0.2
     },
-    Fly = {
-        Enabled = false,
-        Speed = 50,
-        VerticalSpeed = 25,
-        ToggleKey = nil,
-        VerticalKeys = "E/Q",
-        AntiDetect = true
-    },
     InfStamina = {
         Enabled = false,
         SprintKey = "LeftShift",
@@ -78,21 +70,6 @@ local SpeedStatus = {
     SmoothnessFactor = MovementEnhancements.Config.Speed.SmoothnessFactor,
     CurrentMoveDirection = Vector3.new(0, 0, 0),
     LastPulseTPTime = 0
-}
-
-local FlyStatus = {
-    Running = false,
-    Connection = nil,
-    Key = MovementEnhancements.Config.Fly.ToggleKey,
-    Enabled = MovementEnhancements.Config.Fly.Enabled,
-    Speed = MovementEnhancements.Config.Fly.Speed,
-    VerticalSpeed = MovementEnhancements.Config.Fly.VerticalSpeed,
-    VerticalKeys = MovementEnhancements.Config.Fly.VerticalKeys,
-    AntiDetect = MovementEnhancements.Config.Fly.AntiDetect,
-    IsFlying = false,
-    LastPosition = nil,
-    LastTime = 0,
-    OriginalGravity = 196.2
 }
 
 local InfStaminaStatus = {
@@ -359,251 +336,6 @@ Speed.SetSmoothnessFactor = function(value)
     SpeedStatus.SmoothnessFactor = math.clamp(value, 0, 1)
     MovementEnhancements.Config.Speed.SmoothnessFactor = SpeedStatus.SmoothnessFactor
     notify("Speed", "Smoothness Factor set to: " .. SpeedStatus.SmoothnessFactor, false)
-end
-
--- Fly Module (УЛУЧШЕННЫЙ CFrame метод с антидетектом)
-local Fly = {}
-
-Fly.GetFlyVector = function()
-    if not Services.UserInputService or not Services.Workspace.CurrentCamera then
-        return Vector3.new(0, 0, 0)
-    end
-    
-    local camera = Services.Workspace.CurrentCamera
-    local cameraCFrame = camera.CFrame
-    
-    local cameraForward = cameraCFrame.LookVector
-    local cameraRight = cameraCFrame.RightVector
-    local cameraUp = cameraCFrame.UpVector
-    
-    local forward = 0
-    local right = 0
-    local up = 0
-    
-    if Services.UserInputService:IsKeyDown(Enum.KeyCode.W) then
-        forward = forward + 1
-    end
-    if Services.UserInputService:IsKeyDown(Enum.KeyCode.S) then
-        forward = forward - 1
-    end
-    if Services.UserInputService:IsKeyDown(Enum.KeyCode.A) then
-        right = right - 1
-    end
-    if Services.UserInputService:IsKeyDown(Enum.KeyCode.D) then
-        right = right + 1
-    end
-    
-    local upKey, downKey = FlyStatus.VerticalKeys:match("(.+)/(.+)")
-    if upKey and downKey then
-        if Services.UserInputService:IsKeyDown(Enum.KeyCode[upKey]) then
-            up = up + 1
-        end
-        if Services.UserInputService:IsKeyDown(Enum.KeyCode[downKey]) then
-            up = up - 1
-        end
-    end
-    
-    local moveVector = Vector3.new(0, 0, 0)
-    
-    if forward ~= 0 then
-        moveVector = moveVector + (cameraForward * forward)
-    end
-    if right ~= 0 then
-        moveVector = moveVector + (cameraRight * right)
-    end
-    if up ~= 0 then
-        moveVector = moveVector + (cameraUp * up)
-    end
-    
-    if moveVector.Magnitude > 0 then
-        moveVector = moveVector.Unit
-    end
-    
-    return moveVector
-end
-
-Fly.ApplyAntiDetect = function(rootPart, dt)
-    if not FlyStatus.AntiDetect then return end
-    
-    -- Случайные микроколебания для имитации физики
-    local randomOffset = Vector3.new(
-        math.random() * 0.01 - 0.005,
-        math.random() * 0.005,
-        math.random() * 0.01 - 0.005
-    )
-    
-    -- Плавное движение вместо мгновенного телепорта
-    local currentPos = rootPart.Position
-    local targetPos = rootPart.CFrame.Position
-    local lerpFactor = 0.3
-    
-    local smoothedPos = currentPos:Lerp(targetPos, lerpFactor * dt * 60)
-    
-    -- Сохраняем ориентацию
-    local lookDir = rootPart.CFrame.LookVector
-    local newCFrame = CFrame.new(smoothedPos + randomOffset, smoothedPos + lookDir + randomOffset)
-    
-    -- Мягкое применение CFrame
-    rootPart.CFrame = rootPart.CFrame:Lerp(newCFrame, 0.7)
-    
-    -- Имитация небольшой гравитации для анти-детекта
-    if FlyStatus.IsFlying then
-        local gravityFactor = 0.1
-        rootPart.Velocity = Vector3.new(
-            rootPart.Velocity.X * 0.95,
-            rootPart.Velocity.Y * 0.95 - gravityFactor,
-            rootPart.Velocity.Z * 0.95
-        )
-    end
-end
-
-Fly.Start = function()
-    if FlyStatus.Running or not Services then return end
-    
-    local humanoid, rootPart = getCharacterData()
-    if not isCharacterValid(humanoid, rootPart) or isInVehicle(rootPart) then return end
-    
-    FlyStatus.Running = true
-    FlyStatus.IsFlying = true
-    FlyStatus.LastPosition = rootPart.Position
-    FlyStatus.LastTime = tick()
-    
-    -- Сохраняем настройки
-    FlyStatus.OriginalGravity = workspace.Gravity
-    local originalGravity = humanoid.JumpPower
-    humanoid.JumpPower = 0
-    
-    -- Плавный переход
-    notify("Fly", "Started with CFrame method | Anti-Detect: " .. tostring(FlyStatus.AntiDetect), true)
-    
-    FlyStatus.Connection = Services.RunService.Heartbeat:Connect(function(dt)
-        if not FlyStatus.Enabled then
-            FlyStatus.Running = false
-            return
-        end
-        
-        local _, currentRootPart = getCharacterData()
-        if not currentRootPart then return end
-        
-        local currentTime = tick()
-        local deltaTime = currentTime - FlyStatus.LastTime
-        FlyStatus.LastTime = currentTime
-        
-        local flyVector = Fly.GetFlyVector()
-        
-        if flyVector.Magnitude > 0 then
-            local horizontalDistance = FlyStatus.Speed * deltaTime
-            local verticalDistance = FlyStatus.VerticalSpeed * deltaTime
-            
-            local horizontalComponent = Vector3.new(flyVector.X, 0, flyVector.Z)
-            local verticalComponent = Vector3.new(0, flyVector.Y, 0)
-            
-            if horizontalComponent.Magnitude > 0 then
-                horizontalComponent = horizontalComponent.Unit * horizontalDistance
-            end
-            if verticalComponent.Magnitude > 0 then
-                verticalComponent = verticalComponent.Unit * verticalDistance
-            end
-            
-            local newPosition = currentRootPart.Position + horizontalComponent + verticalComponent
-            
-            local camera = Services.Workspace.CurrentCamera
-            local lookDirection
-            if camera then
-                lookDirection = camera.CFrame.LookVector
-            else
-                lookDirection = Vector3.new(0, 0, 1)
-            end
-            
-            local horizontalLook = Vector3.new(lookDirection.X, 0, lookDirection.Z)
-            if horizontalLook.Magnitude == 0 then
-                horizontalLook = Vector3.new(0, 0, 1)
-            end
-            
-            local newCFrame = CFrame.new(newPosition, newPosition + horizontalLook)
-            
-            -- Применяем CFrame с учетом анти-детекта
-            if FlyStatus.AntiDetect then
-                currentRootPart.CFrame = currentRootPart.CFrame:Lerp(newCFrame, 0.8)
-                Fly.ApplyAntiDetect(currentRootPart, deltaTime)
-            else
-                currentRootPart.CFrame = newCFrame
-                currentRootPart.Velocity = Vector3.new(0, 0, 0)
-                currentRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                currentRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-            end
-            
-            FlyStatus.LastPosition = newPosition
-        else
-            local camera = Services.Workspace.CurrentCamera
-            if camera then
-                local lookDirection = camera.CFrame.LookVector
-                local horizontalLook = Vector3.new(lookDirection.X, 0, lookDirection.Z)
-                if horizontalLook.Magnitude == 0 then
-                    horizontalLook = Vector3.new(0, 0, 1)
-                end
-                
-                local currentCFrame = currentRootPart.CFrame
-                local newCFrame = CFrame.new(currentCFrame.Position, currentCFrame.Position + horizontalLook)
-                currentRootPart.CFrame = currentRootPart.CFrame:Lerp(newCFrame, 0.5)
-            end
-            
-            if FlyStatus.AntiDetect then
-                Fly.ApplyAntiDetect(currentRootPart, deltaTime)
-            else
-                currentRootPart.Velocity = Vector3.new(0, 0, 0)
-                currentRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                currentRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-            end
-        end
-    end)
-end
-
-Fly.Stop = function()
-    if FlyStatus.Connection then
-        FlyStatus.Connection:Disconnect()
-        FlyStatus.Connection = nil
-    end
-    
-    local humanoid, rootPart = getCharacterData()
-    if humanoid then
-        humanoid:ChangeState(Enum.HumanoidStateType.Landed)
-        humanoid.JumpPower = 50
-    end
-    
-    if rootPart then
-        rootPart.Velocity = Vector3.new(0, 0, 0)
-    end
-    
-    FlyStatus.Running = false
-    FlyStatus.IsFlying = false
-    FlyStatus.LastPosition = nil
-    
-    notify("Fly", "Stopped", true)
-end
-
-Fly.SetSpeed = function(newSpeed)
-    FlyStatus.Speed = math.clamp(newSpeed, 10, 200)
-    MovementEnhancements.Config.Fly.Speed = FlyStatus.Speed
-    notify("Fly", "Speed set to: " .. FlyStatus.Speed, false)
-end
-
-Fly.SetVerticalSpeed = function(newSpeed)
-    FlyStatus.VerticalSpeed = math.clamp(newSpeed, 10, 200)
-    MovementEnhancements.Config.Fly.VerticalSpeed = FlyStatus.VerticalSpeed
-    notify("Fly", "Vertical Speed set to: " .. FlyStatus.VerticalSpeed, false)
-end
-
-Fly.SetVerticalKeys = function(newKeys)
-    FlyStatus.VerticalKeys = newKeys
-    MovementEnhancements.Config.Fly.VerticalKeys = newKeys
-    notify("Fly", "Vertical Keys set to: " .. newKeys, false)
-end
-
-Fly.SetAntiDetect = function(enabled)
-    FlyStatus.AntiDetect = enabled
-    MovementEnhancements.Config.Fly.AntiDetect = enabled
-    notify("Fly", "Anti-Detect " .. (enabled and "enabled" or "disabled"), false)
 end
 
 -- InfStamina Module
@@ -940,74 +672,6 @@ local function SetupUI(UI)
         })
     end
 
-    -- Fly Section
-    if UI.Sections.Fly then
-        UI.Sections.Fly:Header({ Name = "Fly" })
-        UI.Sections.Fly:Toggle({
-            Name = "Enabled",
-            Default = MovementEnhancements.Config.Fly.Enabled,
-            Callback = function(value)
-                FlyStatus.Enabled = value
-                MovementEnhancements.Config.Fly.Enabled = value
-                if value then Fly.Start() else Fly.Stop() end
-            end
-        })
-        
-        UI.Sections.Fly:Toggle({
-            Name = "Anti-Detect",
-            Default = MovementEnhancements.Config.Fly.AntiDetect,
-            Callback = function(value)
-                Fly.SetAntiDetect(value)
-            end
-        })
-        
-        UI.Sections.Fly:Slider({
-            Name = "Speed",
-            Minimum = 10,
-            Maximum = 200,
-            Default = MovementEnhancements.Config.Fly.Speed,
-            Precision = 1,
-            Callback = function(value)
-                Fly.SetSpeed(value)
-            end
-        })
-        
-        UI.Sections.Fly:Slider({
-            Name = "Vertical Speed",
-            Minimum = 10,
-            Maximum = 200,
-            Default = MovementEnhancements.Config.Fly.VerticalSpeed,
-            Precision = 1,
-            Callback = function(value)
-                Fly.SetVerticalSpeed(value)
-            end
-        })
-        
-        UI.Sections.Fly:Dropdown({
-            Name = "Vertical Keys",
-            Options = {"E/Q", "Space/LeftControl", "R/F"},
-            Default = MovementEnhancements.Config.Fly.VerticalKeys,
-            Callback = function(value)
-                Fly.SetVerticalKeys(value)
-            end
-        })
-        
-        UI.Sections.Fly:Keybind({
-            Name = "Toggle Key",
-            Default = MovementEnhancements.Config.Fly.ToggleKey,
-            Callback = function(value)
-                FlyStatus.Key = value
-                MovementEnhancements.Config.Fly.ToggleKey = value
-                if isInputFocused() then return end
-                if FlyStatus.Enabled then
-                    if FlyStatus.Running then Fly.Stop() else Fly.Start() end
-                else
-                    notify("Fly", "Enable Fly to use keybind.", true)
-                end
-            end
-        })
-    end
-
     -- InfStamina Section
     if UI.Sections.InfStamina then
         UI.Sections.InfStamina:Header({ Name = "Infinity Stamina" })
@@ -1074,9 +738,6 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
 
     _G.setTimerSpeed = Timer.SetSpeed
     _G.setSpeed = Speed.SetSpeed
-    _G.setFlySpeed = Fly.SetSpeed
-    _G.setFlyVerticalSpeed = Fly.SetVerticalSpeed
-    _G.setFlyVerticalKeys = Fly.SetVerticalKeys
     _G.setInfStaminaSprintKey = InfStamina.SetSprintKey
 
     if LocalPlayerObj then
@@ -1088,11 +749,6 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
             end
             if SpeedStatus.Enabled then
                 Speed.Start()
-            end
-            if FlyStatus.Enabled then
-                Fly.Stop()
-                task.wait(0.1)
-                Fly.Start()
             end
             if InfStaminaStatus.Enabled then
                 task.wait(1)
@@ -1114,7 +770,6 @@ function MovementEnhancements:Destroy()
     Timer.Stop()
     Disabler.Stop()
     Speed.Stop()
-    Fly.Stop()
     InfStamina.Stop()
     
     notify("MovementEnhancements", "All modules stopped", true)
