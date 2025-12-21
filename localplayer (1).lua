@@ -597,7 +597,7 @@ local function neutralizeAFKScript(afkScript)
                 disabledCount = disabledCount + 1
             end
         end
-        end)
+    end)
     
     if disabledCount > 0 then
         AntiAFKStatus.foundAndDisabled = true
@@ -722,30 +722,25 @@ local function stopAntiAFK()
 end
 
 -- UnlockCelebrations Functions
-local function initializeUnlockCelebrations()
-    if not Services then return false end
+local function findCelebrationsGUI()
+    if not LocalPlayerObj then return false end
     
-    UnlockCelebrationsStatus.MarketplaceService = Services.MarketplaceService
-    
-    -- Try to find Celebrations GUI
     local success, result = pcall(function()
-        UnlockCelebrationsStatus.celebrationsGui = LocalPlayerObj.PlayerGui:WaitForChild("CelebrationsGui", 5)
+        local playerGui = LocalPlayerObj:WaitForChild("PlayerGui", 5)
+        UnlockCelebrationsStatus.celebrationsGui = playerGui:WaitForChild("CelebrationsGui", 5)
         if UnlockCelebrationsStatus.celebrationsGui then
             UnlockCelebrationsStatus.celebrationsFrame = UnlockCelebrationsStatus.celebrationsGui:WaitForChild("Celebrations", 5)
         end
         return true
     end)
     
-    if not success then
-        notify("UnlockCelebrations", "Failed to find Celebrations GUI", false)
-        -- Don't return false here, we can still unlock celebrations even if GUI not found
-    end
-    
-    return true
+    return success and UnlockCelebrationsStatus.celebrationsFrame ~= nil
 end
 
 local function setupCelebrationsHook()
-    if not UnlockCelebrationsStatus.MarketplaceService then return false end
+    if not Services then return false end
+    
+    UnlockCelebrationsStatus.MarketplaceService = Services.MarketplaceService
     
     -- Get metatable
     UnlockCelebrationsStatus.metatable = getrawmetatable(UnlockCelebrationsStatus.MarketplaceService)
@@ -760,8 +755,8 @@ local function setupCelebrationsHook()
     -- Make metatable writable
     setreadonly(UnlockCelebrationsStatus.metatable, false)
     
-    -- Create new __namecall
-    UnlockCelebrationsStatus.metatable.__namecall = function(self, ...)
+    -- Create new __namecall with newcclosure
+    UnlockCelebrationsStatus.metatable.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
         local args = {...}
         
@@ -779,7 +774,7 @@ local function setupCelebrationsHook()
         
         -- For everything else, call original function
         return UnlockCelebrationsStatus.originalNamecall(self, ...)
-    end
+    end)
     
     -- Make metatable read-only again
     setreadonly(UnlockCelebrationsStatus.metatable, true)
@@ -799,8 +794,14 @@ local function removeCelebrationsHook()
 end
 
 local function toggleCelebrationsMenu()
-    if not UnlockCelebrationsStatus.celebrationsFrame then
+    -- Always try to find GUI first
+    if not findCelebrationsGUI() then
         notify("UnlockCelebrations", "Celebrations GUI not found", true)
+        return
+    end
+    
+    if not UnlockCelebrationsStatus.celebrationsFrame then
+        notify("UnlockCelebrations", "Celebrations frame not found", true)
         return
     end
     
@@ -812,8 +813,8 @@ local function toggleCelebrationsMenu()
 end
 
 local function startUnlockCelebrations()
-    if not initializeUnlockCelebrations() then
-        notify("UnlockCelebrations", "Failed to initialize", true)
+    if not Services then
+        notify("UnlockCelebrations", "Services not initialized", true)
         return
     end
     
@@ -821,6 +822,9 @@ local function startUnlockCelebrations()
         notify("UnlockCelebrations", "Failed to setup hook", true)
         return
     end
+    
+    -- Try to find GUI (but don't fail if not found)
+    findCelebrationsGUI()
     
     notify("UnlockCelebrations", "Celebrations unlocked! All 4 game passes are now accessible", false)
 end
