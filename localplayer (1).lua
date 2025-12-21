@@ -196,7 +196,7 @@ local SkinRandomizeStatus = {
     Remote = nil,
     LastSkinToneChange = 0,
     LastHairChange = 0,
-    ChangeDelay = 0.05  -- Задержка перед отправкой
+    ChangeDelay = 0.1  -- Задержка перед отправкой
 }
 
 -- UI Elements для Config Sync
@@ -384,7 +384,7 @@ local function tryBecomeGK(args, teamName, isAway)
     local success = pcall(function()
         AutoGKStatus.TeamChange:FireServer(unpack(args))
         AutoGKStatus.lastFireTime = now
-        notify("AutoGK", "Sent: " .. teamName .. " GK + AntiAFK", false)
+        notify("AutoGK", "Sent: " .. teamName .. " GK", true)
     end)
 
     if success and AutoGKStatus.Intermission and AutoGKStatus.Intermission.Value then
