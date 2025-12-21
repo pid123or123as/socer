@@ -1735,7 +1735,6 @@ local function SetupUI(UI)
                 SpeedStatus.SmoothnessFactor = UIElements.Speed.SmoothnessFactor:GetValue()
                 
                 -- InfStamina Sync
-                InfStaminaStatus.SprintKey = UIElements.InfStamina.SprintKey:GetState()
                 InfStaminaStatus.AlwaysSprint = UIElements.InfStamina.AlwaysSprint:GetState()
                 InfStaminaStatus.RestoreGui = UIElements.InfStamina.RestoreGui:GetState()
                 
