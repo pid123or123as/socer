@@ -1330,8 +1330,8 @@ local function SetupUI(UI)
 
     -- JoinTeam Section
     if UI.Sections.JoinTeam then
-        UI.Sections.JoinTeam:Header({ Name = "Join Team" })
-        
+        UI.Sections.JoinTeam:Header({ Name = "Team Joiner" })
+        UI.Sections.JoinTeam:SubLabel({ Text = "bypasses limits, you can join a team with more people than the other"})
         -- Team count labels
         JoinTeamStatus.awayLabel = UI.Sections.JoinTeam:Label({
             Text = "Away Count: 0"
