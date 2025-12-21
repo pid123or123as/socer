@@ -165,13 +165,14 @@ local UnlockCelebrationsStatus = {
     originalNamecall = nil,
     metatable = nil,
     celebrationsGui = nil,
-    isMenuVisible = true,
+    celebrationsFrame = nil,
     gamePassIds = {
         252525072,  -- Celebration 1
         241552189,  -- Celebration 2
         252525459,  -- Celebration 3
         252525830   -- Celebration 4
-    }
+    },
+    hookApplied = false
 }
 
 -- Helper functions
@@ -596,7 +597,7 @@ local function neutralizeAFKScript(afkScript)
                 disabledCount = disabledCount + 1
             end
         end
-    end)
+        end)
     
     if disabledCount > 0 then
         AntiAFKStatus.foundAndDisabled = true
@@ -760,7 +761,7 @@ local function setupCelebrationsHook()
     setreadonly(UnlockCelebrationsStatus.metatable, false)
     
     -- Create new __namecall
-    UnlockCelebrationsStatus.metatable.__namecall = newcclosure(function(self, ...)
+    UnlockCelebrationsStatus.metatable.__namecall = function(self, ...)
         local method = getnamecallmethod()
         local args = {...}
         
@@ -778,20 +779,22 @@ local function setupCelebrationsHook()
         
         -- For everything else, call original function
         return UnlockCelebrationsStatus.originalNamecall(self, ...)
-    end)
+    end
     
     -- Make metatable read-only again
     setreadonly(UnlockCelebrationsStatus.metatable, true)
     
+    UnlockCelebrationsStatus.hookApplied = true
     return true
 end
 
 local function removeCelebrationsHook()
-    if UnlockCelebrationsStatus.metatable and UnlockCelebrationsStatus.originalNamecall then
+    if UnlockCelebrationsStatus.hookApplied and UnlockCelebrationsStatus.metatable and UnlockCelebrationsStatus.originalNamecall then
         setreadonly(UnlockCelebrationsStatus.metatable, false)
         UnlockCelebrationsStatus.metatable.__namecall = UnlockCelebrationsStatus.originalNamecall
         setreadonly(UnlockCelebrationsStatus.metatable, true)
         UnlockCelebrationsStatus.originalNamecall = nil
+        UnlockCelebrationsStatus.hookApplied = false
     end
 end
 
@@ -801,10 +804,10 @@ local function toggleCelebrationsMenu()
         return
     end
     
-    UnlockCelebrationsStatus.isMenuVisible = not UnlockCelebrationsStatus.isMenuVisible
-    UnlockCelebrationsStatus.celebrationsFrame.Visible = UnlockCelebrationsStatus.isMenuVisible
+    -- Toggle visibility based on current state
+    UnlockCelebrationsStatus.celebrationsFrame.Visible = not UnlockCelebrationsStatus.celebrationsFrame.Visible
     
-    local state = UnlockCelebrationsStatus.isMenuVisible and "shown" or "hidden"
+    local state = UnlockCelebrationsStatus.celebrationsFrame.Visible and "shown" or "hidden"
     notify("UnlockCelebrations", "Celebrations menu " .. state, false)
 end
 
@@ -1489,7 +1492,6 @@ local function SetupUI(UI)
     -- UnlockCelebrations Section
     if UI.Sections.UnlockCelebrations then
         UI.Sections.UnlockCelebrations:Header({ Name = "Unlock Celebrations" })
-        UI.Sections.UnlockCelebrations:SubLabel({ Text = "Unlocks all 4 celebration game passes"})
         
         UI.Sections.UnlockCelebrations:Toggle({
             Name = "Enabled",
