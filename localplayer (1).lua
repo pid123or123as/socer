@@ -1697,7 +1697,7 @@ local function SetupUI(UI)
         
         UIElements.SkinRandomize.ChangeSpeed = UI.Sections.SkinRandomize:Slider({
             Name = "Change Speed",
-            Minimum = 0.1,
+            Minimum = 0,
             Maximum = 5,
             Default = MovementEnhancements.Config.SkinRandomize.ChangeInterval,
             Precision = 1,
