@@ -38,6 +38,9 @@ MovementEnhancements.Config = {
     },
     AutoGKSelect = {
         Enabled = false
+    },
+    AntiAFK = {
+        Enabled = false
     }
 }
 
@@ -114,6 +117,20 @@ local AutoGKStatus = {
     COOLDOWN = 1,
     sentInIntermission = {away = false, home = false},
     lastOccupied = {away = false, home = false},
+    Connection = nil
+}
+
+-- AntiAFK Variables
+local AntiAFKStatus = {
+    Running = false,
+    Enabled = MovementEnhancements.Config.AntiAFK.Enabled,
+    Players = nil,
+    RunService = nil,
+    ReplicatedStorage = nil,
+    LocalPlayer = nil,
+    PlayerScripts = nil,
+    AFKRemote = nil,
+    alreadyDisabled = {},
     Connection = nil
 }
 
@@ -212,7 +229,7 @@ local function initializeAutoGK()
     end)
     
     if not success then
-        notify("AutoGK", "Не удалось инициализировать: " .. tostring(result), true)
+        notify("AutoGK", "Failed to initialize: " .. tostring(result), true)
         return false
     end
     
@@ -249,7 +266,6 @@ local function getOccupiedGKSlots()
                 elseif team == "Home" then
                     occupied.home = player.Name
                 else
-                    notify("AutoGK", "Игрок с Hitbox вне команд: " .. player.Name, false)
                     occupied.away = player.Name
                     occupied.home = player.Name
                 end
@@ -280,7 +296,7 @@ end
 local function tryBecomeGK(args, teamName, isAway)
     local now = tick()
     if now - AutoGKStatus.lastFireTime < AutoGKStatus.COOLDOWN then
-        notify("AutoGK", "Cooldown активен - " .. teamName, false)
+        notify("AutoGK", "Cooldown active - " .. teamName, false)
         return false
     end
 
@@ -290,7 +306,7 @@ local function tryBecomeGK(args, teamName, isAway)
     local success = pcall(function()
         AutoGKStatus.TeamChange:FireServer(unpack(args))
         AutoGKStatus.lastFireTime = now
-        notify("AutoGK", "Отправлено: " .. teamName .. " GK + AntiAFK", false)
+        notify("AutoGK", "Sent: " .. teamName .. " GK + AntiAFK", false)
     end)
 
     if success and AutoGKStatus.Intermission and AutoGKStatus.Intermission.Value then
@@ -320,36 +336,36 @@ local function attemptGK()
 end
 
 local function selectGKAway()
-    if not AutoGKStatus.Enabled then 
-        notify("AutoGK", "Enable AutoGKSelect first!", true)
+    if not initializeAutoGK() then 
+        notify("AutoGK", "Failed to initialize AutoGK", true)
         return 
     end
     
     local slots = getOccupiedGKSlots()
     if slots.away then
-        notify("AutoGK", "GK Away already exist: " .. slots.away, true)
+        notify("AutoGK", "Away GK already occupied: " .. slots.away, true)
         return
     end
     
     if tryBecomeGK(AutoGKStatus.AWAY_GK_ARGS, "AWAY", true) then
-        notify("AutoGK", "Selected GK Away", false)
+        notify("AutoGK", "Selected Away team", false)
     end
 end
 
 local function selectGKHome()
-    if not AutoGKStatus.Enabled then 
-        notify("AutoGK", "Enable AutoGKSelect first", true)
+    if not initializeAutoGK() then 
+        notify("AutoGK", "Failed to initialize AutoGK", true)
         return 
     end
     
     local slots = getOccupiedGKSlots()
     if slots.home then
-        notify("AutoGK", "GK Home already exists: " .. slots.home, true)
+        notify("AutoGK", "Home GK already occupied: " .. slots.home, true)
         return
     end
     
     if tryBecomeGK(AutoGKStatus.HOME_GK_ARGS, "HOME", false) then
-        notify("AutoGK", "Selected Home", false)
+        notify("AutoGK", "Selected Home team", false)
     end
 end
 
@@ -357,7 +373,7 @@ local function startAutoGK()
     if AutoGKStatus.Running then return end
     
     if not initializeAutoGK() then
-        notify("AutoGK", "Error:no_object", true)
+        notify("AutoGK", "Failed to find required objects", true)
         return
     end
     
@@ -379,6 +395,141 @@ local function stopAutoGK()
     
     AutoGKStatus.Running = false
     notify("AutoGK", "AutoGKSelect stopped", true)
+end
+
+-- AntiAFK Functions
+local function disableAFKScript(afkScript)
+    if not afkScript or afkScript.Disabled then return end
+    
+    local disabledCount = 0
+    
+    pcall(function()
+        -- Disable RenderStepped connections
+        for _, conn in pairs(getconnections(AntiAFKStatus.RunService.RenderStepped)) do
+            if conn.Function and getfenv(conn.Function).script == afkScript then
+                conn:Disable()
+                disabledCount = disabledCount + 1
+            end
+        end
+        
+        -- Disable OnClientEvent connections
+        for _, conn in pairs(getconnections(AntiAFKStatus.AFKRemote.OnClientEvent)) do
+            if conn.Function and getfenv(conn.Function).script == afkScript then
+                conn:Disable()
+                disabledCount = disabledCount + 1
+            end
+        end
+    end)
+    
+    if disabledCount > 0 then
+        notify("AntiAFK", "AFKClient found and neutralized (disabled connections: " .. disabledCount .. ")", false)
+    end
+end
+
+local function startAntiAFK()
+    if AntiAFKStatus.Running then return end
+    
+    AntiAFKStatus.Players = Services.Players
+    AntiAFKStatus.RunService = Services.RunService
+    AntiAFKStatus.ReplicatedStorage = Services.ReplicatedStorage
+    AntiAFKStatus.LocalPlayer = AntiAFKStatus.Players.LocalPlayer
+    
+    local success, result = pcall(function()
+        local remotes = AntiAFKStatus.ReplicatedStorage:WaitForChild("Remotes", 10)
+        AntiAFKStatus.AFKRemote = remotes:WaitForChild("AFKRemote", 10)
+        AntiAFKStatus.PlayerScripts = AntiAFKStatus.LocalPlayer:WaitForChild("PlayerScripts", 10)
+        return true
+    end)
+    
+    if not success then
+        notify("AntiAFK", "Failed to initialize: AFKRemote not found", true)
+        return
+    end
+    
+    AntiAFKStatus.Running = true
+    AntiAFKStatus.alreadyDisabled = {}
+    
+    -- Main monitoring loop
+    AntiAFKStatus.Connection = AntiAFKStatus.RunService.Heartbeat:Connect(function()
+        if not AntiAFKStatus.Enabled then return end
+        
+        local candidateScript = nil
+        
+        pcall(function()
+            for _, conn in pairs(getconnections(AntiAFKStatus.AFKRemote.OnClientEvent)) do
+                if conn.Function and conn.Enabled then
+                    local env = getfenv(conn.Function)
+                    if env and env.script and env.script:IsA("LocalScript") and env.script.Parent == AntiAFKStatus.PlayerScripts then
+                        candidateScript = env.script
+                        break
+                    end
+                end
+            end
+        end)
+        
+        if candidateScript then
+            if AntiAFKStatus.alreadyDisabled[candidateScript] then return end
+            
+            local hasRenderStepped = false
+            pcall(function()
+                for _, conn in pairs(getconnections(AntiAFKStatus.RunService.RenderStepped)) do
+                    if conn.Function and getfenv(conn.Function).script == candidateScript then
+                        hasRenderStepped = true
+                        break
+                    end
+                end
+            end)
+            
+            if hasRenderStepped then
+                disableAFKScript(candidateScript)
+                AntiAFKStatus.alreadyDisabled[candidateScript] = true
+            end
+        end
+    end)
+    
+    -- Backup check every 3 seconds
+    task.spawn(function()
+        while AntiAFKStatus.Running and AntiAFKStatus.Enabled do
+            task.wait(3)
+            
+            pcall(function()
+                for _, conn in pairs(getconnections(AntiAFKStatus.AFKRemote.OnClientEvent)) do
+                    if conn.Function and conn.Enabled then
+                        local env = getfenv(conn.Function)
+                        if env and env.script and env.script:IsA("LocalScript") and env.script.Parent == AntiAFKStatus.PlayerScripts then
+                            local scriptObj = env.script
+                            if not AntiAFKStatus.alreadyDisabled[scriptObj] then
+                                local hasRS = false
+                                for _, c in pairs(getconnections(AntiAFKStatus.RunService.RenderStepped)) do
+                                    if c.Function and getfenv(c.Function).script == scriptObj then
+                                        hasRS = true
+                                        break
+                                    end
+                                end
+                                if hasRS then
+                                    disableAFKScript(scriptObj)
+                                    AntiAFKStatus.alreadyDisabled[scriptObj] = true
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+    
+    notify("AntiAFK", "AntiAFK started", true)
+end
+
+local function stopAntiAFK()
+    if AntiAFKStatus.Connection then
+        AntiAFKStatus.Connection:Disconnect()
+        AntiAFKStatus.Connection = nil
+    end
+    
+    AntiAFKStatus.Running = false
+    AntiAFKStatus.alreadyDisabled = {}
+    notify("AntiAFK", "AntiAFK stopped", true)
 end
 
 -- Timer Module
@@ -983,6 +1134,25 @@ local function SetupUI(UI)
             end
         })
     end
+
+    -- AntiAFK Section
+    if UI.Sections.AntiAFK then
+        UI.Sections.AntiAFK:Header({ Name = "AntiAFK" })
+        
+        UI.Sections.AntiAFK:Toggle({
+            Name = "Enabled",
+            Default = MovementEnhancements.Config.AntiAFK.Enabled,
+            Callback = function(value)
+                AntiAFKStatus.Enabled = value
+                MovementEnhancements.Config.AntiAFK.Enabled = value
+                if value then 
+                    startAntiAFK()
+                else 
+                    stopAntiAFK()
+                end
+            end
+        })
+    end
 end
 
 -- Main Initialization
@@ -1014,6 +1184,9 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
             if AutoGKStatus.Enabled then
                 startAutoGK()
             end
+            if AntiAFKStatus.Enabled then
+                startAntiAFK()
+            end
         end
         
         LocalPlayerObj.CharacterAdded:Connect(handleCharacterChange)
@@ -1032,8 +1205,9 @@ function MovementEnhancements:Destroy()
     Speed.Stop()
     InfStamina.Stop()
     stopAutoGK()
+    stopAntiAFK()
     
-    notify("LocalPlayer", "All modules stopped", true)
+    notify("MovementEnhancements", "All modules stopped", true)
 end
 
 return MovementEnhancements
