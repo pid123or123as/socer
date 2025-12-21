@@ -41,6 +41,9 @@ MovementEnhancements.Config = {
     },
     AntiAFK = {
         Enabled = false
+    },
+    UnlockCelebrations = {
+        Enabled = false
     }
 }
 
@@ -153,6 +156,22 @@ local JoinTeamStatus = {
     monitoringConnection = nil,
     lastAwayCount = 0,
     lastHomeCount = 0
+}
+
+-- UnlockCelebrations Variables
+local UnlockCelebrationsStatus = {
+    Enabled = MovementEnhancements.Config.UnlockCelebrations.Enabled,
+    MarketplaceService = nil,
+    originalNamecall = nil,
+    metatable = nil,
+    celebrationsGui = nil,
+    isMenuVisible = true,
+    gamePassIds = {
+        252525072,  -- Celebration 1
+        241552189,  -- Celebration 2
+        252525459,  -- Celebration 3
+        252525830   -- Celebration 4
+    }
 }
 
 -- Helper functions
@@ -642,7 +661,7 @@ local function startAntiAFK()
                             break
                         end
                     end
-                end
+                end)
             end)
             
             -- Step 2: If candidate found, verify RenderStepped connection
@@ -699,6 +718,113 @@ local function stopAntiAFK()
     updateAntiAFKLabel()
     
     notify("AntiAFK", "AntiAFK stopped", true)
+end
+
+-- UnlockCelebrations Functions
+local function initializeUnlockCelebrations()
+    if not Services then return false end
+    
+    UnlockCelebrationsStatus.MarketplaceService = Services.MarketplaceService
+    
+    -- Try to find Celebrations GUI
+    local success, result = pcall(function()
+        UnlockCelebrationsStatus.celebrationsGui = LocalPlayerObj.PlayerGui:WaitForChild("CelebrationsGui", 5)
+        if UnlockCelebrationsStatus.celebrationsGui then
+            UnlockCelebrationsStatus.celebrationsFrame = UnlockCelebrationsStatus.celebrationsGui:WaitForChild("Celebrations", 5)
+        end
+        return true
+    end)
+    
+    if not success then
+        notify("UnlockCelebrations", "Failed to find Celebrations GUI", false)
+        -- Don't return false here, we can still unlock celebrations even if GUI not found
+    end
+    
+    return true
+end
+
+local function setupCelebrationsHook()
+    if not UnlockCelebrationsStatus.MarketplaceService then return false end
+    
+    -- Get metatable
+    UnlockCelebrationsStatus.metatable = getrawmetatable(UnlockCelebrationsStatus.MarketplaceService)
+    if not UnlockCelebrationsStatus.metatable then
+        notify("UnlockCelebrations", "Failed to get MarketplaceService metatable", true)
+        return false
+    end
+    
+    -- Save original __namecall
+    UnlockCelebrationsStatus.originalNamecall = UnlockCelebrationsStatus.metatable.__namecall
+    
+    -- Make metatable writable
+    setreadonly(UnlockCelebrationsStatus.metatable, false)
+    
+    -- Create new __namecall
+    UnlockCelebrationsStatus.metatable.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+        
+        if self == UnlockCelebrationsStatus.MarketplaceService and method == "UserOwnsGamePassAsync" then
+            local gamePassId = args[2]  -- Second argument is game pass ID
+            
+            -- Check if it's one of our target game passes
+            for _, targetId in ipairs(UnlockCelebrationsStatus.gamePassIds) do
+                if gamePassId == targetId then
+                    notify("UnlockCelebrations", "Unlocked game pass ID: " .. gamePassId, false)
+                    return true
+                end
+            end
+        end
+        
+        -- For everything else, call original function
+        return UnlockCelebrationsStatus.originalNamecall(self, ...)
+    end)
+    
+    -- Make metatable read-only again
+    setreadonly(UnlockCelebrationsStatus.metatable, true)
+    
+    return true
+end
+
+local function removeCelebrationsHook()
+    if UnlockCelebrationsStatus.metatable and UnlockCelebrationsStatus.originalNamecall then
+        setreadonly(UnlockCelebrationsStatus.metatable, false)
+        UnlockCelebrationsStatus.metatable.__namecall = UnlockCelebrationsStatus.originalNamecall
+        setreadonly(UnlockCelebrationsStatus.metatable, true)
+        UnlockCelebrationsStatus.originalNamecall = nil
+    end
+end
+
+local function toggleCelebrationsMenu()
+    if not UnlockCelebrationsStatus.celebrationsFrame then
+        notify("UnlockCelebrations", "Celebrations GUI not found", true)
+        return
+    end
+    
+    UnlockCelebrationsStatus.isMenuVisible = not UnlockCelebrationsStatus.isMenuVisible
+    UnlockCelebrationsStatus.celebrationsFrame.Visible = UnlockCelebrationsStatus.isMenuVisible
+    
+    local state = UnlockCelebrationsStatus.isMenuVisible and "shown" or "hidden"
+    notify("UnlockCelebrations", "Celebrations menu " .. state, false)
+end
+
+local function startUnlockCelebrations()
+    if not initializeUnlockCelebrations() then
+        notify("UnlockCelebrations", "Failed to initialize", true)
+        return
+    end
+    
+    if not setupCelebrationsHook() then
+        notify("UnlockCelebrations", "Failed to setup hook", true)
+        return
+    end
+    
+    notify("UnlockCelebrations", "Celebrations unlocked! All 4 game passes are now accessible", false)
+end
+
+local function stopUnlockCelebrations()
+    removeCelebrationsHook()
+    notify("UnlockCelebrations", "Celebrations lock restored", true)
 end
 
 -- Timer Module
@@ -1359,6 +1485,32 @@ local function SetupUI(UI)
         -- Start monitoring team counts
         startTeamMonitoring()
     end
+
+    -- UnlockCelebrations Section
+    if UI.Sections.UnlockCelebrations then
+        UI.Sections.UnlockCelebrations:Header({ Name = "Unlock Celebrations" })
+        
+        UI.Sections.UnlockCelebrations:Toggle({
+            Name = "Enabled",
+            Default = MovementEnhancements.Config.UnlockCelebrations.Enabled,
+            Callback = function(value)
+                UnlockCelebrationsStatus.Enabled = value
+                MovementEnhancements.Config.UnlockCelebrations.Enabled = value
+                if value then 
+                    startUnlockCelebrations()
+                else 
+                    stopUnlockCelebrations()
+                end
+            end
+        })
+        
+        UI.Sections.UnlockCelebrations:Button({
+            Name = "Show/Unshow menu",
+            Callback = function()
+                toggleCelebrationsMenu()
+            end
+        })
+    end
 end
 
 -- Main Initialization
@@ -1393,6 +1545,9 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
             if AntiAFKStatus.Enabled then
                 startAntiAFK()
             end
+            if UnlockCelebrationsStatus.Enabled then
+                startUnlockCelebrations()
+            end
         end
         
         LocalPlayerObj.CharacterAdded:Connect(handleCharacterChange)
@@ -1413,6 +1568,7 @@ function MovementEnhancements:Destroy()
     stopAutoGK()
     stopAntiAFK()
     stopTeamMonitoring()
+    stopUnlockCelebrations()
     
     notify("MovementEnhancements", "All modules stopped", true)
 end
