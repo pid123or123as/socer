@@ -35,6 +35,9 @@ MovementEnhancements.Config = {
         ToggleKey = nil,
         WalkSpeed = 21,
         RunSpeed = 35
+    },
+    AutoGKSelect = {
+        Enabled = false
     }
 }
 
@@ -86,6 +89,32 @@ local InfStaminaStatus = {
     LastSentSpeed = nil,
     GuiMainProtectionConnection = nil,
     SpeedUpdateConnection = nil
+}
+
+-- AutoGK Variables
+local AutoGKStatus = {
+    Running = false,
+    Enabled = MovementEnhancements.Config.AutoGKSelect.Enabled,
+    Players = nil,
+    ReplicatedStorage = nil,
+    Workspace = nil,
+    Remotes = nil,
+    TeamChange = nil,
+    AFKRemote = nil,
+    Bools = nil,
+    VIPServer = nil,
+    Intermission = nil,
+    PlayerStats = nil,
+    AwayTeamFolder = nil,
+    HomeTeamFolder = nil,
+    AWAY_GK_ARGS = {BrickColor.new(23), "Goalie"},
+    HOME_GK_ARGS = {BrickColor.new(141), "Goalie"},
+    ANTI_AFK_ARGS = {true},
+    lastFireTime = 0,
+    COOLDOWN = 1,
+    sentInIntermission = {away = false, home = false},
+    lastOccupied = {away = false, home = false},
+    Connection = nil
 }
 
 -- Helper functions
@@ -155,6 +184,201 @@ local function getCustomMoveDirection()
         SpeedStatus.CurrentMoveDirection = Vector3.new(0, 0, 0)
     end
     return SpeedStatus.CurrentMoveDirection
+end
+
+-- AutoGK Functions
+local function initializeAutoGK()
+    if not Services then return false end
+    
+    AutoGKStatus.Players = Services.Players
+    AutoGKStatus.ReplicatedStorage = Services.ReplicatedStorage
+    AutoGKStatus.Workspace = Services.Workspace
+    AutoGKStatus.LocalPlayer = AutoGKStatus.Players.LocalPlayer
+    
+    local success, result = pcall(function()
+        AutoGKStatus.Remotes = AutoGKStatus.ReplicatedStorage:WaitForChild("Remotes", 5)
+        AutoGKStatus.TeamChange = AutoGKStatus.Remotes:WaitForChild("TeamChange", 5)
+        AutoGKStatus.AFKRemote = AutoGKStatus.Remotes:WaitForChild("AFKRemote", 5)
+        
+        AutoGKStatus.Bools = AutoGKStatus.Workspace:WaitForChild("Bools", 5)
+        AutoGKStatus.VIPServer = AutoGKStatus.Bools:WaitForChild("VIPServer", 5)
+        AutoGKStatus.Intermission = AutoGKStatus.Bools:WaitForChild("Intermission", 5)
+        
+        AutoGKStatus.PlayerStats = AutoGKStatus.Workspace:WaitForChild("PlayerStats", 5)
+        AutoGKStatus.AwayTeamFolder = AutoGKStatus.PlayerStats:WaitForChild("Away", 5)
+        AutoGKStatus.HomeTeamFolder = AutoGKStatus.PlayerStats:WaitForChild("Home", 5)
+        
+        return true
+    end)
+    
+    if not success then
+        notify("AutoGK", "Не удалось инициализировать: " .. tostring(result), true)
+        return false
+    end
+    
+    return true
+end
+
+local function getPlayerTeam(playerName)
+    if not playerName or not AutoGKStatus.AwayTeamFolder or not AutoGKStatus.HomeTeamFolder then return nil end
+    
+    if AutoGKStatus.AwayTeamFolder:FindFirstChild(playerName) then
+        return "Away"
+    end
+    
+    if AutoGKStatus.HomeTeamFolder:FindFirstChild(playerName) then
+        return "Home"
+    end
+    
+    return nil
+end
+
+local function getOccupiedGKSlots()
+    local occupied = {away = false, home = false}
+    
+    if not AutoGKStatus.Players then return occupied end
+    
+    for _, player in pairs(AutoGKStatus.Players:GetPlayers()) do
+        if player.Character then
+            local hitbox = player.Character:FindFirstChild("Hitbox")
+            if hitbox and hitbox:IsA("BasePart") then
+                local team = getPlayerTeam(player.Name)
+                
+                if team == "Away" then
+                    occupied.away = player.Name
+                elseif team == "Home" then
+                    occupied.home = player.Name
+                else
+                    notify("AutoGK", "Игрок с Hitbox вне команд: " .. player.Name, false)
+                    occupied.away = player.Name
+                    occupied.home = player.Name
+                end
+            end
+        end
+    end
+    
+    if occupied.away ~= AutoGKStatus.lastOccupied.away or occupied.home ~= AutoGKStatus.lastOccupied.home then
+        AutoGKStatus.lastOccupied = {away = occupied.away, home = occupied.home}
+    end
+    
+    return occupied
+end
+
+local function isCurrentlyGK()
+    if not AutoGKStatus.LocalPlayer or not AutoGKStatus.LocalPlayer.Character then return false end
+    local hitbox = AutoGKStatus.LocalPlayer.Character:FindFirstChild("Hitbox")
+    return hitbox ~= nil and hitbox:IsA("BasePart")
+end
+
+local function sendAntiAFK()
+    if not AutoGKStatus.AFKRemote then return end
+    pcall(function()
+        AutoGKStatus.AFKRemote:FireServer(unpack(AutoGKStatus.ANTI_AFK_ARGS))
+    end)
+end
+
+local function tryBecomeGK(args, teamName, isAway)
+    local now = tick()
+    if now - AutoGKStatus.lastFireTime < AutoGKStatus.COOLDOWN then
+        notify("AutoGK", "Cooldown активен - " .. teamName, false)
+        return false
+    end
+
+    sendAntiAFK()
+    task.wait(0.05)
+
+    local success = pcall(function()
+        AutoGKStatus.TeamChange:FireServer(unpack(args))
+        AutoGKStatus.lastFireTime = now
+        notify("AutoGK", "Отправлено: " .. teamName .. " GK + AntiAFK", false)
+    end)
+
+    if success and AutoGKStatus.Intermission and AutoGKStatus.Intermission.Value then
+        if isAway then 
+            AutoGKStatus.sentInIntermission.away = true
+        else 
+            AutoGKStatus.sentInIntermission.home = true 
+        end
+    end
+    return success
+end
+
+local function attemptGK()
+    if not AutoGKStatus.Enabled then return end
+    
+    if isCurrentlyGK() then
+        return
+    end
+
+    local slots = getOccupiedGKSlots()
+    
+    if not slots.away then
+        tryBecomeGK(AutoGKStatus.AWAY_GK_ARGS, "AWAY", true)
+    elseif not slots.home then
+        tryBecomeGK(AutoGKStatus.HOME_GK_ARGS, "HOME", false)
+    end
+end
+
+local function selectGKAway()
+    if not AutoGKStatus.Enabled then 
+        notify("AutoGK", "Enable AutoGKSelect first!", true)
+        return 
+    end
+    
+    local slots = getOccupiedGKSlots()
+    if slots.away then
+        notify("AutoGK", "GK Away already exist: " .. slots.away, true)
+        return
+    end
+    
+    if tryBecomeGK(AutoGKStatus.AWAY_GK_ARGS, "AWAY", true) then
+        notify("AutoGK", "Selected GK Away", false)
+    end
+end
+
+local function selectGKHome()
+    if not AutoGKStatus.Enabled then 
+        notify("AutoGK", "Enable AutoGKSelect first", true)
+        return 
+    end
+    
+    local slots = getOccupiedGKSlots()
+    if slots.home then
+        notify("AutoGK", "GK Home already exists: " .. slots.home, true)
+        return
+    end
+    
+    if tryBecomeGK(AutoGKStatus.HOME_GK_ARGS, "HOME", false) then
+        notify("AutoGK", "Selected Home", false)
+    end
+end
+
+local function startAutoGK()
+    if AutoGKStatus.Running then return end
+    
+    if not initializeAutoGK() then
+        notify("AutoGK", "Error:no_object", true)
+        return
+    end
+    
+    AutoGKStatus.Running = true
+    
+    AutoGKStatus.Connection = Services.RunService.Heartbeat:Connect(function()
+        if not AutoGKStatus.Enabled then return end
+        attemptGK()
+    end)
+    
+    notify("AutoGK", "AutoGKSelect started", true)
+end
+
+local function stopAutoGK()
+    if AutoGKStatus.Connection then
+        AutoGKStatus.Connection:Disconnect()
+        AutoGKStatus.Connection = nil
+    end
+    
+    AutoGKStatus.Running = false
+    notify("AutoGK", "AutoGKSelect stopped", true)
 end
 
 -- Timer Module
@@ -726,6 +950,39 @@ local function SetupUI(UI)
             end
         })
     end
+
+    -- AutoGKSelect Section
+    if UI.Sections.AutoGKSelect then
+        UI.Sections.AutoGKSelect:Header({ Name = "AutoGK Selector" })
+        
+        UI.Sections.AutoGKSelect:Toggle({
+            Name = "Enabled",
+            Default = MovementEnhancements.Config.AutoGKSelect.Enabled,
+            Callback = function(value)
+                AutoGKStatus.Enabled = value
+                MovementEnhancements.Config.AutoGKSelect.Enabled = value
+                if value then 
+                    startAutoGK()
+                else 
+                    stopAutoGK()
+                end
+            end
+        })
+        
+        UI.Sections.AutoGKSelect:Button({
+            Name = "Select GK Away",
+            Callback = function()
+                selectGKAway()
+            end
+        })
+        
+        UI.Sections.AutoGKSelect:Button({
+            Name = "Select GK Home",
+            Callback = function()
+                selectGKHome()
+            end
+        })
+    end
 end
 
 -- Main Initialization
@@ -754,6 +1011,9 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
                 task.wait(1)
                 InfStamina.Start()
             end
+            if AutoGKStatus.Enabled then
+                startAutoGK()
+            end
         end
         
         LocalPlayerObj.CharacterAdded:Connect(handleCharacterChange)
@@ -771,8 +1031,9 @@ function MovementEnhancements:Destroy()
     Disabler.Stop()
     Speed.Stop()
     InfStamina.Stop()
+    stopAutoGK()
     
-    notify("MovementEnhancements", "All modules stopped", true)
+    notify("LocalPlayer", "All modules stopped", true)
 end
 
 return MovementEnhancements
