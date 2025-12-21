@@ -738,32 +738,31 @@ local function findCelebrationsGUI()
 end
 
 local function setupCelebrationsHook()
-    if not Services then return false end
+    -- Получаем MarketplaceService напрямую через game, если Services не инициализирован
+    local marketplaceService = game:GetService("MarketplaceService")
     
-    UnlockCelebrationsStatus.MarketplaceService = Services.MarketplaceService
-    
-    -- Get metatable
-    UnlockCelebrationsStatus.metatable = getrawmetatable(UnlockCelebrationsStatus.MarketplaceService)
-    if not UnlockCelebrationsStatus.metatable then
+    -- Получаем метатаблицу
+    local mt = getrawmetatable(marketplaceService)
+    if not mt then
         notify("UnlockCelebrations", "Failed to get MarketplaceService metatable", true)
         return false
     end
     
-    -- Save original __namecall
-    UnlockCelebrationsStatus.originalNamecall = UnlockCelebrationsStatus.metatable.__namecall
+    -- Сохраняем оригинальный __namecall
+    local originalNamecall = mt.__namecall
     
-    -- Make metatable writable
-    setreadonly(UnlockCelebrationsStatus.metatable, false)
+    -- Делаем метатаблицу доступной для записи
+    setreadonly(mt, false)
     
-    -- Create new __namecall with newcclosure
-    UnlockCelebrationsStatus.metatable.__namecall = newcclosure(function(self, ...)
+    -- Заменяем __namecall
+    mt.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
         local args = {...}
         
-        if self == UnlockCelebrationsStatus.MarketplaceService and method == "UserOwnsGamePassAsync" then
-            local gamePassId = args[2]  -- Second argument is game pass ID
+        if self == marketplaceService and method == "UserOwnsGamePassAsync" then
+            local gamePassId = args[2]  -- Второй аргумент — ID геймпасса
             
-            -- Check if it's one of our target game passes
+            -- Проверяем, является ли ID одним из целевых
             for _, targetId in ipairs(UnlockCelebrationsStatus.gamePassIds) do
                 if gamePassId == targetId then
                     notify("UnlockCelebrations", "Unlocked game pass ID: " .. gamePassId, false)
@@ -772,14 +771,18 @@ local function setupCelebrationsHook()
             end
         end
         
-        -- For everything else, call original function
-        return UnlockCelebrationsStatus.originalNamecall(self, ...)
+        -- Для всего остального вызываем оригинальную функцию
+        return originalNamecall(self, ...)
     end)
     
-    -- Make metatable read-only again
-    setreadonly(UnlockCelebrationsStatus.metatable, true)
+    -- Возвращаем защиту метатаблицы
+    setreadonly(mt, true)
     
+    -- Сохраняем ссылки для возможности восстановления
+    UnlockCelebrationsStatus.metatable = mt
+    UnlockCelebrationsStatus.originalNamecall = originalNamecall
     UnlockCelebrationsStatus.hookApplied = true
+    
     return true
 end
 
@@ -813,8 +816,8 @@ local function toggleCelebrationsMenu()
 end
 
 local function startUnlockCelebrations()
-    if not Services then
-        notify("UnlockCelebrations", "Services not initialized", true)
+    if UnlockCelebrationsStatus.hookApplied then
+        notify("UnlockCelebrations", "Hook already applied", false)
         return
     end
     
@@ -823,10 +826,10 @@ local function startUnlockCelebrations()
         return
     end
     
-    -- Try to find GUI (but don't fail if not found)
+    -- Попытаемся найти GUI (но не обязательно)
     findCelebrationsGUI()
     
-    notify("UnlockCelebrations", "Celebrations unlocked! All 4 game passes are now accessible", false)
+    notify("UnlockCelebrations", "Celebrations unlocked", false)
 end
 
 local function stopUnlockCelebrations()
