@@ -136,6 +136,25 @@ local AntiAFKStatus = {
     checkConnection = nil
 }
 
+-- JoinTeam Variables
+local JoinTeamStatus = {
+    Players = nil,
+    ReplicatedStorage = nil,
+    Workspace = nil,
+    Remotes = nil,
+    TeamChange = nil,
+    PlayerStats = nil,
+    AwayTeamFolder = nil,
+    HomeTeamFolder = nil,
+    AWAY_ARGS = {BrickColor.new(23), "Player"},
+    HOME_ARGS = {BrickColor.new(141), "Player"},
+    awayLabel = nil,
+    homeLabel = nil,
+    monitoringConnection = nil,
+    lastAwayCount = 0,
+    lastHomeCount = 0
+}
+
 -- Helper functions
 local function getCharacterData()
     local character = LocalPlayerObj and LocalPlayerObj.Character
@@ -308,7 +327,7 @@ local function tryBecomeGK(args, teamName, isAway)
     local success = pcall(function()
         AutoGKStatus.TeamChange:FireServer(unpack(args))
         AutoGKStatus.lastFireTime = now
-        notify("AutoGK", "Sent: " .. teamName .. " GK", false)
+        notify("AutoGK", "Sent: " .. teamName .. " GK + AntiAFK", false)
     end)
 
     if success and AutoGKStatus.Intermission and AutoGKStatus.Intermission.Value then
@@ -397,6 +416,143 @@ local function stopAutoGK()
     
     AutoGKStatus.Running = false
     notify("AutoGK", "AutoGKSelect stopped", true)
+end
+
+-- JoinTeam Functions
+local function initializeJoinTeam()
+    if not Services then return false end
+    
+    JoinTeamStatus.Players = Services.Players
+    JoinTeamStatus.ReplicatedStorage = Services.ReplicatedStorage
+    JoinTeamStatus.Workspace = Services.Workspace
+    
+    local success, result = pcall(function()
+        JoinTeamStatus.Remotes = JoinTeamStatus.ReplicatedStorage:WaitForChild("Remotes", 5)
+        JoinTeamStatus.TeamChange = JoinTeamStatus.Remotes:WaitForChild("TeamChange", 5)
+        
+        JoinTeamStatus.PlayerStats = JoinTeamStatus.Workspace:WaitForChild("PlayerStats", 5)
+        JoinTeamStatus.AwayTeamFolder = JoinTeamStatus.PlayerStats:WaitForChild("Away", 5)
+        JoinTeamStatus.HomeTeamFolder = JoinTeamStatus.PlayerStats:WaitForChild("Home", 5)
+        
+        return true
+    end)
+    
+    if not success then
+        notify("JoinTeam", "Failed to initialize: " .. tostring(result), true)
+        return false
+    end
+    
+    return true
+end
+
+local function getTeamCounts()
+    local awayCount = 0
+    local homeCount = 0
+    
+    if JoinTeamStatus.AwayTeamFolder and JoinTeamStatus.HomeTeamFolder then
+        awayCount = #JoinTeamStatus.AwayTeamFolder:GetChildren()
+        homeCount = #JoinTeamStatus.HomeTeamFolder:GetChildren()
+    end
+    
+    return awayCount, homeCount
+end
+
+local function updateTeamLabels()
+    if not JoinTeamStatus.awayLabel or not JoinTeamStatus.homeLabel then return end
+    
+    local awayCount, homeCount = getTeamCounts()
+    
+    -- Update only if counts changed
+    if awayCount ~= JoinTeamStatus.lastAwayCount then
+        JoinTeamStatus.awayLabel:UpdateName("Away Count: " .. awayCount)
+        JoinTeamStatus.lastAwayCount = awayCount
+    end
+    
+    if homeCount ~= JoinTeamStatus.lastHomeCount then
+        JoinTeamStatus.homeLabel:UpdateName("Home Count: " .. homeCount)
+        JoinTeamStatus.lastHomeCount = homeCount
+    end
+end
+
+local function startTeamMonitoring()
+    if JoinTeamStatus.monitoringConnection then return end
+    
+    -- Initialize first
+    if not initializeJoinTeam() then return end
+    
+    -- Update labels immediately
+    updateTeamLabels()
+    
+    -- Start monitoring for team changes
+    JoinTeamStatus.monitoringConnection = Services.RunService.Heartbeat:Connect(function()
+        updateTeamLabels()
+    end)
+    
+    -- Also monitor folder changes
+    if JoinTeamStatus.AwayTeamFolder then
+        JoinTeamStatus.AwayTeamFolder.ChildAdded:Connect(function()
+            updateTeamLabels()
+        end)
+        JoinTeamStatus.AwayTeamFolder.ChildRemoved:Connect(function()
+            updateTeamLabels()
+        end)
+    end
+    
+    if JoinTeamStatus.HomeTeamFolder then
+        JoinTeamStatus.HomeTeamFolder.ChildAdded:Connect(function()
+            updateTeamLabels()
+        end)
+        JoinTeamStatus.HomeTeamFolder.ChildRemoved:Connect(function()
+            updateTeamLabels()
+        end)
+    end
+end
+
+local function joinAwayTeam()
+    if not initializeJoinTeam() then 
+        notify("JoinTeam", "Failed to initialize JoinTeam", true)
+        return 
+    end
+    
+    local success = pcall(function()
+        JoinTeamStatus.TeamChange:FireServer(unpack(JoinTeamStatus.AWAY_ARGS))
+        notify("JoinTeam", "Joined Away team as Player", false)
+        
+        -- Update counts after joining
+        task.wait(0.1)
+        updateTeamLabels()
+    end)
+    
+    if not success then
+        notify("JoinTeam", "Failed to join Away team", true)
+    end
+end
+
+local function joinHomeTeam()
+    if not initializeJoinTeam() then 
+        notify("JoinTeam", "Failed to initialize JoinTeam", true)
+        return 
+    end
+    
+    local success = pcall(function()
+        JoinTeamStatus.TeamChange:FireServer(unpack(JoinTeamStatus.HOME_ARGS))
+        notify("JoinTeam", "Joined Home team as Player", false)
+        
+        -- Update counts after joining
+        task.wait(0.1)
+        updateTeamLabels()
+    end)
+    
+    if not success then
+        notify("JoinTeam", "Failed to join Home team", true)
+    end
+end
+
+local function stopTeamMonitoring()
+    if JoinTeamStatus.monitoringConnection then
+        JoinTeamStatus.monitoringConnection:Disconnect()
+        JoinTeamStatus.monitoringConnection = nil
+    end
 end
 
 -- AntiAFK Functions
@@ -1171,6 +1327,38 @@ local function SetupUI(UI)
             Text = "AntiAFK pointer: " .. AntiAFKStatus.currentScriptName
         })
     end
+
+    -- JoinTeam Section
+    if UI.Sections.JoinTeam then
+        UI.Sections.JoinTeam:Header({ Name = "Join Team" })
+        
+        -- Team count labels
+        JoinTeamStatus.awayLabel = UI.Sections.JoinTeam:Label({
+            Text = "Away Count: 0"
+        })
+        
+        JoinTeamStatus.homeLabel = UI.Sections.JoinTeam:Label({
+            Text = "Home Count: 0"
+        })
+        
+        -- Buttons
+        UI.Sections.JoinTeam:Button({
+            Name = "Join Away",
+            Callback = function()
+                joinAwayTeam()
+            end
+        })
+        
+        UI.Sections.JoinTeam:Button({
+            Name = "Join Home",
+            Callback = function()
+                joinHomeTeam()
+            end
+        })
+        
+        -- Start monitoring team counts
+        startTeamMonitoring()
+    end
 end
 
 -- Main Initialization
@@ -1224,6 +1412,7 @@ function MovementEnhancements:Destroy()
     InfStamina.Stop()
     stopAutoGK()
     stopAntiAFK()
+    stopTeamMonitoring()
     
     notify("MovementEnhancements", "All modules stopped", true)
 end
