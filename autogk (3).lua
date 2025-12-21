@@ -1664,7 +1664,7 @@ Jump Settings:
 Intercept & Touch Settings:
 12 Intercept Distance: Maximum range for intercepting the ball
 13 Intercept Speed Multiplier: Speed boost applied during intercepts
-14 Touch Distance: How far the GK's hands can reach to touch the ball
+14 Touch Distance: Exploit that slowdown ball after touch
 15 Near Ball Distance: Auto-block when ball is within this range
 
 Defense Zone Settings:
@@ -1689,9 +1689,9 @@ Performance Settings:
     
     -- Секция синхронизации в Config
     if UI.Tabs.Config then
-        local syncSection = UI.Tabs.Config:Section({Name = 'AutoGK ULTRA Sync', Side = 'Right'})
+        local syncSection = UI.Tabs.Config:Section({Name = 'AutoGK Sync', Side = 'Right'})
         
-        syncSection:Header({ Name = "AutoGK ULTRA Config Sync" })
+        syncSection:Header({ Name = "AutoGK Config Sync" })
         
         syncSection:Button({
             Name = "Sync Configuration Now",
@@ -1787,3 +1787,4 @@ function AutoGKUltraModule:Destroy()
 end
 
 return AutoGKUltraModule
+
