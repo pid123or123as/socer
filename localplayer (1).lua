@@ -32,7 +32,8 @@ MovementEnhancements.Config = {
         Speed = 50,
         VerticalSpeed = 25,
         ToggleKey = nil,
-        VerticalKeys = "E/Q"
+        VerticalKeys = "E/Q",
+        AntiDetect = true
     },
     InfStamina = {
         Enabled = false,
@@ -42,10 +43,6 @@ MovementEnhancements.Config = {
         ToggleKey = nil,
         WalkSpeed = 21,
         RunSpeed = 35
-    },
-    AntiAFK = {
-        Enabled = false,
-        CustomAFKTime = 60
     }
 }
 
@@ -91,9 +88,11 @@ local FlyStatus = {
     Speed = MovementEnhancements.Config.Fly.Speed,
     VerticalSpeed = MovementEnhancements.Config.Fly.VerticalSpeed,
     VerticalKeys = MovementEnhancements.Config.Fly.VerticalKeys,
+    AntiDetect = MovementEnhancements.Config.Fly.AntiDetect,
     IsFlying = false,
     LastPosition = nil,
-    LastTime = 0
+    LastTime = 0,
+    OriginalGravity = 196.2
 }
 
 local InfStaminaStatus = {
@@ -110,17 +109,6 @@ local InfStaminaStatus = {
     LastSentSpeed = nil,
     GuiMainProtectionConnection = nil,
     SpeedUpdateConnection = nil
-}
-
-local AntiAFKStatus = {
-    Running = false,
-    Connection = nil,
-    Enabled = MovementEnhancements.Config.AntiAFK.Enabled,
-    CustomAFKTime = MovementEnhancements.Config.AntiAFK.CustomAFKTime,
-    LastInputTime = os.time(),
-    InputConnection = nil,
-    HeartbeatConnection = nil,
-    OriginalFireServer = nil
 }
 
 -- Helper functions
@@ -373,10 +361,9 @@ Speed.SetSmoothnessFactor = function(value)
     notify("Speed", "Smoothness Factor set to: " .. SpeedStatus.SmoothnessFactor, false)
 end
 
--- Fly Module (ПРАВИЛЬНЫЙ CFrame метод)
+-- Fly Module (УЛУЧШЕННЫЙ CFrame метод с антидетектом)
 local Fly = {}
 
--- Получаем вектор движения для полета
 Fly.GetFlyVector = function()
     if not Services.UserInputService or not Services.Workspace.CurrentCamera then
         return Vector3.new(0, 0, 0)
@@ -385,17 +372,14 @@ Fly.GetFlyVector = function()
     local camera = Services.Workspace.CurrentCamera
     local cameraCFrame = camera.CFrame
     
-    -- Получаем направления камеры
     local cameraForward = cameraCFrame.LookVector
     local cameraRight = cameraCFrame.RightVector
     local cameraUp = cameraCFrame.UpVector
     
-    -- Обрабатываем ввод
     local forward = 0
     local right = 0
     local up = 0
     
-    -- WASD для горизонтального движения
     if Services.UserInputService:IsKeyDown(Enum.KeyCode.W) then
         forward = forward + 1
     end
@@ -409,7 +393,6 @@ Fly.GetFlyVector = function()
         right = right + 1
     end
     
-    -- Вертикальное движение
     local upKey, downKey = FlyStatus.VerticalKeys:match("(.+)/(.+)")
     if upKey and downKey then
         if Services.UserInputService:IsKeyDown(Enum.KeyCode[upKey]) then
@@ -420,7 +403,6 @@ Fly.GetFlyVector = function()
         end
     end
     
-    -- Комбинируем векторы
     local moveVector = Vector3.new(0, 0, 0)
     
     if forward ~= 0 then
@@ -433,12 +415,46 @@ Fly.GetFlyVector = function()
         moveVector = moveVector + (cameraUp * up)
     end
     
-    -- Нормализуем если есть движение
     if moveVector.Magnitude > 0 then
         moveVector = moveVector.Unit
     end
     
     return moveVector
+end
+
+Fly.ApplyAntiDetect = function(rootPart, dt)
+    if not FlyStatus.AntiDetect then return end
+    
+    -- Случайные микроколебания для имитации физики
+    local randomOffset = Vector3.new(
+        math.random() * 0.01 - 0.005,
+        math.random() * 0.005,
+        math.random() * 0.01 - 0.005
+    )
+    
+    -- Плавное движение вместо мгновенного телепорта
+    local currentPos = rootPart.Position
+    local targetPos = rootPart.CFrame.Position
+    local lerpFactor = 0.3
+    
+    local smoothedPos = currentPos:Lerp(targetPos, lerpFactor * dt * 60)
+    
+    -- Сохраняем ориентацию
+    local lookDir = rootPart.CFrame.LookVector
+    local newCFrame = CFrame.new(smoothedPos + randomOffset, smoothedPos + lookDir + randomOffset)
+    
+    -- Мягкое применение CFrame
+    rootPart.CFrame = rootPart.CFrame:Lerp(newCFrame, 0.7)
+    
+    -- Имитация небольшой гравитации для анти-детекта
+    if FlyStatus.IsFlying then
+        local gravityFactor = 0.1
+        rootPart.Velocity = Vector3.new(
+            rootPart.Velocity.X * 0.95,
+            rootPart.Velocity.Y * 0.95 - gravityFactor,
+            rootPart.Velocity.Z * 0.95
+        )
+    end
 end
 
 Fly.Start = function()
@@ -452,14 +468,14 @@ Fly.Start = function()
     FlyStatus.LastPosition = rootPart.Position
     FlyStatus.LastTime = tick()
     
-    -- Сохраняем начальное состояние
+    -- Сохраняем настройки
+    FlyStatus.OriginalGravity = workspace.Gravity
     local originalGravity = humanoid.JumpPower
     humanoid.JumpPower = 0
-    humanoid:ChangeState(Enum.HumanoidStateType.Physics)
     
-    notify("Fly", "Started with Speed: " .. FlyStatus.Speed, true)
+    -- Плавный переход
+    notify("Fly", "Started with CFrame method | Anti-Detect: " .. tostring(FlyStatus.AntiDetect), true)
     
-    -- Основной цикл полета
     FlyStatus.Connection = Services.RunService.Heartbeat:Connect(function(dt)
         if not FlyStatus.Enabled then
             FlyStatus.Running = false
@@ -473,20 +489,15 @@ Fly.Start = function()
         local deltaTime = currentTime - FlyStatus.LastTime
         FlyStatus.LastTime = currentTime
         
-        -- Получаем вектор движения
         local flyVector = Fly.GetFlyVector()
         
-        -- Если есть движение, обновляем позицию
         if flyVector.Magnitude > 0 then
-            -- Вычисляем расстояние для движения
             local horizontalDistance = FlyStatus.Speed * deltaTime
             local verticalDistance = FlyStatus.VerticalSpeed * deltaTime
             
-            -- Разделяем вектор на горизонтальную и вертикальную компоненты
             local horizontalComponent = Vector3.new(flyVector.X, 0, flyVector.Z)
             local verticalComponent = Vector3.new(0, flyVector.Y, 0)
             
-            -- Нормализуем если нужно
             if horizontalComponent.Magnitude > 0 then
                 horizontalComponent = horizontalComponent.Unit * horizontalDistance
             end
@@ -494,10 +505,8 @@ Fly.Start = function()
                 verticalComponent = verticalComponent.Unit * verticalDistance
             end
             
-            -- Вычисляем новую позицию
             local newPosition = currentRootPart.Position + horizontalComponent + verticalComponent
             
-            -- Получаем направление взгляда
             local camera = Services.Workspace.CurrentCamera
             local lookDirection
             if camera then
@@ -506,27 +515,26 @@ Fly.Start = function()
                 lookDirection = Vector3.new(0, 0, 1)
             end
             
-            -- Обнуляем вертикальную компоненту для горизонтального взгляда
             local horizontalLook = Vector3.new(lookDirection.X, 0, lookDirection.Z)
             if horizontalLook.Magnitude == 0 then
                 horizontalLook = Vector3.new(0, 0, 1)
             end
             
-            -- Создаем новый CFrame
             local newCFrame = CFrame.new(newPosition, newPosition + horizontalLook)
             
-            -- Применяем CFrame
-            currentRootPart.CFrame = newCFrame
+            -- Применяем CFrame с учетом анти-детекта
+            if FlyStatus.AntiDetect then
+                currentRootPart.CFrame = currentRootPart.CFrame:Lerp(newCFrame, 0.8)
+                Fly.ApplyAntiDetect(currentRootPart, deltaTime)
+            else
+                currentRootPart.CFrame = newCFrame
+                currentRootPart.Velocity = Vector3.new(0, 0, 0)
+                currentRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                currentRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            end
             
-            -- Обнуляем физику
-            currentRootPart.Velocity = Vector3.new(0, 0, 0)
-            currentRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            currentRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-            
-            -- Сохраняем позицию
             FlyStatus.LastPosition = newPosition
         else
-            -- Если нет движения, просто стабилизируем позицию
             local camera = Services.Workspace.CurrentCamera
             if camera then
                 local lookDirection = camera.CFrame.LookVector
@@ -537,13 +545,16 @@ Fly.Start = function()
                 
                 local currentCFrame = currentRootPart.CFrame
                 local newCFrame = CFrame.new(currentCFrame.Position, currentCFrame.Position + horizontalLook)
-                currentRootPart.CFrame = newCFrame
+                currentRootPart.CFrame = currentRootPart.CFrame:Lerp(newCFrame, 0.5)
             end
             
-            -- Обнуляем физику при стоянии на месте
-            currentRootPart.Velocity = Vector3.new(0, 0, 0)
-            currentRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            currentRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            if FlyStatus.AntiDetect then
+                Fly.ApplyAntiDetect(currentRootPart, deltaTime)
+            else
+                currentRootPart.Velocity = Vector3.new(0, 0, 0)
+                currentRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                currentRootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            end
         end
     end)
 end
@@ -554,11 +565,10 @@ Fly.Stop = function()
         FlyStatus.Connection = nil
     end
     
-    -- Восстанавливаем состояние
     local humanoid, rootPart = getCharacterData()
     if humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Landed)
-        humanoid.JumpPower = 50 -- Стандартное значение
+        humanoid.JumpPower = 50
     end
     
     if rootPart then
@@ -588,6 +598,12 @@ Fly.SetVerticalKeys = function(newKeys)
     FlyStatus.VerticalKeys = newKeys
     MovementEnhancements.Config.Fly.VerticalKeys = newKeys
     notify("Fly", "Vertical Keys set to: " .. newKeys, false)
+end
+
+Fly.SetAntiDetect = function(enabled)
+    FlyStatus.AntiDetect = enabled
+    MovementEnhancements.Config.Fly.AntiDetect = enabled
+    notify("Fly", "Anti-Detect " .. (enabled and "enabled" or "disabled"), false)
 end
 
 -- InfStamina Module
@@ -662,13 +678,11 @@ InfStamina.Start = function()
     
     InfStaminaStatus.Running = true
     
-    -- Защита GuiMain
     InfStaminaStatus.GuiMainProtectionConnection = Services.RunService.Heartbeat:Connect(function()
         if not InfStaminaStatus.Enabled then return end
         InfStamina.ForceDisableGuiMain()
     end)
     
-    -- Обновление значений скорости
     InfStaminaStatus.SpeedUpdateConnection = Services.RunService.Heartbeat:Connect(function()
         if not InfStaminaStatus.Enabled then return end
         
@@ -693,7 +707,6 @@ InfStamina.Start = function()
         end
     end)
     
-    -- Обработка ввода для спринта
     if Services.UserInputService then
         Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
             if gameProcessed or not InfStaminaStatus.Enabled or InfStaminaStatus.AlwaysSprint then return end
@@ -712,7 +725,6 @@ InfStamina.Start = function()
         end)
     end
     
-    -- Инициализация
     InfStamina.ForceDisableGuiMain()
     InfStamina.UpdateStaminaValues()
     
@@ -751,100 +763,6 @@ InfStamina.SetRestoreGui = function(enabled)
     InfStaminaStatus.RestoreGui = enabled
     MovementEnhancements.Config.InfStamina.RestoreGui = enabled
     notify("InfStamina", "Restore GUI " .. (enabled and "enabled" or "disabled"), false)
-end
-
--- AntiAFK Module
-local AntiAFK = {}
-
-AntiAFK.Start = function()
-    if AntiAFKStatus.Running or not Services then return end
-    
-    AntiAFKStatus.Running = true
-    AntiAFKStatus.LastInputTime = os.time()
-    
-    -- Находим AFKRemote
-    local afkRemote
-    local success, err = pcall(function()
-        afkRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("AFKRemote")
-    end)
-    
-    if success and afkRemote then
-        -- Хук для перехвата FireServer
-        local originalNamecall
-        originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local args = {...}
-            local method = getnamecallmethod()
-            
-            if self == afkRemote and method == "FireServer" then
-                if AntiAFKStatus.Enabled and args[1] == true then
-                    notify("AntiAFK", "Blocked AFK activation", false)
-                    return nil
-                end
-            end
-            
-            return originalNamecall(self, ...)
-        end)
-        
-        AntiAFKStatus.OriginalFireServer = originalNamecall
-    end
-    
-    -- Обработчик ввода
-    AntiAFKStatus.InputConnection = Services.UserInputService.InputBegan:Connect(function()
-        AntiAFKStatus.LastInputTime = os.time()
-    end)
-    
-    -- Основной цикл для симуляции ввода
-    AntiAFKStatus.HeartbeatConnection = Services.RunService.Heartbeat:Connect(function()
-        if not AntiAFKStatus.Enabled then
-            AntiAFKStatus.Running = false
-            return
-        end
-        
-        local currentTime = os.time()
-        local timeSinceLastInput = currentTime - AntiAFKStatus.LastInputTime
-        
-        if timeSinceLastInput > AntiAFKStatus.CustomAFKTime then
-            AntiAFKStatus.LastInputTime = currentTime
-            
-            -- Симуляция ввода
-            local virtualInput = game:GetService("VirtualInputManager")
-            if virtualInput then
-                virtualInput:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                task.wait(0.05)
-                virtualInput:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-            end
-            
-            notify("AntiAFK", "Prevented AFK kick", false)
-        end
-    end)
-    
-    notify("AntiAFK", "Started (Timeout: " .. AntiAFKStatus.CustomAFKTime .. "s)", true)
-end
-
-AntiAFK.Stop = function()
-    if AntiAFKStatus.InputConnection then
-        AntiAFKStatus.InputConnection:Disconnect()
-        AntiAFKStatus.InputConnection = nil
-    end
-    
-    if AntiAFKStatus.HeartbeatConnection then
-        AntiAFKStatus.HeartbeatConnection:Disconnect()
-        AntiAFKStatus.HeartbeatConnection = nil
-    end
-    
-    -- Восстанавливаем оригинальный __namecall
-    if AntiAFKStatus.OriginalFireServer then
-        hookmetamethod(game, "__namecall", AntiAFKStatus.OriginalFireServer)
-    end
-    
-    AntiAFKStatus.Running = false
-    notify("AntiAFK", "Stopped", true)
-end
-
-AntiAFK.SetAFKTime = function(newTime)
-    AntiAFKStatus.CustomAFKTime = math.clamp(newTime, 30, 300)
-    MovementEnhancements.Config.AntiAFK.CustomAFKTime = AntiAFKStatus.CustomAFKTime
-    notify("AntiAFK", "AFK time set to: " .. AntiAFKStatus.CustomAFKTime .. "s", false)
 end
 
 -- UI Setup
@@ -1035,6 +953,14 @@ local function SetupUI(UI)
             end
         })
         
+        UI.Sections.Fly:Toggle({
+            Name = "Anti-Detect",
+            Default = MovementEnhancements.Config.Fly.AntiDetect,
+            Callback = function(value)
+                Fly.SetAntiDetect(value)
+            end
+        })
+        
         UI.Sections.Fly:Slider({
             Name = "Speed",
             Minimum = 10,
@@ -1059,7 +985,7 @@ local function SetupUI(UI)
         
         UI.Sections.Fly:Dropdown({
             Name = "Vertical Keys",
-            Options = {"E/Q", "Space/LeftControl"},
+            Options = {"E/Q", "Space/LeftControl", "R/F"},
             Default = MovementEnhancements.Config.Fly.VerticalKeys,
             Callback = function(value)
                 Fly.SetVerticalKeys(value)
@@ -1095,8 +1021,6 @@ local function SetupUI(UI)
                 if value then InfStamina.Start() else InfStamina.Stop() end
             end
         })
-
-        UI.Sections.InfStamina:SubLabel({ Text = '[❗] Ban risk, should be undetected \n but anticheat can detect it easily' })
         
         UI.Sections.InfStamina:Toggle({
             Name = "Always Sprint",
@@ -1105,7 +1029,7 @@ local function SetupUI(UI)
                 InfStamina.SetAlwaysSprint(value)
             end
         })
-        UI.Sections.InfStamina:SubLabel({Text = '[❗] Ban risk, not recommend to use always sprint'})
+        
         UI.Sections.InfStamina:Toggle({
             Name = "Restore GUI",
             Default = MovementEnhancements.Config.InfStamina.RestoreGui,
@@ -1138,32 +1062,6 @@ local function SetupUI(UI)
             end
         })
     end
-
-    -- AntiAFK Section
-    if UI.Sections.AntiAFK then
-        UI.Sections.AntiAFK:Header({ Name = "Anti-AFK" })
-        
-        UI.Sections.AntiAFK:Toggle({
-            Name = "Enabled",
-            Default = MovementEnhancements.Config.AntiAFK.Enabled,
-            Callback = function(value)
-                AntiAFKStatus.Enabled = value
-                MovementEnhancements.Config.AntiAFK.Enabled = value
-                if value then AntiAFK.Start() else AntiAFK.Stop() end
-            end
-        })
-        
-        UI.Sections.AntiAFK:Slider({
-            Name = "AFK Time (seconds)",
-            Minimum = 30,
-            Maximum = 300,
-            Default = MovementEnhancements.Config.AntiAFK.CustomAFKTime,
-            Precision = 1,
-            Callback = function(value)
-                AntiAFK.SetAFKTime(value)
-            end
-        })
-    end
 end
 
 -- Main Initialization
@@ -1174,16 +1072,13 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
     notify = notifyFunc
     LocalPlayerObj = PlayerData.LocalPlayer
 
-    -- Global functions
     _G.setTimerSpeed = Timer.SetSpeed
     _G.setSpeed = Speed.SetSpeed
     _G.setFlySpeed = Fly.SetSpeed
     _G.setFlyVerticalSpeed = Fly.SetVerticalSpeed
     _G.setFlyVerticalKeys = Fly.SetVerticalKeys
     _G.setInfStaminaSprintKey = InfStamina.SetSprintKey
-    _G.setAntiAFKTime = AntiAFK.SetAFKTime
 
-    -- Character added connections
     if LocalPlayerObj then
         local function handleCharacterChange()
             task.wait(0.5)
@@ -1207,7 +1102,6 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
         
         LocalPlayerObj.CharacterAdded:Connect(handleCharacterChange)
         
-        -- Handle initial character
         if LocalPlayerObj.Character then
             task.spawn(handleCharacterChange)
         end
@@ -1216,25 +1110,12 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
     SetupUI(UI)
 end
 
--- Cleanup function
 function MovementEnhancements:Destroy()
-    -- Timer
     Timer.Stop()
-    
-    -- Disabler
     Disabler.Stop()
-    
-    -- Speed
     Speed.Stop()
-    
-    -- Fly
     Fly.Stop()
-    
-    -- InfStamina
     InfStamina.Stop()
-    
-    -- AntiAFK
-    AntiAFK.Stop()
     
     notify("MovementEnhancements", "All modules stopped", true)
 end
