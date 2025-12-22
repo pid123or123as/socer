@@ -76,7 +76,7 @@ local CONFIG = {
     
     JUMP_HORIZONTAL_FORCE = 70,
     SMALL_GOAL_DIVE_DISTANCE = 5,
-    BIG_GOAL_DIVE_DISTANCE = 16,
+    BIG_GOAL_DIVE_DISTANCE = 9,
     DIVE_DURATION = 0.44,
     DIVE_SPEED_BOOST = 1.8,
     
@@ -1673,33 +1673,49 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         UI.Sections.AutoGoalKeeper:Divider()
         
         -- Информация
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Исправления в ротации" })
+        UI.Sections.AutoGoalKeeper:Header({ Name = "autogk information v1.99 (22.12.25) " })
         
         UI.Sections.AutoGoalKeeper:Paragraph({
             Header = "Ключевые изменения (без физики)",
             Body = [[
-КОМПЛЕТНО УБРАНА ФИЗИКА ИЗ РОТАЦИЙ:
+Movement Settings:
+1 Normal Speed: Base movement speed when positioning
+2 Aggressive Speed: Speed used for urgent situations like intercepts
+3 Stand Distance: How far to stand from the goal line (2.8 = good default)
+4 Minimum Distance: Stop moving when this close to target position
 
-1. ОБЫЧНАЯ РОТАЦИЯ:
-   - Используется чистый CFrame.lookAt
-   - Плавное вращение через линейную интерполяцию
-   - Настраиваемая скорость ротации
+Dive Settings:
+5 Dive Distance: Maximum distance at which the GK will attempt a dive
+6 Dive Velocity Threshold: Minimum ball speed required to trigger a dive
+7 Dive Cooldown: Time that must pass between consecutive dives
 
-2. DIVE РОТАЦИЯ:
-   - МГНОВЕННАЯ ротация перед нырком
-   - Поворот НЕ к мячу, а В СТОРОНУ ОТ ВОРОТ
-   - Хитбокс не меняет ориентацию на мяч
-   - Мяч отбивается от ворот, а не пропускается
+Jump Settings:
+8 Jump Velocity Threshold: Ball speed needed to consider jumping
+9 Jump Cooldown: Recovery time between jumps
+10 Jump Radius: Maximum distance from ball to attempt a jump
+11 Jump Min Height Diff: Required height difference between ball and GK to jump
 
-3. НЕТ BodyGyro/BodyVelocity в ротации:
-   - Ротация через прямое изменение CFrame
-   - Нет конфликтов с физикой игры
-   - Более стабильная и предсказуемая работа
+Intercept & Touch Settings:
+12 Intercept Distance: Maximum range for intercepting the ball
+13 Intercept Speed Multiplier: Speed boost applied during intercepts
+14 Touch Distance: Exploit that slowdown ball after touch
+15 Near Ball Distance: Auto-block when ball is within this range
 
-НАСТРОЙКИ:
-- Normal Rotation Speed: скорость обычной ротации (1-20)
-- Smooth Rotation: плавная/резкая ротация
-- Dive Speed Boost: множитель скорости рывка при нырке
+Defense Zone Settings:
+16 Zone Width Multiplier: Controls width of defensive area (higher = wider)
+17 Zone Depth: How far forward the defensive zone extends
+18 Zone Offset Multiplier: Distance from goal line to zone center
+
+Visual Settings:
+19 Toggle visibility of different visual elements
+20 Helps with debugging and understanding AI behavior
+
+Color Settings:
+21 Customize colors for all visual elements
+22 Helps distinguish between different elements
+
+Performance Settings:
+23 Rotation Smoothness: How smoothly the GK rotates (higher = smoother but slower response)
 ]]
         })
         
@@ -1807,3 +1823,4 @@ function AutoGKUltraModule:Destroy()
 end
 
 return AutoGKUltraModule
+
