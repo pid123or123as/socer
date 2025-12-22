@@ -53,17 +53,10 @@ local CONFIG = {
     -- Производительность
     PRED_UPDATE_RATE = 1,
     
-    -- Ротация (без физики, но с защитой от падения)
+    -- Ротация (без физики)
     DIVE_ROTATION_SPEED = 15,
     NORMAL_ROTATION_SPEED = 8,
-    SMOOTH_ROTATION = true,
-    ROTATION_SAFETY_MARGIN = 60, -- Максимальный угол поворота за один кадр (градусы)
-    
-    -- Защита от падения
-    ANTI_FALL_ENABLED = true,
-    FALL_CHECK_INTERVAL = 0.1,
-    FALL_VELOCITY_THRESHOLD = -25,
-    FALL_RECOVERY_DURATION = 0.5,
+    INSTANT_DIVE_ROTATION = true,
     
     -- Размер ворот
     BIG_GOAL_THRESHOLD = 40,
@@ -86,7 +79,7 @@ local CONFIG = {
     BIG_GOAL_DIVE_DISTANCE = 16,
     DIVE_DURATION = 0.44,
     DIVE_SPEED_BOOST = 1.8,
-    DIVE_ANTI_FALL_FORCE = Vector3.new(0, 15000, 0), -- Сила против падения
+    DIVE_ROTATION_OFFSET = 3,
     
     -- Зона защиты
     ZONE_WIDTH_MULTIPLIER = 2.5,
@@ -131,18 +124,9 @@ local moduleState = {
     diveAnimationPlaying = false,
     jumpAnimationPlaying = false,
     willJump = false,
-    
-    -- Ротационные параметры
-    currentRotation = nil,
-    targetRotation = nil,
-    rotationSpeed = 8,
-    lastSafeCFrame = nil,
-    
-    -- Защита от падения
-    antiFallBV = nil,
-    lastFallCheck = 0,
-    isFalling = false,
-    fallRecoveryEnd = 0,
+    currentRotationCF = nil,
+    lastRotationTime = 0,
+    rotationUpdateInterval = 0.05,
     
     -- Визуальные объекты
     visualObjects = {},
@@ -774,43 +758,26 @@ local function moveToPosition(root, targetPos, ballPos, velMag, isUrgent)
     game.Debris:AddItem(moduleState.currentBV, 0.15)
 end
 
--- Безопасная ротация БЕЗ ФИЗИКИ (с защитой от падения)
-local function safeRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyBall, isJumping, dt)
+-- Ротация БЕЗ физики (через CFrame)
+local function smartRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyBall, isJumping)
     if isMyBall or isJumping then return end
     
-    -- Сохраняем безопасный CFrame перед ротацией
-    if not moduleState.lastSafeCFrame then
-        moduleState.lastSafeCFrame = root.CFrame
-    end
-    
-    -- Если ныряем - ОГРАНИЧЕННАЯ ротация к цели нырка
-    if isDiving and diveTarget then
-        local currentCF = moduleState.lastSafeCFrame
-        local currentLook = currentCF.LookVector
-        
-        -- Вычисляем направление к цели нырка
-        local toTarget = (diveTarget - root.Position)
-        local targetLook = toTarget.Unit
-        
-        -- Вычисляем угол между текущим и целевым направлением
-        local angle = math.deg(math.acos(math.clamp(currentLook:Dot(targetLook), -1, 1)))
-        
-        -- Ограничиваем максимальный угол поворота
-        local maxAngle = CONFIG.ROTATION_SAFETY_MARGIN
-        if angle > maxAngle then
-            -- Интерполируем к целевому направлению с ограничением
-            local t = maxAngle / angle
-            targetLook = (currentLook:Lerp(targetLook, t)).Unit
-        end
-        
-        -- Применяем безопасную ротацию
-        local newCF = CFrame.lookAt(root.Position, root.Position + targetLook)
-        root.CFrame = newCF
-        moduleState.lastSafeCFrame = newCF
+    local currentTime = tick()
+    if currentTime - moduleState.lastRotationTime < moduleState.rotationUpdateInterval then
         return
     end
     
-    -- Обычная ротация (без нырка)
+    moduleState.lastRotationTime = currentTime
+    
+    -- Если ныряем, используем мгновенную ротацию в сторону от ворот
+    if isDiving and diveTarget then
+        -- Мгновенная ротация для Dive (от ворот)
+        local targetCFrame = CFrame.lookAt(root.Position, diveTarget)
+        root.CFrame = CFrame.new(root.Position, diveTarget)
+        return
+    end
+    
+    -- Обычная ротация (не во время нырка)
     if not isDiving then
         local targetLookPos = ballPos
         
@@ -820,70 +787,19 @@ local function safeRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyBa
             targetLookPos = predictionPoint
         end
         
-        local currentCF = moduleState.lastSafeCFrame
-        local currentLook = currentCF.LookVector
-        
-        -- Вычисляем направление к цели
-        local toTarget = (targetLookPos - root.Position)
-        local targetLook = toTarget.Unit
-        
-        -- Если уже смотрим в правильном направлении, ничего не делаем
-        if currentLook:Dot(targetLook) > 0.99 then
-            return
+        -- Плавная ротация без физики
+        if not moduleState.currentRotationCF then
+            moduleState.currentRotationCF = root.CFrame
         end
         
-        -- Вычисляем угол поворота
-        local angle = math.acos(math.clamp(currentLook:Dot(targetLook), -1, 1))
-        local maxAngle = math.rad(CONFIG.ROTATION_SAFETY_MARGIN) * dt
+        local targetLook = CFrame.lookAt(root.Position, targetLookPos)
+        local rotationSpeed = CONFIG.NORMAL_ROTATION_SPEED
+        local t = math.min(1, rotationSpeed * (currentTime - moduleState.lastRotationTime))
         
-        -- Ограничиваем угол поворота
-        if angle > maxAngle then
-            local t = maxAngle / angle
-            targetLook = (currentLook:Lerp(targetLook, t)).Unit
-        end
-        
-        -- Применяем безопасную ротацию
-        local newCF = CFrame.lookAt(root.Position, root.Position + targetLook)
-        root.CFrame = newCF
-        moduleState.lastSafeCFrame = newCF
-    end
-end
-
--- Защита от падения
-local function checkAndPreventFalling(root, hum)
-    if not CONFIG.ANTI_FALL_ENABLED then return end
-    if tick() - moduleState.lastFallCheck < CONFIG.FALL_CHECK_INTERVAL then return end
-    
-    moduleState.lastFallCheck = tick()
-    
-    -- Проверяем, не падаем ли мы
-    local isFalling = hum:GetState() == Enum.HumanoidStateType.Freefall or 
-                      hum:GetState() == Enum.HumanoidStateType.FallingDown or
-                      root.Velocity.Y < CONFIG.FALL_VELOCITY_THRESHOLD
-    
-    if isFalling and not moduleState.isFalling then
-        -- Начинаем падение
-        moduleState.isFalling = true
-        moduleState.fallRecoveryEnd = tick() + CONFIG.FALL_RECOVERY_DURATION
-        
-        -- Создаем силу против падения
-        if moduleState.antiFallBV then
-            pcall(function() moduleState.antiFallBV:Destroy() end)
-        end
-        
-        moduleState.antiFallBV = Instance.new("BodyVelocity")
-        moduleState.antiFallBV.Parent = root
-        moduleState.antiFallBV.MaxForce = Vector3.new(0, 1e7, 0)
-        moduleState.antiFallBV.Velocity = Vector3.new(0, 25, 0) -- Поднимающая сила
-        game.Debris:AddItem(moduleState.antiFallBV, CONFIG.FALL_RECOVERY_DURATION)
-        
-    elseif moduleState.isFalling and tick() > moduleState.fallRecoveryEnd then
-        -- Завершаем восстановление
-        moduleState.isFalling = false
-        if moduleState.antiFallBV then
-            pcall(function() moduleState.antiFallBV:Destroy() end)
-            moduleState.antiFallBV = nil
-        end
+        -- Интерполяция CFrame
+        local lerpedCF = moduleState.currentRotationCF:Lerp(targetLook, t)
+        root.CFrame = lerpedCF
+        moduleState.currentRotationCF = lerpedCF
     end
 end
 
@@ -1026,16 +942,13 @@ local function shouldDive(root, ball, velMag, endpoint)
     return false
 end
 
--- Выполнение нырка с защитой от падения
+-- Выполнение нырка (БЕЗ физики в ротации)
 local function performDive(root, hum, targetPos, ballHeight, ball)
     if tick() - moduleState.lastDiveTime < CONFIG.DIVE_COOLDOWN or moduleState.isDiving or moduleState.diveAnimationPlaying then return end
     
     moduleState.isDiving = true
     moduleState.diveAnimationPlaying = true
     moduleState.lastDiveTime = tick()
-    
-    -- Сохраняем текущую позицию как безопасную перед нырком
-    moduleState.lastSafeCFrame = root.CFrame
     
     local rel = (targetPos - root.Position) * Vector3.new(1,0,1)
     local lateral = rel:Dot(root.CFrame.RightVector)
@@ -1075,48 +988,23 @@ local function performDive(root, hum, targetPos, ballHeight, ball)
     
     hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
     
-    -- БЕЗОПАСНАЯ ротация перед нырком (ограниченная)
+    -- МГНОВЕННАЯ ротация для Dive (без физики)
     local goalToBall = (targetPos - moduleState.GoalCFrame.Position)
-    local diveTarget = targetPos + goalToBall.Unit * 3 -- Поворот В СТОРОНУ от ворот
+    local safeTarget = targetPos + goalToBall.Unit * CONFIG.DIVE_ROTATION_OFFSET
+    root.CFrame = CFrame.lookAt(root.Position, safeTarget)
     
-    local currentCF = moduleState.lastSafeCFrame
-    local currentLook = currentCF.LookVector
-    local toTarget = (diveTarget - root.Position)
-    local targetLook = toTarget.Unit
-    
-    -- Ограничиваем угол поворота
-    local angle = math.deg(math.acos(math.clamp(currentLook:Dot(targetLook), -1, 1)))
-    local maxAngle = 60 -- Максимум 60 градусов за один нырок
-    if angle > maxAngle then
-        local t = maxAngle / angle
-        targetLook = (currentLook:Lerp(targetLook, t)).Unit
-    end
-    
-    local newCF = CFrame.lookAt(root.Position, root.Position + targetLook)
-    root.CFrame = newCF
-    moduleState.lastSafeCFrame = newCF
-    
-    -- Создаем рывок с защитой от падения
+    -- Создаем рывок
     local diveBV = Instance.new("BodyVelocity")
-    diveBV.Name = "DiveBV"
     diveBV.Parent = root
-    diveBV.MaxForce = Vector3.new(1e7, 1e7, 1e7) -- Добавляем силу по Y для защиты от падения
+    diveBV.MaxForce = Vector3.new(1e7, 0, 1e7)
     
     if dir == "Right" then
-        diveBV.Velocity = newCF.RightVector * diveSpeed + CONFIG.DIVE_ANTI_FALL_FORCE
+        diveBV.Velocity = root.CFrame.RightVector * diveSpeed
     else
-        diveBV.Velocity = newCF.RightVector * -diveSpeed + CONFIG.DIVE_ANTI_FALL_FORCE
+        diveBV.Velocity = root.CFrame.RightVector * -diveSpeed
     end
     
     game.Debris:AddItem(diveBV, CONFIG.DIVE_DURATION)
-    
-    -- Дополнительная защита от падения во время нырка
-    local antiFallBV = Instance.new("BodyVelocity")
-    antiFallBV.Name = "DiveAntiFall"
-    antiFallBV.Parent = root
-    antiFallBV.MaxForce = Vector3.new(0, 2e7, 0)
-    antiFallBV.Velocity = Vector3.new(0, 35, 0) -- Сила, удерживающая от падения
-    game.Debris:AddItem(antiFallBV, CONFIG.DIVE_DURATION)
     
     if ball then
         for _, partName in pairs({"HumanoidRootPart", "RightHand", "LeftHand"}) do
@@ -1138,15 +1026,7 @@ local function performDive(root, hum, targetPos, ballHeight, ball)
     task.delay(CONFIG.DIVE_DURATION + 0.1, function() 
         moduleState.isDiving = false 
         moduleState.diveAnimationPlaying = false
-        
-        -- Возвращаем безопасную ротацию после нырка
-        if moduleState.lastSafeCFrame then
-            task.delay(0.2, function()
-                if root and root.Parent then
-                    root.CFrame = moduleState.lastSafeCFrame
-                end
-            end)
-        end
+        moduleState.currentRotationCF = nil -- Сбрасываем ротацию после нырка
     end)
 end
 
@@ -1195,9 +1075,6 @@ local function startRenderLoop()
             return 
         end
         
-        -- Проверка и защита от падения
-        checkAndPreventFalling(root, hum)
-        
         local hasWeld = ball:FindFirstChild("playerWeld")
         local owner = ball:FindFirstChild("creator") and ball.creator.Value
         local isMyBall = owner == player
@@ -1228,9 +1105,9 @@ local function startRenderLoop()
             
             moveToPosition(root, targetPos, ball.Position, velMag, isUrgent)
             
-            -- Безопасная ротация
+            -- Ротация ТОЛЬКО когда не ныряем
             if not moduleState.isDiving then
-                safeRotation(root, ball.Position, ball.Velocity, false, nil, isMyBall, moduleState.willJump, dt)
+                smartRotation(root, ball.Position, ball.Velocity, false, nil, isMyBall, moduleState.willJump)
             end
             
             if tick() - moduleState.lastActionTime > moduleState.actionCooldown then
@@ -1242,14 +1119,13 @@ local function startRenderLoop()
                     performIntercept(root, char, ball)
                     moduleState.lastActionTime = tick()
                 elseif shouldDive(root, ball, velMag, endpoint) then
-                    -- Для нырка определяем точку ротации (В СТОРОНУ ОТ ВОРОТ)
-                    local diveTarget = nil
+                    -- Перед нырком устанавливаем правильную ротацию
                     if endpoint then
+                        -- Определяем точку для ротации (в сторону от ворот)
                         local goalToBall = (endpoint - moduleState.GoalCFrame.Position)
-                        -- Поворачиваемся не к мячу, а В СТОРОНУ ОТ ВОРОТ
-                        diveTarget = endpoint + goalToBall.Unit * 5
+                        local safeTarget = endpoint + goalToBall.Unit * CONFIG.DIVE_ROTATION_OFFSET
+                        smartRotation(root, ball.Position, ball.Velocity, true, safeTarget, isMyBall, false)
                     end
-                    
                     performDive(root, hum, endpoint or ball.Position, ball.Position.Y, ball)
                     moduleState.lastActionTime = tick()
                 elseif shouldBlock(root, ball, velMag) then
@@ -1277,7 +1153,7 @@ local function startRenderLoop()
             
             -- Ротация ТОЛЬКО когда не ныряем и не прыгаем
             if not moduleState.isDiving and not moduleState.willJump then
-                safeRotation(root, ball.Position, ball.Velocity, false, nil, isMyBall, false, dt)
+                smartRotation(root, ball.Position, ball.Velocity, false, nil, isMyBall, false)
             end
         end
         
@@ -1370,11 +1246,6 @@ local function cleanup()
         moduleState.currentBV = nil 
     end
     
-    if moduleState.antiFallBV then
-        pcall(function() moduleState.antiFallBV:Destroy() end)
-        moduleState.antiFallBV = nil
-    end
-    
     if moduleState.heartbeatConnection then
         moduleState.heartbeatConnection:Disconnect()
         moduleState.heartbeatConnection = nil
@@ -1396,13 +1267,10 @@ local function cleanup()
     moduleState.jumpAnimationPlaying = false
     moduleState.cachedPoints = nil
     moduleState.willJump = false
-    moduleState.currentRotation = nil
-    moduleState.targetRotation = nil
-    moduleState.lastSafeCFrame = nil
-    moduleState.isFalling = false
+    moduleState.currentRotationCF = nil
 end
 
--- Модуль AutoGK ULTRA (с защитой от падения)
+-- Модуль AutoGK ULTRA (без физики в ротации)
 local AutoGKUltraModule = {}
 
 function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
@@ -1513,37 +1381,45 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Callback = function(v) CONFIG.DIVE_SPEED_BOOST = v end
         }, 'AutoGKUltraDiveSpeedBoost')
         
+        moduleState.uiElements.DIVE_ROTATION_OFFSET = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Dive Rotation Offset",
+            Minimum = 1.0,
+            Maximum = 10.0,
+            Default = CONFIG.DIVE_ROTATION_OFFSET,
+            Precision = 1,
+            Callback = function(v) CONFIG.DIVE_ROTATION_OFFSET = v end
+        }, 'AutoGKUltraDiveRotationOffset')
+        
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Настройки ротации (с защитой от падения)
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Rotation Settings (Anti-Fall)" })
+        -- Настройки ротации (без физики)
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Rotation Settings (No Physics)" })
+        
+        moduleState.uiElements.DIVE_ROTATION_SPEED = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Dive Rotation Speed",
+            Minimum = 5.0,
+            Maximum = 30.0,
+            Default = CONFIG.DIVE_ROTATION_SPEED,
+            Precision = 1,
+            Callback = function(v) CONFIG.DIVE_ROTATION_SPEED = v end
+        }, 'AutoGKUltraDiveRotationSpeed')
         
         moduleState.uiElements.NORMAL_ROTATION_SPEED = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Normal Rotation Speed",
-            Minimum = 1.0,
+            Minimum = 2.0,
             Maximum = 20.0,
             Default = CONFIG.NORMAL_ROTATION_SPEED,
             Precision = 1,
             Callback = function(v) CONFIG.NORMAL_ROTATION_SPEED = v end
         }, 'AutoGKUltraNormalRotationSpeed')
         
-        moduleState.uiElements.ROTATION_SAFETY_MARGIN = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Max Rotation Angle",
-            Minimum = 10,
-            Maximum = 90,
-            Default = CONFIG.ROTATION_SAFETY_MARGIN,
-            Precision = 1,
-            Callback = function(v) CONFIG.ROTATION_SAFETY_MARGIN = v end
-        }, 'AutoGKUltraRotationSafety')
-        
-        moduleState.uiElements.SMOOTH_ROTATION = UI.Sections.AutoGoalKeeper:Toggle({
-            Name = "Smooth Rotation",
-            Default = CONFIG.SMOOTH_ROTATION,
-            Callback = function(v) CONFIG.SMOOTH_ROTATION = v end
-        }, 'AutoGKUltraSmoothRotation')
+        moduleState.uiElements.INSTANT_DIVE_ROTATION = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Instant Dive Rotation",
+            Default = CONFIG.INSTANT_DIVE_ROTATION,
+            Callback = function(v) CONFIG.INSTANT_DIVE_ROTATION = v end
+        }, 'AutoGKUltraInstantDiveRotation')
         
         UI.Sections.AutoGoalKeeper:Divider()
-        
         
         -- Настройки прыжка
         UI.Sections.AutoGoalKeeper:Header({ Name = "Jump Settings" })
@@ -1586,38 +1462,251 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
+        -- Настройки перехвата и касания
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Intercept & Touch Settings" })
+        
+        moduleState.uiElements.INTERCEPT_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Intercept Distance",
+            Minimum = 20,
+            Maximum = 50,
+            Default = CONFIG.INTERCEPT_DISTANCE,
+            Precision = 1,
+            Callback = function(v) CONFIG.INTERCEPT_DISTANCE = v end
+        }, 'AutoGKUltraInterceptDist')
+        
+        moduleState.uiElements.INTERCEPT_SPEED_MULT = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Intercept Speed",
+            Minimum = 1.0,
+            Maximum = 2.0,
+            Default = CONFIG.INTERCEPT_SPEED_MULT,
+            Precision = 2,
+            Callback = function(v) CONFIG.INTERCEPT_SPEED_MULT = v end
+        }, 'AutoGKUltraInterceptSpeedMult')
+        
+        moduleState.uiElements.TOUCH_RANGE = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Touch Distance",
+            Minimum = 5,
+            Maximum = 30,
+            Default = CONFIG.TOUCH_RANGE,
+            Precision = 1,
+            Callback = function(v) CONFIG.TOUCH_RANGE = v end
+        }, 'AutoGKUltraTouchRange')
+        
+        moduleState.uiElements.NEAR_BALL_DIST = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Near Ball Dist",
+            Minimum = 2,
+            Maximum = 10,
+            Default = CONFIG.NEAR_BALL_DIST,
+            Precision = 1,
+            Callback = function(v) CONFIG.NEAR_BALL_DIST = v end
+        }, 'AutoGKUltraNearBallDist')
+        
+        UI.Sections.AutoGoalKeeper:Divider()
+        
+        -- Настройки зоны защиты
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Defense Zone Settings" })
+        
+        moduleState.uiElements.ZONE_WIDTH_MULTIPLIER = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Zone Width",
+            Minimum = 1.0,
+            Maximum = 4.0,
+            Default = CONFIG.ZONE_WIDTH_MULTIPLIER,
+            Precision = 1,
+            Callback = function(v) CONFIG.ZONE_WIDTH_MULTIPLIER = v end
+        }, 'AutoGKUltraZoneWidthMult')
+        
+        moduleState.uiElements.ZONE_DEPTH = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Zone Depth",
+            Minimum = 30,
+            Maximum = 80,
+            Default = CONFIG.ZONE_DEPTH,
+            Precision = 1,
+            Callback = function(v) CONFIG.ZONE_DEPTH = v end
+        }, 'AutoGKUltraZoneDepth')
+        
+        moduleState.uiElements.ZONE_OFFSET_MULTIPLIER = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Zone Offset",
+            Minimum = 20,
+            Maximum = 50,
+            Default = CONFIG.ZONE_OFFSET_MULTIPLIER,
+            Precision = 1,
+            Callback = function(v) CONFIG.ZONE_OFFSET_MULTIPLIER = v end
+        }, 'AutoGKUltraZoneOffsetMult')
+        
+        UI.Sections.AutoGoalKeeper:Divider()
+        
+        -- Настройки визуализации
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Visual Settings" })
+        
+        moduleState.uiElements.SHOW_TRAJECTORY = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Show Trajectory",
+            Default = CONFIG.SHOW_TRAJECTORY,
+            Callback = function(v) 
+                CONFIG.SHOW_TRAJECTORY = v 
+                if moduleState.enabled then
+                    createVisuals()
+                end
+            end
+        }, 'AutoGKUltraShowTrajectory')
+        
+        moduleState.uiElements.SHOW_ENDPOINT = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Show Endpoint",
+            Default = CONFIG.SHOW_ENDPOINT,
+            Callback = function(v) 
+                CONFIG.SHOW_ENDPOINT = v 
+                if moduleState.enabled then
+                    createVisuals()
+                end
+            end
+        }, 'AutoGKUltraShowEndpoint')
+        
+        moduleState.uiElements.SHOW_GOAL_CUBE = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Show Goal Cube",
+            Default = CONFIG.SHOW_GOAL_CUBE,
+            Callback = function(v) 
+                CONFIG.SHOW_GOAL_CUBE = v 
+                if moduleState.enabled then
+                    createVisuals()
+                end
+            end
+        }, 'AutoGKUltraShowGoalCube')
+        
+        moduleState.uiElements.SHOW_ZONE = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Show Defense Zone",
+            Default = CONFIG.SHOW_ZONE,
+            Callback = function(v) 
+                CONFIG.SHOW_ZONE = v 
+                if moduleState.enabled then
+                    createVisuals()
+                end
+            end
+        }, 'AutoGKUltraShowZone')
+        
+        moduleState.uiElements.SHOW_BALL_BOX = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Show Ball Box",
+            Default = CONFIG.SHOW_BALL_BOX,
+            Callback = function(v) 
+                CONFIG.SHOW_BALL_BOX = v 
+                if moduleState.enabled then
+                    createVisuals()
+                end
+            end
+        }, 'AutoGKUltraShowBallBox')
+        
+        UI.Sections.AutoGoalKeeper:Divider()
+        
+        -- Цветовые настройки
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Color Settings" })
+        
+        moduleState.uiElements.TRAJECTORY_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
+            Name = "Trajectory Color",
+            Default = CONFIG.TRAJECTORY_COLOR,
+            Callback = function(v) 
+                CONFIG.TRAJECTORY_COLOR = v
+                if moduleState.enabled and moduleState.visualObjects.trajLines then
+                    local baseH, baseS, baseV = v:ToHSV()
+                    for i, line in ipairs(moduleState.visualObjects.trajLines) do
+                        if line then
+                            local hue = (baseH + (i / CONFIG.PRED_STEPS) * 0.3) % 1
+                            line.Color = Color3.fromHSV(hue, baseS, baseV)
+                        end
+                    end
+                end
+            end
+        }, 'AutoGKUltraTrajectoryColor')
+        
+        moduleState.uiElements.ENDPOINT_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
+            Name = "Endpoint Color",
+            Default = CONFIG.ENDPOINT_COLOR,
+            Callback = function(v) 
+                CONFIG.ENDPOINT_COLOR = v
+                if moduleState.enabled and moduleState.visualObjects.endpointLines then
+                    for _, line in ipairs(moduleState.visualObjects.endpointLines) do
+                        if line then
+                            line.Color = v
+                        end
+                    end
+                end
+            end
+        }, 'AutoGKUltraEndpointColor')
+        
+        moduleState.uiElements.GOAL_CUBE_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
+            Name = "Goal Cube Color",
+            Default = CONFIG.GOAL_CUBE_COLOR,
+            Callback = function(v) 
+                CONFIG.GOAL_CUBE_COLOR = v
+                if moduleState.enabled and moduleState.visualObjects.GoalCube then
+                    for _, line in ipairs(moduleState.visualObjects.GoalCube) do
+                        if line then
+                            line.Color = v
+                        end
+                    end
+                end
+            end
+        }, 'AutoGKUltraGoalCubeColor')
+        
+        moduleState.uiElements.ZONE_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
+            Name = "Zone Color",
+            Default = CONFIG.ZONE_COLOR,
+            Callback = function(v) 
+                CONFIG.ZONE_COLOR = v
+                if moduleState.enabled and moduleState.visualObjects.LimitCube then
+                    for _, line in ipairs(moduleState.visualObjects.LimitCube) do
+                        if line then
+                            line.Color = v
+                        end
+                    end
+                end
+            end
+        }, 'AutoGKUltraZoneColor')
+        
+        moduleState.uiElements.BALL_BOX_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
+            Name = "Ball Box Color",
+            Default = CONFIG.BALL_BOX_COLOR,
+            Callback = function(v) 
+                CONFIG.BALL_BOX_COLOR = v
+            end
+        }, 'AutoGKUltraBallBoxColor')
+        
+        moduleState.uiElements.BALL_BOX_JUMP_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
+            Name = "Ball Box Jump Color",
+            Default = CONFIG.BALL_BOX_JUMP_COLOR,
+            Callback = function(v) 
+                CONFIG.BALL_BOX_JUMP_COLOR = v
+            end
+        }, 'AutoGKUltraBallBoxJumpColor')
+        
+        UI.Sections.AutoGoalKeeper:Divider()
+        
         -- Информация
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Исправления против падения" })
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Исправления ротации" })
         
         UI.Sections.AutoGoalKeeper:Paragraph({
-            Header = "Ключевые исправления (защита от падения)",
+            Header = "Основные изменения",
             Body = [[
-РЕШЕНА ПРОБЛЕМА ПАДЕНИЯ ПРИ DIVE:
+КЛЮЧЕВЫЕ ИСПРАВЛЕНИЯ (без физики):
 
-1. ОГРАНИЧЕНИЕ УГЛА ПОВОРОТА:
-   - Максимальный угол поворота: Rotation Safety Margin (градусы)
-   - Предотвращает резкие повороты, вызывающие падение
-   - Мягкая интерполяция между текущим и целевым направлением
+1. УДАЛЕН ВЕСЬ BodyGyro - теперь ротация работает через прямое изменение CFrame
 
-2. ЗАЩИТА ОТ ПАДЕНИЯ (Anti-Fall):
-   - Автоматическое определение падения по скорости/состоянию
-   - Применение вертикальной силы для остановки падения
-   - Восстановление после падения
+2. Два типа ротации:
+   - Dive ротация: МГНОВЕННАЯ (CFrame.lookAt) - поворачивается ОТ ворот
+   - Обычная ротация: Плавная (CFrame:Lerp) - плавно следует за мячом
 
-3. БЕЗОПАСНАЯ DIVE РОТАЦИЯ:
-   - Сохранение безопасного CFrame перед нырком
-   - Ограниченный угол поворота во время нырка (макс 60°)
-   - Возврат к безопасной ротации после нырка
+3. Исправлена проблема с хитбоксом:
+   - При Dive вратарь теперь смотрит В СТОРОНУ от ворот
+   - Хитбокс не меняет ориентацию и закрывает ворота
+   - Мяч отбивается правильной стороной тела
 
-4. ДОПОЛНИТЕЛЬНЫЕ МЕРЫ:
-   - BodyVelocity с вертикальной силой во время нырка
-   - Отдельный Anti-Fall BodyVelocity
-   - Проверка состояния Humanoid
+4. Параметры:
+   - DIVE_ROTATION_OFFSET: дистанция смещения цели ротации при нырке
+   - NORMAL_ROTATION_SPEED: скорость плавной ротации к мячу
+   - DIVE_ROTATION_SPEED: скорость ротации при нырке (если не мгновенная)
 
-НАСТРОЙКИ ДЛЯ ОПТИМИЗАЦИИ:
-- Max Rotation Angle: 45° (рекомендуется)
-- Fall Velocity Threshold: -25
-- Anti-Fall Protection: ВКЛЮЧЕНО
+Ротация при Dive теперь работает так:
+1. Определяется точка цели (endpoint мяча)
+2. Вычисляется безопасная точка ОТ ворот (+ offset)
+3. Мгновенный поворот к безопасной точке
+4. Хитбокс сохраняет ориентацию и блокирует мяч
 ]]
         })
         
@@ -1642,16 +1731,26 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
                 CONFIG.DIVE_VEL_THRES = moduleState.uiElements.DIVE_VEL_THRES and moduleState.uiElements.DIVE_VEL_THRES:GetValue()
                 CONFIG.DIVE_COOLDOWN = moduleState.uiElements.DIVE_COOLDOWN and moduleState.uiElements.DIVE_COOLDOWN:GetValue()
                 CONFIG.DIVE_SPEED_BOOST = moduleState.uiElements.DIVE_SPEED_BOOST and moduleState.uiElements.DIVE_SPEED_BOOST:GetValue()
+                CONFIG.DIVE_ROTATION_OFFSET = moduleState.uiElements.DIVE_ROTATION_OFFSET and moduleState.uiElements.DIVE_ROTATION_OFFSET:GetValue()
+                CONFIG.DIVE_ROTATION_SPEED = moduleState.uiElements.DIVE_ROTATION_SPEED and moduleState.uiElements.DIVE_ROTATION_SPEED:GetValue()
                 CONFIG.NORMAL_ROTATION_SPEED = moduleState.uiElements.NORMAL_ROTATION_SPEED and moduleState.uiElements.NORMAL_ROTATION_SPEED:GetValue()
-                CONFIG.ROTATION_SAFETY_MARGIN = moduleState.uiElements.ROTATION_SAFETY_MARGIN and moduleState.uiElements.ROTATION_SAFETY_MARGIN:GetValue()
-                CONFIG.SMOOTH_ROTATION = moduleState.uiElements.SMOOTH_ROTATION and moduleState.uiElements.SMOOTH_ROTATION:GetState()
-                CONFIG.ANTI_FALL_ENABLED = moduleState.uiElements.ANTI_FALL_ENABLED and moduleState.uiElements.ANTI_FALL_ENABLED:GetState()
-                CONFIG.FALL_VELOCITY_THRESHOLD = moduleState.uiElements.FALL_VELOCITY_THRESHOLD and moduleState.uiElements.FALL_VELOCITY_THRESHOLD:GetValue()
-                CONFIG.FALL_RECOVERY_DURATION = moduleState.uiElements.FALL_RECOVERY_DURATION and moduleState.uiElements.FALL_RECOVERY_DURATION:GetValue()
+                CONFIG.INSTANT_DIVE_ROTATION = moduleState.uiElements.INSTANT_DIVE_ROTATION and moduleState.uiElements.INSTANT_DIVE_ROTATION:GetState()
                 CONFIG.JUMP_VEL_THRES = moduleState.uiElements.JUMP_VEL_THRES and moduleState.uiElements.JUMP_VEL_THRES:GetValue()
                 CONFIG.JUMP_COOLDOWN = moduleState.uiElements.JUMP_COOLDOWN and moduleState.uiElements.JUMP_COOLDOWN:GetValue()
                 CONFIG.JUMP_RADIUS = moduleState.uiElements.JUMP_RADIUS and moduleState.uiElements.JUMP_RADIUS:GetValue()
                 CONFIG.JUMP_MIN_HEIGHT_DIFF = moduleState.uiElements.JUMP_MIN_HEIGHT_DIFF and moduleState.uiElements.JUMP_MIN_HEIGHT_DIFF:GetValue()
+                CONFIG.INTERCEPT_DISTANCE = moduleState.uiElements.INTERCEPT_DISTANCE and moduleState.uiElements.INTERCEPT_DISTANCE:GetValue()
+                CONFIG.INTERCEPT_SPEED_MULT = moduleState.uiElements.INTERCEPT_SPEED_MULT and moduleState.uiElements.INTERCEPT_SPEED_MULT:GetValue()
+                CONFIG.TOUCH_RANGE = moduleState.uiElements.TOUCH_RANGE and moduleState.uiElements.TOUCH_RANGE:GetValue()
+                CONFIG.NEAR_BALL_DIST = moduleState.uiElements.NEAR_BALL_DIST and moduleState.uiElements.NEAR_BALL_DIST:GetValue()
+                CONFIG.ZONE_WIDTH_MULTIPLIER = moduleState.uiElements.ZONE_WIDTH_MULTIPLIER and moduleState.uiElements.ZONE_WIDTH_MULTIPLIER:GetValue()
+                CONFIG.ZONE_DEPTH = moduleState.uiElements.ZONE_DEPTH and moduleState.uiElements.ZONE_DEPTH:GetValue()
+                CONFIG.ZONE_OFFSET_MULTIPLIER = moduleState.uiElements.ZONE_OFFSET_MULTIPLIER and moduleState.uiElements.ZONE_OFFSET_MULTIPLIER:GetValue()
+                CONFIG.SHOW_TRAJECTORY = moduleState.uiElements.SHOW_TRAJECTORY and moduleState.uiElements.SHOW_TRAJECTORY:GetState()
+                CONFIG.SHOW_ENDPOINT = moduleState.uiElements.SHOW_ENDPOINT and moduleState.uiElements.SHOW_ENDPOINT:GetState()
+                CONFIG.SHOW_GOAL_CUBE = moduleState.uiElements.SHOW_GOAL_CUBE and moduleState.uiElements.SHOW_GOAL_CUBE:GetState()
+                CONFIG.SHOW_ZONE = moduleState.uiElements.SHOW_ZONE and moduleState.uiElements.SHOW_ZONE:GetState()
+                CONFIG.SHOW_BALL_BOX = moduleState.uiElements.SHOW_BALL_BOX and moduleState.uiElements.SHOW_BALL_BOX:GetState()
                 
                 moduleState.enabled = CONFIG.ENABLED
                 
