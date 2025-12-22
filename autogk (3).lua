@@ -24,8 +24,8 @@ local CONFIG = {
     STAND_DIST = 2.8,
     MIN_DIST = 0.8,
     
-    -- Настройки сближения и атаки (НОВЫЕ)
-    CLOSE_DISTANCE = 15,  -- Дистанция для сближения
+    -- Настройки сближения и атаки
+    CLOSE_DISTANCE = 20,  -- Дистанция для сближения
     ATTACK_DISTANCE = 8,  -- Дистанция для атаки
     CLOSE_SPEED_MULT = 1.2,  -- Множитель скорости при сближении
     
@@ -61,8 +61,6 @@ local CONFIG = {
     -- Ротация
     DIVE_ROTATION_SPEED = 0.95,
     NORMAL_ROTATION_SPEED = 0.3,
-    MAX_VERTICAL_ANGLE = 30,  -- Максимальный угол наклона вверх
-    MIN_VERTICAL_ANGLE = -10, -- Минимальный угол наклона вниз
     
     -- Размер ворот
     BIG_GOAL_THRESHOLD = 40,
@@ -81,11 +79,9 @@ local CONFIG = {
     JUMP_MIN_HEIGHT_DIFF = 0.7,
     
     JUMP_HORIZONTAL_FORCE = 70,
-    SMALL_GOAL_DIVE_DISTANCE = 5,
-    BIG_GOAL_DIVE_DISTANCE = 16,
+    
+    -- FIXED DIVE SETTINGS (убраны настройки, как ты просил)
     DIVE_DURATION = 0.44,
-    DIVE_SPEED_BOOST = 2.2,  -- Увеличен для рывка
-    DIVE_SIDE_MULTIPLIER = 1.5,  -- Множитель для определения стороны нырка
     
     -- Зона защиты
     ZONE_WIDTH_MULTIPLIER = 2.5,
@@ -773,7 +769,7 @@ local function moveToPosition(root, targetPos, ballPos, velMag, isUrgent)
     game.Debris:AddItem(moduleState.currentBV, 0.15)
 end
 
--- Улучшенная ротация с ограничением вертикального угла
+-- Улучшенная ротация
 local function smartRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyBall, isJumping)
     if isMyBall or isJumping then return end
     
@@ -783,30 +779,14 @@ local function smartRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyB
     -- Если ныряем, используем специальную ротацию для Dive
     if isDiving and diveTarget then
         -- Улучшенная ротация для нырка с учетом отскока
-        -- Определяем направление от ворот для безопасного отбития
         local goalToBall = (diveTarget - moduleState.GoalCFrame.Position) * Vector3.new(1,0,1)
         
         -- Нормализуем и увеличиваем расстояние для точки взгляда
         local safeLookDirection = goalToBall.Unit
         local safeLookPos = root.Position + safeLookDirection * 20
         
-        -- Мгновенная ротация с учетом вертикального ограничения
-        local lookDir = (safeLookPos - root.Position).Unit
-        
-        -- Ограничиваем вертикальный угол
-        local verticalAngle = math.asin(lookDir.Y)
-        local maxAngleRad = math.rad(CONFIG.MAX_VERTICAL_ANGLE)
-        local minAngleRad = math.rad(CONFIG.MIN_VERTICAL_ANGLE)
-        
-        if verticalAngle > maxAngleRad then
-            lookDir = Vector3.new(lookDir.X, math.sin(maxAngleRad), lookDir.Z).Unit
-        elseif verticalAngle < minAngleRad then
-            lookDir = Vector3.new(lookDir.X, math.sin(minAngleRad), lookDir.Z).Unit
-        end
-        
-        -- Применяем ротацию
-        local targetCFrame = CFrame.lookAt(root.Position, root.Position + lookDir)
-        root.CFrame = CFrame.new(root.Position, root.Position + lookDir)
+        -- Мгновенная ротация
+        root.CFrame = CFrame.lookAt(root.Position, safeLookPos)
         
         return
     end
@@ -823,19 +803,6 @@ local function smartRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyB
         
         -- Определяем направление взгляда
         local lookDir = (targetLookPos - root.Position).Unit
-        
-        -- ОГРАНИЧИВАЕМ ВЕРТИКАЛЬНЫЙ УГОЛ
-        local verticalAngle = math.asin(lookDir.Y)
-        local maxAngleRad = math.rad(CONFIG.MAX_VERTICAL_ANGLE)
-        local minAngleRad = math.rad(CONFIG.MIN_VERTICAL_ANGLE)
-        
-        if verticalAngle > maxAngleRad then
-            -- Если мяч слишком высоко, смотрим горизонтально вперед с небольшим наклоном вверх
-            lookDir = Vector3.new(lookDir.X, math.sin(maxAngleRad), lookDir.Z).Unit
-        elseif verticalAngle < minAngleRad then
-            -- Если мяч слишком низко, смотрим горизонтально вперед
-            lookDir = Vector3.new(lookDir.X, math.sin(minAngleRad), lookDir.Z).Unit
-        end
         
         -- Плавная ротация с интерполяцией
         if not moduleState.smoothCFrame then
@@ -994,7 +961,7 @@ local function shouldDive(root, ball, velMag, endpoint)
     return false
 end
 
--- Выполнение нырка (ИСПРАВЛЕННАЯ ВЕРСИЯ с правильным рывком)
+-- Выполнение нырка с фиксированной скоростью рывка
 local function performDive(root, hum, targetPos, ballHeight, ball)
     if tick() - moduleState.lastDiveTime < CONFIG.DIVE_COOLDOWN or moduleState.isDiving or moduleState.diveAnimationPlaying then return end
     
@@ -1002,20 +969,11 @@ local function performDive(root, hum, targetPos, ballHeight, ball)
     moduleState.diveAnimationPlaying = true
     moduleState.lastDiveTime = tick()
     
-    -- ПРАВИЛЬНО ОПРЕДЕЛЯЕМ СТОРОНУ НЫРКА
+    -- Определяем сторону нырка
     local relativePos = moduleState.GoalCFrame:PointToObjectSpace(targetPos)
     local lateral = relativePos.X
     
-    -- Используем множитель для более точного определения стороны
-    local sideThreshold = moduleState.GoalWidth * 0.1 * CONFIG.DIVE_SIDE_MULTIPLIER
-    
-    local dir = lateral > sideThreshold and "Right" or (lateral < -sideThreshold and "Left" or "Center")
-    
-    -- Если направление центр, выбираем ближайшую сторону
-    if dir == "Center" then
-        local currentRelative = moduleState.GoalCFrame:PointToObjectSpace(root.Position)
-        dir = currentRelative.X > 0 and "Right" or "Left"
-    end
+    local dir = lateral > 0 and "Right" or "Left"
     
     pcall(function()
         ReplicatedStorage.Remotes.Action:FireServer(dir.."dive", root.CFrame)
@@ -1026,11 +984,6 @@ local function performDive(root, hum, targetPos, ballHeight, ball)
     local gkAnimations = animations.GK
     
     local diveAnim
-    local diveDistance = moduleState.isBigGoal and CONFIG.BIG_GOAL_DIVE_DISTANCE or CONFIG.SMALL_GOAL_DIVE_DISTANCE
-    local diveSpeed = diveDistance / CONFIG.DIVE_DURATION
-    
-    -- Увеличиваем скорость рывка
-    diveSpeed = diveSpeed * CONFIG.DIVE_SPEED_BOOST
     
     if dir == "Right" then
         if ballHeight <= 10 then
@@ -1051,23 +1004,24 @@ local function performDive(root, hum, targetPos, ballHeight, ball)
     
     hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
     
-    -- Устанавливаем правильную ротацию ОТ ворот с учетом отскока
+    -- Устанавливаем правильную ротацию ОТ ворот
     local goalToBall = (targetPos - moduleState.GoalCFrame.Position) * Vector3.new(1,0,1)
     local safeLookDirection = goalToBall.Unit
-    
-    -- Дополнительно корректируем направление для безопасного отбития
-    if math.abs(safeLookDirection:Dot(moduleState.GoalCFrame.RightVector)) > 0.7 then
-        -- Если мяч летит под углом, корректируем направление отбития
-        safeLookDirection = (safeLookDirection + moduleState.GoalCFrame.RightVector * 0.3).Unit
-    end
-    
     local safeLookPos = root.Position + safeLookDirection * 25
     root.CFrame = CFrame.lookAt(root.Position, safeLookPos)
     
-    -- РЫВОК с увеличенной силой и правильным направлением
+    -- РЫВОК с ФИКСИРОВАННОЙ СКОРОСТЬЮ
     local diveBV = Instance.new("BodyVelocity")
     diveBV.Parent = root
-    diveBV.MaxForce = Vector3.new(2e7, 2e7, 2e7)  -- Увеличенная сила для рывка
+    diveBV.MaxForce = Vector3.new(2e7, 2e7, 2e7)
+    
+    -- ФИКСИРОВАННАЯ СКОРОСТЬ: 4 studs для обычных ворот, 9 studs для больших
+    local diveSpeed
+    if moduleState.isBigGoal then
+        diveSpeed = 9 / CONFIG.DIVE_DURATION  -- 9 studs за время нырка
+    else
+        diveSpeed = 4 / CONFIG.DIVE_DURATION  -- 4 studs за время нырка
+    end
     
     if dir == "Right" then
         diveBV.Velocity = root.CFrame.RightVector * diveSpeed
@@ -1076,13 +1030,6 @@ local function performDive(root, hum, targetPos, ballHeight, ball)
     end
     
     game.Debris:AddItem(diveBV, CONFIG.DIVE_DURATION)
-    
-    -- Добавляем небольшой вертикальный импульс для рывка
-    local verticalBV = Instance.new("BodyVelocity")
-    verticalBV.Parent = root
-    verticalBV.MaxForce = Vector3.new(0, 2e7, 0)
-    verticalBV.Velocity = Vector3.new(0, 15, 0)  -- Небольшой вертикальный рывок
-    game.Debris:AddItem(verticalBV, 0.2)
     
     if ball then
         for _, partName in pairs({"HumanoidRootPart", "RightHand", "LeftHand"}) do
@@ -1347,7 +1294,7 @@ local function cleanup()
     moduleState.smoothCFrame = nil
 end
 
--- Модуль AutoGK ULTRA (исправленная версия с новыми настройками)
+-- Модуль AutoGK ULTRA с фиксированным рывком
 local AutoGKUltraModule = {}
 
 function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
@@ -1384,7 +1331,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.CLOSE_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Close Distance",
             Minimum = 5,
-            Maximum = 30,
+            Maximum = 70,
             Default = CONFIG.CLOSE_DISTANCE,
             Precision = 1,
             Callback = function(v) CONFIG.CLOSE_DISTANCE = v end
@@ -1393,7 +1340,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.ATTACK_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Attack Distance",
             Minimum = 3,
-            Maximum = 15,
+            Maximum = 70,
             Default = CONFIG.ATTACK_DISTANCE,
             Precision = 1,
             Callback = function(v) CONFIG.ATTACK_DISTANCE = v end
@@ -1481,24 +1428,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Callback = function(v) CONFIG.DIVE_COOLDOWN = v end
         }, 'AutoGKUltraDiveCD')
         
-        moduleState.uiElements.DIVE_SPEED_BOOST = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Dive Speed Boost",
-            Minimum = 1.0,
-            Maximum = 3.0,
-            Default = CONFIG.DIVE_SPEED_BOOST,
-            Precision = 1,
-            Callback = function(v) CONFIG.DIVE_SPEED_BOOST = v end
-        }, 'AutoGKUltraDiveSpeedBoost')
-        
-        moduleState.uiElements.DIVE_SIDE_MULTIPLIER = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Dive Side Multiplier",
-            Minimum = 0.5,
-            Maximum = 3.0,
-            Default = CONFIG.DIVE_SIDE_MULTIPLIER,
-            Precision = 1,
-            Callback = function(v) CONFIG.DIVE_SIDE_MULTIPLIER = v end
-        }, 'AutoGKUltraDiveSideMult')
-        
         UI.Sections.AutoGoalKeeper:Divider()
         
         -- Настройки ротации
@@ -1521,24 +1450,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Precision = 2,
             Callback = function(v) CONFIG.NORMAL_ROTATION_SPEED = v end
         }, 'AutoGKUltraNormalRotationSpeed')
-        
-        moduleState.uiElements.MAX_VERTICAL_ANGLE = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Max Vertical Angle",
-            Minimum = 10,
-            Maximum = 60,
-            Default = CONFIG.MAX_VERTICAL_ANGLE,
-            Precision = 1,
-            Callback = function(v) CONFIG.MAX_VERTICAL_ANGLE = v end
-        }, 'AutoGKUltraMaxVertAngle')
-        
-        moduleState.uiElements.MIN_VERTICAL_ANGLE = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Min Vertical Angle",
-            Minimum = -30,
-            Maximum = 10,
-            Default = CONFIG.MIN_VERTICAL_ANGLE,
-            Precision = 1,
-            Callback = function(v) CONFIG.MIN_VERTICAL_ANGLE = v end
-        }, 'AutoGKUltraMinVertAngle')
         
         UI.Sections.AutoGoalKeeper:Divider()
         
@@ -1589,7 +1500,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.INTERCEPT_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Intercept Distance",
             Minimum = 20,
-            Maximum = 50,
+            Maximum = 60,
             Default = CONFIG.INTERCEPT_DISTANCE,
             Precision = 1,
             Callback = function(v) CONFIG.INTERCEPT_DISTANCE = v end
@@ -1607,7 +1518,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.TOUCH_RANGE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Touch Distance",
             Minimum = 5,
-            Maximum = 30,
+            Maximum = 60,
             Default = CONFIG.TOUCH_RANGE,
             Precision = 1,
             Callback = function(v) CONFIG.TOUCH_RANGE = v end
@@ -1800,29 +1711,32 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         UI.Sections.AutoGoalKeeper:Divider()
         
         -- Информация
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Исправления и улучшения" })
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Фиксированные настройки Dive" })
         
         UI.Sections.AutoGoalKeeper:Paragraph({
-            Header = "Основные исправления",
+            Header = "Исправления рывка",
             Body = [[
-ИСПРАВЛЕННЫЕ ПРОБЛЕМЫ:
-1. Ротация при высоком мяче - теперь ограничен вертикальный угол
-2. Исправлена ротация при Dive с учетом отскока мяча
-3. Рывок во время Dive теперь работает (увеличен DIVE_SPEED_BOOST)
-4. Исправлено определение стороны для нырка (не путает стороны)
+ФИКСИРОВАННЫЕ ПАРАМЕТРЫ DIVE:
 
-НОВЫЕ НАСТРОЙКИ:
-- Close Distance: дистанция для начала сближения
-- Attack Distance: дистанция для атаки с максимальной скоростью
-- Close Speed Multiplier: множитель скорости при сближении
-- Max/Min Vertical Angle: ограничения вертикального угла ротации
-- Dive Side Multiplier: множитель для точного определения стороны нырка
+1. СКОРОСТЬ РЫВКА:
+   - Обычные ворота: 4 studs за время нырка
+   - Большие ворота: 9 studs за время нырка
+   - Независимо от стороны нырка (Left/Right)
 
-ЛОГИКА ОТБИТИЯ МЯЧА:
-При Dive скрипт теперь смотрит в направлении ОТ ворот с учетом:
-1. Траектории полета мяча
-2. Необходимости отбить мяч в безопасную зону
-3. Ограничения вертикального угла для предотвращения наклона
+2. УБРАНЫ НАСТРОЙКИ:
+   - DIVE_SPEED_BOOST (теперь фиксировано)
+   - DIVE_SIDE_MULTIPLIER (теперь простое определение)
+   - MAX_VERTICAL_ANGLE (убрано ограничение)
+   - MIN_VERTICAL_ANGLE (убрано ограничение)
+
+3. ЛОГИКА РЫВКА:
+   diveSpeed = (дистанция_рывка) / DIVE_DURATION
+   Дистанция рывка: 4 studs для обычных ворот, 9 studs для больших
+
+4. ПРЕИМУЩЕСТВА:
+   - Консистентный рывок независимо от ситуации
+   - Предсказуемое расстояние перемещения
+   - Равная эффективность для всех типов ворот
 ]]
         })
         
@@ -1849,8 +1763,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
                 CONFIG.DIVE_DIST = moduleState.uiElements.DIVE_DIST and moduleState.uiElements.DIVE_DIST:GetValue()
                 CONFIG.DIVE_VEL_THRES = moduleState.uiElements.DIVE_VEL_THRES and moduleState.uiElements.DIVE_VEL_THRES:GetValue()
                 CONFIG.DIVE_COOLDOWN = moduleState.uiElements.DIVE_COOLDOWN and moduleState.uiElements.DIVE_COOLDOWN:GetValue()
-                CONFIG.DIVE_SPEED_BOOST = moduleState.uiElements.DIVE_SPEED_BOOST and moduleState.uiElements.DIVE_SPEED_BOOST:GetValue()
-                CONFIG.DIVE_SIDE_MULTIPLIER = moduleState.uiElements.DIVE_SIDE_MULTIPLIER and moduleState.uiElements.DIVE_SIDE_MULTIPLIER:GetValue()
                 CONFIG.JUMP_VEL_THRES = moduleState.uiElements.JUMP_VEL_THRES and moduleState.uiElements.JUMP_VEL_THRES:GetValue()
                 CONFIG.JUMP_COOLDOWN = moduleState.uiElements.JUMP_COOLDOWN and moduleState.uiElements.JUMP_COOLDOWN:GetValue()
                 CONFIG.JUMP_RADIUS = moduleState.uiElements.JUMP_RADIUS and moduleState.uiElements.JUMP_RADIUS:GetValue()
@@ -1869,8 +1781,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
                 CONFIG.SHOW_BALL_BOX = moduleState.uiElements.SHOW_BALL_BOX and moduleState.uiElements.SHOW_BALL_BOX:GetState()
                 CONFIG.DIVE_ROTATION_SPEED = moduleState.uiElements.DIVE_ROTATION_SPEED and moduleState.uiElements.DIVE_ROTATION_SPEED:GetValue()
                 CONFIG.NORMAL_ROTATION_SPEED = moduleState.uiElements.NORMAL_ROTATION_SPEED and moduleState.uiElements.NORMAL_ROTATION_SPEED:GetValue()
-                CONFIG.MAX_VERTICAL_ANGLE = moduleState.uiElements.MAX_VERTICAL_ANGLE and moduleState.uiElements.MAX_VERTICAL_ANGLE:GetValue()
-                CONFIG.MIN_VERTICAL_ANGLE = moduleState.uiElements.MIN_VERTICAL_ANGLE and moduleState.uiElements.MIN_VERTICAL_ANGLE:GetValue()
                 
                 moduleState.enabled = CONFIG.ENABLED
                 
