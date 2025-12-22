@@ -53,9 +53,10 @@ local CONFIG = {
     -- Производительность
     PRED_UPDATE_RATE = 1,
     
-    -- Ротация
-    DIVE_ROTATION_SPEED = 2.5,
+    -- Ротация (без физики)
+    DIVE_ROTATION_SPEED = 15,
     NORMAL_ROTATION_SPEED = 8,
+    SMOOTH_ROTATION = true,
     
     -- Размер ворот
     BIG_GOAL_THRESHOLD = 40,
@@ -114,7 +115,6 @@ local moduleState = {
     cachedPointsTime = 0,
     lastBallVelMag = 0,
     currentBV = nil,
-    smoothCFrame = nil,
     lastActionTime = 0,
     actionCooldown = 0.06,
     isBigGoal = false,
@@ -123,7 +123,11 @@ local moduleState = {
     diveAnimationPlaying = false,
     jumpAnimationPlaying = false,
     willJump = false,
-    diveGyro = nil,
+    
+    -- Ротационные параметры
+    currentRotation = nil,
+    targetRotation = nil,
+    rotationSpeed = 8,
     
     -- Визуальные объекты
     visualObjects = {},
@@ -563,14 +567,6 @@ local function clearTrajAndEndpoint()
     end
 end
 
--- Очистка гироскопа
-local function cleanupGyro()
-    if moduleState.diveGyro then 
-        pcall(function() moduleState.diveGyro:Destroy() end) 
-        moduleState.diveGyro = nil 
-    end
-end
-
 -- Получение хитбокса вратаря
 local function getGoalkeeperHitbox(char)
     if not char then return nil end
@@ -763,30 +759,19 @@ local function moveToPosition(root, targetPos, ballPos, velMag, isUrgent)
     game.Debris:AddItem(moduleState.currentBV, 0.15)
 end
 
--- Улучшенная ротация (без гироскопа во время нырка)
-local function smartRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyBall, isJumping)
+-- Ротация БЕЗ ФИЗИКИ (чистый CFrame)
+local function smartRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyBall, isJumping, dt)
     if isMyBall or isJumping then return end
     
-    -- Если ныряем, используем специальную ротацию для Dive
+    -- Если ныряем - МГНОВЕННАЯ ротация к цели нырка
     if isDiving and diveTarget then
-        -- Резкая и быстрая ротация для Dive
+        -- Мгновенная ротация для нырка
         local targetCFrame = CFrame.lookAt(root.Position, diveTarget)
-        
-        -- Удаляем старый гироскоп
-        cleanupGyro()
-        
-        -- Создаем новый гироскоп для быстрой ротации
-        moduleState.diveGyro = Instance.new("BodyGyro")
-        moduleState.diveGyro.Parent = root
-        moduleState.diveGyro.P = 25000000  -- Очень высокий P для быстрой ротации
-        moduleState.diveGyro.MaxTorque = Vector3.new(0, math.huge, 0)
-        moduleState.diveGyro.CFrame = targetCFrame
-        game.Debris:AddItem(moduleState.diveGyro, CONFIG.DIVE_DURATION)
-        
+        root.CFrame = targetCFrame
         return
     end
     
-    -- Обычная ротация (не во время нырка)
+    -- Обычная ротация (без нырка)
     if not isDiving then
         local targetLookPos = ballPos
         
@@ -796,18 +781,32 @@ local function smartRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyB
             targetLookPos = predictionPoint
         end
         
-        local targetLook = CFrame.lookAt(root.Position, targetLookPos)
+        local currentCF = root.CFrame
+        local currentLook = currentCF.LookVector
         
-        -- Удаляем старый гироскоп
-        cleanupGyro()
+        -- Вычисляем направление к цели
+        local toTarget = (targetLookPos - root.Position)
+        local targetLook = toTarget.Unit
         
-        -- Создаем гироскоп для обычной ротации
-        moduleState.diveGyro = Instance.new("BodyGyro")
-        moduleState.diveGyro.Parent = root
-        moduleState.diveGyro.P = 5000000  -- Нормальный P для плавной ротации
-        moduleState.diveGyro.MaxTorque = Vector3.new(0, math.huge, 0)
-        moduleState.diveGyro.CFrame = targetLook
-        game.Debris:AddItem(moduleState.diveGyro, 0.1)
+        -- Если уже смотрим в правильном направлении, ничего не делаем
+        if currentLook:Dot(targetLook) > 0.99 then
+            return
+        end
+        
+        -- Вычисляем нужный угол поворота
+        local angle = math.acos(math.clamp(currentLook:Dot(targetLook), -1, 1))
+        
+        -- Если угол маленький, делаем плавную ротацию
+        if angle < 0.1 then
+            local newLook = (currentLook + targetLook * (CONFIG.NORMAL_ROTATION_SPEED * dt)).Unit
+            local newCF = CFrame.lookAt(root.Position, root.Position + newLook)
+            root.CFrame = newCF
+        else
+            -- Для больших углов - более быстрая ротация
+            local newLook = (currentLook + targetLook * (CONFIG.NORMAL_ROTATION_SPEED * dt * 2)).Unit
+            local newCF = CFrame.lookAt(root.Position, root.Position + newLook)
+            root.CFrame = newCF
+        end
     end
 end
 
@@ -950,7 +949,7 @@ local function shouldDive(root, ball, velMag, endpoint)
     return false
 end
 
--- Выполнение нырка (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+-- Выполнение нырка (ИСПРАВЛЕННАЯ ВЕРСИЯ без физики)
 local function performDive(root, hum, targetPos, ballHeight, ball)
     if tick() - moduleState.lastDiveTime < CONFIG.DIVE_COOLDOWN or moduleState.isDiving or moduleState.diveAnimationPlaying then return end
     
@@ -996,18 +995,9 @@ local function performDive(root, hum, targetPos, ballHeight, ball)
     
     hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
     
-    -- Убираем BV и используем только ротацию
-    cleanupGyro() -- Очищаем старый гироскоп
-    
-    -- Создаем быструю ротацию для нырка
+    -- МГНОВЕННАЯ ротация перед нырком
     local targetCFrame = CFrame.lookAt(root.Position, targetPos)
-    
-    moduleState.diveGyro = Instance.new("BodyGyro")
-    moduleState.diveGyro.Parent = root
-    moduleState.diveGyro.P = 25000000  -- Очень высокий P для мгновенной ротации
-    moduleState.diveGyro.MaxTorque = Vector3.new(0, math.huge, 0)
-    moduleState.diveGyro.CFrame = targetCFrame
-    game.Debris:AddItem(moduleState.diveGyro, CONFIG.DIVE_DURATION)
+    root.CFrame = targetCFrame
     
     -- Создаем рывок с увеличенной скоростью
     local diveBV = Instance.new("BodyVelocity")
@@ -1042,7 +1032,6 @@ local function performDive(root, hum, targetPos, ballHeight, ball)
     task.delay(CONFIG.DIVE_DURATION + 0.1, function() 
         moduleState.isDiving = false 
         moduleState.diveAnimationPlaying = false
-        cleanupGyro() -- Очищаем гироскоп после нырка
     end)
 end
 
@@ -1083,13 +1072,11 @@ local function startRenderLoop()
         
         if not ball then
             hideAllVisuals()
-            cleanupGyro()
             return
         end
         
         if not updateGoals() then 
             hideAllVisuals()
-            cleanupGyro()
             return 
         end
         
@@ -1123,9 +1110,9 @@ local function startRenderLoop()
             
             moveToPosition(root, targetPos, ball.Position, velMag, isUrgent)
             
-            -- Ротация ТОЛЬКО когда не ныряем
+            -- Ротация БЕЗ физики
             if not moduleState.isDiving then
-                smartRotation(root, ball.Position, ball.Velocity, false, nil, isMyBall, moduleState.willJump)
+                smartRotation(root, ball.Position, ball.Velocity, false, nil, isMyBall, moduleState.willJump, dt)
             end
             
             if tick() - moduleState.lastActionTime > moduleState.actionCooldown then
@@ -1137,13 +1124,19 @@ local function startRenderLoop()
                     performIntercept(root, char, ball)
                     moduleState.lastActionTime = tick()
                 elseif shouldDive(root, ball, velMag, endpoint) then
-                    -- Перед нырком устанавливаем правильную ротацию
+                    -- Для нырка определяем точку ротации (В СТОРОНУ ОТ ВОРОТ)
+                    local diveTarget = nil
                     if endpoint then
-                        -- Определяем точку для ротации (в сторону от ворот)
                         local goalToBall = (endpoint - moduleState.GoalCFrame.Position)
-                        local safeTarget = endpoint + goalToBall.Unit * 3
-                        smartRotation(root, ball.Position, ball.Velocity, true, safeTarget, isMyBall, false)
+                        -- Поворачиваемся не к мячу, а В СТОРОНУ ОТ ВОРОТ
+                        diveTarget = endpoint + goalToBall.Unit * 5
                     end
+                    
+                    -- Устанавливаем мгновенную ротацию перед нырком
+                    if diveTarget then
+                        smartRotation(root, ball.Position, ball.Velocity, true, diveTarget, isMyBall, false, dt)
+                    end
+                    
                     performDive(root, hum, endpoint or ball.Position, ball.Position.Y, ball)
                     moduleState.lastActionTime = tick()
                 elseif shouldBlock(root, ball, velMag) then
@@ -1171,7 +1164,7 @@ local function startRenderLoop()
             
             -- Ротация ТОЛЬКО когда не ныряем и не прыгаем
             if not moduleState.isDiving and not moduleState.willJump then
-                smartRotation(root, ball.Position, ball.Velocity, false, nil, isMyBall, false)
+                smartRotation(root, ball.Position, ball.Velocity, false, nil, isMyBall, false, dt)
             end
         end
         
@@ -1264,8 +1257,6 @@ local function cleanup()
         moduleState.currentBV = nil 
     end
     
-    cleanupGyro()
-    
     if moduleState.heartbeatConnection then
         moduleState.heartbeatConnection:Disconnect()
         moduleState.heartbeatConnection = nil
@@ -1287,10 +1278,11 @@ local function cleanup()
     moduleState.jumpAnimationPlaying = false
     moduleState.cachedPoints = nil
     moduleState.willJump = false
-    moduleState.smoothCFrame = nil
+    moduleState.currentRotation = nil
+    moduleState.targetRotation = nil
 end
 
--- Модуль AutoGK ULTRA (исправленная версия)
+-- Модуль AutoGK ULTRA (без физики в ротациях)
 local AutoGKUltraModule = {}
 
 function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
@@ -1403,6 +1395,26 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
+        -- Настройки ротации (без физики)
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Rotation Settings (No Physics)" })
+        
+        moduleState.uiElements.NORMAL_ROTATION_SPEED = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Normal Rotation Speed",
+            Minimum = 1.0,
+            Maximum = 20.0,
+            Default = CONFIG.NORMAL_ROTATION_SPEED,
+            Precision = 1,
+            Callback = function(v) CONFIG.NORMAL_ROTATION_SPEED = v end
+        }, 'AutoGKUltraNormalRotationSpeed')
+        
+        moduleState.uiElements.SMOOTH_ROTATION = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Smooth Rotation",
+            Default = CONFIG.SMOOTH_ROTATION,
+            Callback = function(v) CONFIG.SMOOTH_ROTATION = v end
+        }, 'AutoGKUltraSmoothRotation')
+        
+        UI.Sections.AutoGoalKeeper:Divider()
+        
         -- Настройки прыжка
         UI.Sections.AutoGoalKeeper:Header({ Name = "Jump Settings" })
         
@@ -1482,29 +1494,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
             Precision = 1,
             Callback = function(v) CONFIG.NEAR_BALL_DIST = v end
         }, 'AutoGKUltraNearBallDist')
-        
-        UI.Sections.AutoGoalKeeper:Divider()
-        
-        -- Настройки ротации
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Rotation Settings" })
-        
-        moduleState.uiElements.DIVE_ROTATION_SPEED = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Dive Rotation Speed",
-            Minimum = 1.0,
-            Maximum = 10.0,
-            Default = CONFIG.DIVE_ROTATION_SPEED,
-            Precision = 1,
-            Callback = function(v) CONFIG.DIVE_ROTATION_SPEED = v end
-        }, 'AutoGKUltraDiveRotationSpeed')
-        
-        moduleState.uiElements.NORMAL_ROTATION_SPEED = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Normal Rotation Speed",
-            Minimum = 1.0,
-            Maximum = 15.0,
-            Default = CONFIG.NORMAL_ROTATION_SPEED,
-            Precision = 1,
-            Callback = function(v) CONFIG.NORMAL_ROTATION_SPEED = v end
-        }, 'AutoGKUltraNormalRotationSpeed')
         
         UI.Sections.AutoGoalKeeper:Divider()
         
@@ -1684,21 +1673,33 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         UI.Sections.AutoGoalKeeper:Divider()
         
         -- Информация
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Settings Information" })
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Исправления в ротации" })
         
         UI.Sections.AutoGoalKeeper:Paragraph({
-            Header = "Основные исправления",
+            Header = "Ключевые изменения (без физики)",
             Body = [[
-ИСПРАВЛЕННЫЕ ПРОБЛЕМЫ:
-1. Убран гироскоп из обычной ротации - теперь используем только BodyGyro
-2. Исправлена ротация при Dive: скрипт теперь поворачивается резко и быстро
-3. Добавлен рывок во время Dive с настраиваемым множителем скорости
-4. Ротация во время Dive теперь направлена ОТ ворот, а не к мячу
+КОМПЛЕТНО УБРАНА ФИЗИКА ИЗ РОТАЦИЙ:
 
-КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ:
-- Dive ротация: используется BodyGyro с высоким P для мгновенной ротации
-- Нормальная ротация: плавная ротация к мячу
-- Dive рывок: увеличенная скорость с множителем DIVE_SPEED_BOOST
+1. ОБЫЧНАЯ РОТАЦИЯ:
+   - Используется чистый CFrame.lookAt
+   - Плавное вращение через линейную интерполяцию
+   - Настраиваемая скорость ротации
+
+2. DIVE РОТАЦИЯ:
+   - МГНОВЕННАЯ ротация перед нырком
+   - Поворот НЕ к мячу, а В СТОРОНУ ОТ ВОРОТ
+   - Хитбокс не меняет ориентацию на мяч
+   - Мяч отбивается от ворот, а не пропускается
+
+3. НЕТ BodyGyro/BodyVelocity в ротации:
+   - Ротация через прямое изменение CFrame
+   - Нет конфликтов с физикой игры
+   - Более стабильная и предсказуемая работа
+
+НАСТРОЙКИ:
+- Normal Rotation Speed: скорость обычной ротации (1-20)
+- Smooth Rotation: плавная/резкая ротация
+- Dive Speed Boost: множитель скорости рывка при нырке
 ]]
         })
         
@@ -1723,6 +1724,8 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
                 CONFIG.DIVE_VEL_THRES = moduleState.uiElements.DIVE_VEL_THRES and moduleState.uiElements.DIVE_VEL_THRES:GetValue()
                 CONFIG.DIVE_COOLDOWN = moduleState.uiElements.DIVE_COOLDOWN and moduleState.uiElements.DIVE_COOLDOWN:GetValue()
                 CONFIG.DIVE_SPEED_BOOST = moduleState.uiElements.DIVE_SPEED_BOOST and moduleState.uiElements.DIVE_SPEED_BOOST:GetValue()
+                CONFIG.NORMAL_ROTATION_SPEED = moduleState.uiElements.NORMAL_ROTATION_SPEED and moduleState.uiElements.NORMAL_ROTATION_SPEED:GetValue()
+                CONFIG.SMOOTH_ROTATION = moduleState.uiElements.SMOOTH_ROTATION and moduleState.uiElements.SMOOTH_ROTATION:GetState()
                 CONFIG.JUMP_VEL_THRES = moduleState.uiElements.JUMP_VEL_THRES and moduleState.uiElements.JUMP_VEL_THRES:GetValue()
                 CONFIG.JUMP_COOLDOWN = moduleState.uiElements.JUMP_COOLDOWN and moduleState.uiElements.JUMP_COOLDOWN:GetValue()
                 CONFIG.JUMP_RADIUS = moduleState.uiElements.JUMP_RADIUS and moduleState.uiElements.JUMP_RADIUS:GetValue()
@@ -1739,8 +1742,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
                 CONFIG.SHOW_GOAL_CUBE = moduleState.uiElements.SHOW_GOAL_CUBE and moduleState.uiElements.SHOW_GOAL_CUBE:GetState()
                 CONFIG.SHOW_ZONE = moduleState.uiElements.SHOW_ZONE and moduleState.uiElements.SHOW_ZONE:GetState()
                 CONFIG.SHOW_BALL_BOX = moduleState.uiElements.SHOW_BALL_BOX and moduleState.uiElements.SHOW_BALL_BOX:GetState()
-                CONFIG.DIVE_ROTATION_SPEED = moduleState.uiElements.DIVE_ROTATION_SPEED and moduleState.uiElements.DIVE_ROTATION_SPEED:GetValue()
-                CONFIG.NORMAL_ROTATION_SPEED = moduleState.uiElements.NORMAL_ROTATION_SPEED and moduleState.uiElements.NORMAL_ROTATION_SPEED:GetValue()
                 
                 moduleState.enabled = CONFIG.ENABLED
                 
