@@ -960,7 +960,7 @@ if UI.Sections.Attacks then
     }, "SmartRicochetDerivationMult")
     
     uiElements.SmartRicochetZOffset = UI.Sections.Attacks:Slider({ 
-        Name = "Z Offset", Minimum = -20.0, Maximum = 20.0, Default = AutoShootConfig.Attacks.SmartRicochet.ZOffset, Precision = 2, 
+        Name = "Z Offset", Minimum = -60.0, Maximum = 20.0, Default = AutoShootConfig.Attacks.SmartRicochet.ZOffset, Precision = 2, 
         Callback = function(v) AutoShootConfig.Attacks.SmartRicochet.ZOffset = v end 
     }, "SmartRicochetZOffset")
     UI.Sections.Attacks:Divider()
@@ -1279,3 +1279,4 @@ function AutoShootModule:Destroy()
     AutoPickup.Stop()
 end
 return AutoShootModule
+
