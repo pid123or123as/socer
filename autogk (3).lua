@@ -25,8 +25,8 @@ local CONFIG = {
     MIN_DIST = 0.8,
     
     -- Физика предсказания
-    PRED_STEPS = 60,
-    CURVE_MULT = 32,
+    PRED_STEPS = 80,
+    CURVE_MULT = 38,
     DT = 1/180,
     GRAVITY = 112,
     DRAG = 0.981,
@@ -34,8 +34,8 @@ local CONFIG = {
     BOUNCE_Y = 0.65,
     
     -- Дистанции
-    AGGRO_THRES = 55,
-    PRESSURE_DIST = 44,
+    AGGRO_THRES = 65,
+    PRESSURE_DIST = 55,
     DIVE_DIST = 26,
     TOUCH_RANGE = 20,
     NEAR_BALL_DIST = 5.0,
@@ -52,7 +52,7 @@ local CONFIG = {
     
     -- Производительность
     PRED_UPDATE_RATE = 1,
-    ROT_SMOOTH = 0.25,
+    ROT_SMOOTH = 0.1,
     
     -- Размер ворот
     BIG_GOAL_THRESHOLD = 40,
@@ -62,17 +62,17 @@ local CONFIG = {
     INTERCEPT_SPEED_MULT = 1.34,
     
     -- Прыжки
-    JUMP_CHECK_HEIGHT = 0.6,
+    JUMP_CHECK_HEIGHT = 0.5,
     JUMP_PREDICTION_STEPS = 20,
     JUMP_REACTION_TIME = 0.1,
     JUMP_VERTICAL_THRESHOLD = 0.1,
-    GOAL_JUMP_SAFETY_MARGIN = 0.6,
+    GOAL_JUMP_SAFETY_MARGIN = 0.3,
     JUMP_RADIUS = 40,
     JUMP_MIN_HEIGHT_DIFF = 0.7,
     
     JUMP_HORIZONTAL_FORCE = 70,
     SMALL_GOAL_DIVE_DISTANCE = 5,
-    BIG_GOAL_DIVE_DISTANCE = 10,
+    BIG_GOAL_DIVE_DISTANCE = 16,
     DIVE_DURATION = 0.44,
     
     -- Зона защиты
@@ -116,7 +116,7 @@ local moduleState = {
     actionCooldown = 0.06,
     isBigGoal = false,
     lastInterceptTime = 0,
-    interceptCooldown = 0.3,
+    interceptCooldown = 0.1,
     diveAnimationPlaying = false,
     jumpAnimationPlaying = false,
     willJump = false,
@@ -1787,4 +1787,5 @@ function AutoGKUltraModule:Destroy()
 end
 
 return AutoGKUltraModule
+
 
