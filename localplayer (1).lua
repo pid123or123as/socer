@@ -1728,7 +1728,6 @@ local function SetupUI(UI)
                 
                 -- Speed Sync
                 SpeedStatus.Speed = UIElements.Speed.Speed:GetValue()
-                SpeedStatus.AutoJump = UIElements.Speed.AutoJump:GetState()
                 SpeedStatus.JumpInterval = UIElements.Speed.JumpInterval:GetValue()
                 SpeedStatus.PulseTPDistance = UIElements.Speed.PulseTPDistance:GetValue()
                 SpeedStatus.PulseTPFrequency = UIElements.Speed.PulseTPFrequency:GetValue()
@@ -1740,8 +1739,6 @@ local function SetupUI(UI)
                 
                 -- SkinRandomize Sync
                 MovementEnhancements.Config.SkinRandomize.ChangeInterval = UIElements.SkinRandomize.ChangeSpeed:GetValue()
-                MovementEnhancements.Config.SkinRandomize.SkinTone.Enabled = UIElements.SkinRandomize.SkinTone:GetValue()
-                MovementEnhancements.Config.SkinRandomize.Hair.Enabled = UIElements.SkinRandomize.Hair:GetState()
                 
                 notify("LocalPlayer", "Config synchronized!", true)
             end
