@@ -25,9 +25,9 @@ local CONFIG = {
     MIN_DIST = 0.8,
     
     -- Настройки сближения и атаки
-    CLOSE_DISTANCE = 15,  -- Дистанция для сближения
-    ATTACK_DISTANCE = 8,  -- Дистанция для атаки
-    CLOSE_SPEED_MULT = 1.2,  -- Множитель скорости при сближении
+    CLOSE_DISTANCE = 74, 
+    ATTACK_DISTANCE = 48,  -- Дистанция для атаки
+    CLOSE_SPEED_MULT = 1.5,  -- Множитель скорости при сближении
     
     -- Физика предсказания
     PRED_STEPS = 80,
@@ -120,10 +120,10 @@ local moduleState = {
     currentBV = nil,
     smoothCFrame = nil,
     lastActionTime = 0,
-    actionCooldown = 0.06,
+    actionCooldown = 0.01,
     isBigGoal = false,
     lastInterceptTime = 0,
-    interceptCooldown = 0.1,
+    interceptCooldown = 0.05,
     diveAnimationPlaying = false,
     jumpAnimationPlaying = false,
     willJump = false,
@@ -1331,7 +1331,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.CLOSE_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Close Distance",
             Minimum = 5,
-            Maximum = 30,
+            Maximum = 80,
             Default = CONFIG.CLOSE_DISTANCE,
             Precision = 1,
             Callback = function(v) CONFIG.CLOSE_DISTANCE = v end
@@ -1340,7 +1340,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.ATTACK_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Attack Distance",
             Minimum = 3,
-            Maximum = 15,
+            Maximum = 80,
             Default = CONFIG.ATTACK_DISTANCE,
             Precision = 1,
             Callback = function(v) CONFIG.ATTACK_DISTANCE = v end
@@ -1518,7 +1518,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.TOUCH_RANGE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Touch Distance",
             Minimum = 5,
-            Maximum = 30,
+            Maximum = 80,
             Default = CONFIG.TOUCH_RANGE,
             Precision = 1,
             Callback = function(v) CONFIG.TOUCH_RANGE = v end
@@ -1527,7 +1527,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.NEAR_BALL_DIST = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Near Ball Dist",
             Minimum = 2,
-            Maximum = 10,
+            Maximum = 20,
             Default = CONFIG.NEAR_BALL_DIST,
             Precision = 1,
             Callback = function(v) CONFIG.NEAR_BALL_DIST = v end
@@ -1846,3 +1846,4 @@ function AutoGKUltraModule:Destroy()
 end
 
 return AutoGKUltraModule
+
