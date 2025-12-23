@@ -25,7 +25,7 @@ local CONFIG = {
     MIN_DIST = 0.8,
     
     -- Настройки сближения и атаки
-    CLOSE_DISTANCE = 20,  -- Дистанция для сближения
+    CLOSE_DISTANCE = 15,  -- Дистанция для сближения
     ATTACK_DISTANCE = 8,  -- Дистанция для атаки
     CLOSE_SPEED_MULT = 1.2,  -- Множитель скорости при сближении
     
@@ -1331,7 +1331,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.CLOSE_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Close Distance",
             Minimum = 5,
-            Maximum = 70,
+            Maximum = 30,
             Default = CONFIG.CLOSE_DISTANCE,
             Precision = 1,
             Callback = function(v) CONFIG.CLOSE_DISTANCE = v end
@@ -1340,7 +1340,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.ATTACK_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Attack Distance",
             Minimum = 3,
-            Maximum = 70,
+            Maximum = 15,
             Default = CONFIG.ATTACK_DISTANCE,
             Precision = 1,
             Callback = function(v) CONFIG.ATTACK_DISTANCE = v end
@@ -1500,7 +1500,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.INTERCEPT_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Intercept Distance",
             Minimum = 20,
-            Maximum = 60,
+            Maximum = 50,
             Default = CONFIG.INTERCEPT_DISTANCE,
             Precision = 1,
             Callback = function(v) CONFIG.INTERCEPT_DISTANCE = v end
@@ -1518,7 +1518,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.TOUCH_RANGE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Touch Distance",
             Minimum = 5,
-            Maximum = 60,
+            Maximum = 30,
             Default = CONFIG.TOUCH_RANGE,
             Precision = 1,
             Callback = function(v) CONFIG.TOUCH_RANGE = v end
