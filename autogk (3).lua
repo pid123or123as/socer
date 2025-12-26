@@ -25,9 +25,9 @@ local CONFIG = {
     MIN_DIST = 0.8,
     
     -- Настройки сближения и атаки
-    CLOSE_DISTANCE = 74, 
-    ATTACK_DISTANCE = 48,  -- Дистанция для атаки
-    CLOSE_SPEED_MULT = 1.5,  -- Множитель скорости при сближении
+    CLOSE_DISTANCE = 15,
+    ATTACK_DISTANCE = 8,
+    CLOSE_SPEED_MULT = 1.2,
     
     -- Физика предсказания
     PRED_STEPS = 80,
@@ -58,9 +58,10 @@ local CONFIG = {
     -- Производительность
     PRED_UPDATE_RATE = 1,
     
-    -- Ротация
-    DIVE_ROTATION_SPEED = 0.95,
-    NORMAL_ROTATION_SPEED = 0.3,
+    -- Умная ротация
+    SMART_ROTATION_SMOOTH = 0.15,
+    MAX_ROTATION_ANGLE = 60,
+    MIN_SAFE_ANGLE = 15,
     
     -- Размер ворот
     BIG_GOAL_THRESHOLD = 40,
@@ -79,8 +80,6 @@ local CONFIG = {
     JUMP_MIN_HEIGHT_DIFF = 0.7,
     
     JUMP_HORIZONTAL_FORCE = 70,
-    
-    -- FIXED DIVE SETTINGS (убраны настройки, как ты просил)
     DIVE_DURATION = 0.44,
     
     -- Зона защиты
@@ -120,10 +119,10 @@ local moduleState = {
     currentBV = nil,
     smoothCFrame = nil,
     lastActionTime = 0,
-    actionCooldown = 0.01,
+    actionCooldown = 0.06,
     isBigGoal = false,
     lastInterceptTime = 0,
-    interceptCooldown = 0.05,
+    interceptCooldown = 0.1,
     diveAnimationPlaying = false,
     jumpAnimationPlaying = false,
     willJump = false,
@@ -148,7 +147,6 @@ local moduleState = {
 
 -- Создание визуальных объектов
 local function createVisuals()
-    -- Очистка старых объектов
     for _, objList in pairs(moduleState.visualObjects) do
         if type(objList) == "table" then
             for _, drawing in pairs(objList) do
@@ -160,7 +158,6 @@ local function createVisuals()
     end
     moduleState.visualObjects = {}
     
-    -- Куб ворот
     if CONFIG.SHOW_GOAL_CUBE then
         moduleState.visualObjects.GoalCube = {}
         for i = 1, 12 do 
@@ -173,7 +170,6 @@ local function createVisuals()
         end
     end
     
-    -- Зона защиты
     if CONFIG.SHOW_ZONE then
         moduleState.visualObjects.LimitCube = {}
         for i = 1, 12 do 
@@ -186,7 +182,6 @@ local function createVisuals()
         end
     end
     
-    -- Бокс мяча
     if CONFIG.SHOW_BALL_BOX then
         moduleState.visualObjects.BallBox = {}
         for i = 1, 12 do 
@@ -198,7 +193,6 @@ local function createVisuals()
         end
     end
     
-    -- Траектория
     if CONFIG.SHOW_TRAJECTORY then
         moduleState.visualObjects.trajLines = {}
         for i = 1, CONFIG.PRED_STEPS do
@@ -211,7 +205,6 @@ local function createVisuals()
         end
     end
     
-    -- Конечная точка
     if CONFIG.SHOW_ENDPOINT then
         moduleState.visualObjects.endpointLines = {}
         for i = 1, 24 do
@@ -224,7 +217,6 @@ local function createVisuals()
         end
     end
     
-    -- Текст отладки
     moduleState.visualObjects.debugText = Drawing.new("Text")
     moduleState.visualObjects.debugText.Visible = false
     moduleState.visualObjects.debugText.Size = 18
@@ -347,7 +339,7 @@ local function checkGoalCollision(pos, nextPos, radius)
     return false, Vector3.new(0,0,0)
 end
 
--- Улучшенное предсказание траектории с закруткой
+-- Улучшенное предсказание траектории
 local function predictTrajectory(ball)
     local points = {ball.Position}
     local pos, vel = ball.Position, ball.Velocity
@@ -357,21 +349,15 @@ local function predictTrajectory(ball)
     local steps = CONFIG.PRED_STEPS
     local spinCurve = Vector3.new(0,0,0)
     
-    -- Улучшенное определение закрутки
     pcall(function()
         if ws.Bools.Curve and ws.Bools.Curve.Value then 
-            -- Более точное определение направления закрутки
             local ballCFrame = ball.CFrame
             local rightVec = ballCFrame.RightVector
             local upVec = ballCFrame.UpVector
             
-            -- Определяем силу закрутки по скорости мяча
             local speedFactor = math.clamp(vel.Magnitude / 50, 0.3, 1.5)
-            
-            -- Комбинированная закрутка с учетом направления полета
             local curveStrength = CONFIG.CURVE_MULT * 0.045 * speedFactor
             
-            -- Определяем тип закрутки
             local isTopSpin = math.abs(upVec:Dot(vel.Unit)) > 0.7
             local isSideSpin = math.abs(rightVec:Dot(vel.Unit)) > 0.7
             
@@ -380,35 +366,24 @@ local function predictTrajectory(ball)
             elseif isSideSpin then
                 spinCurve = rightVec * curveStrength
             else
-                -- Смешанная закрутка
                 spinCurve = (rightVec + upVec * 0.5) * curveStrength
             end
         end
         
         if ws.Bools.Header and ws.Bools.Header.Value then 
-            -- Улучшенная физика верхового удара
             local headerStrength = 32 + math.min(vel.Magnitude * 0.2, 15)
             spinCurve = spinCurve + Vector3.new(0, headerStrength, 0) 
         end
     end)
     
-    -- Улучшенный физический расчет с учетом закрутки
     for i = 1, steps do
         local curveFade = 1 - (i/steps) * 0.5
         
-        -- Применяем закрутку с плавным затуханием
         vel = vel * drag + spinCurve * dt * curveFade
-        
-        -- Гравитация с учетом закрутки
-        local gravityMultiplier = 1.04
-        if spinCurve.Y > 20 then
-            gravityMultiplier = 0.95 -- Снижаем гравитацию для верховых ударов
-        end
-        vel = vel - Vector3.new(0, gravity * dt * gravityMultiplier, 0)
+        vel = vel - Vector3.new(0, gravity * dt * 1.04, 0)
         
         local nextPos = pos + vel * dt
         
-        -- Проверка столкновения с воротами
         local collided, normal = checkGoalCollision(pos, nextPos, 1.1)
         if collided then
             local reflection = vel - 2 * vel:Dot(normal) * normal
@@ -418,16 +393,13 @@ local function predictTrajectory(ball)
             pos = nextPos
         end
         
-        -- Отскок от земли
         if pos.Y < 0.5 then
             pos = Vector3.new(pos.X, 0.5, pos.Z)
-            
-            -- Улучшенные коэффициенты отскока с учетом закрутки
             local bounceXZ = CONFIG.BOUNCE_XZ
             local bounceY = CONFIG.BOUNCE_Y
             
             if spinCurve.Y > 0 then
-                bounceY = bounceY * 0.9 -- Уменьшаем отскок для верховых ударов
+                bounceY = bounceY * 0.9
             end
             
             vel = Vector3.new(vel.X * bounceXZ, math.abs(vel.Y) * bounceY, vel.Z * bounceXZ)
@@ -435,7 +407,6 @@ local function predictTrajectory(ball)
         
         table.insert(points, pos)
         
-        -- Остановка если мяч остановился
         if pos.Y < 0.6 and vel.Magnitude < 1.5 then
             break
         end
@@ -608,27 +579,24 @@ local function calculateSmartPosition(ballPos, ownerRoot, isBallControlled, endp
     
     -- Определяем тип атаки (угловая или центральная)
     local isCornerAttack = false
-    local cornerSide = 0 -- -1 левый угол, 1 правый угол
+    local cornerSide = 0
     
     if endpoint then
         local endpointToGoal = (goalPos - endpoint) * Vector3.new(1,0,1)
         local lateralDist = math.abs((endpoint - goalPos):Dot(goalRight))
         
-        -- Лучшее определение угловых атак
         local goalHalfWidth = moduleState.GoalWidth / 2
-        local cornerThreshold = goalHalfWidth * 0.7 -- Более чувствительно к углам
+        local cornerThreshold = goalHalfWidth * 0.7
         
         if lateralDist > cornerThreshold then
             isCornerAttack = true
             cornerSide = (endpoint - goalPos):Dot(goalRight) > 0 and 1 or -1
             
-            -- Для угловых атак занимаем позицию ближе к углу
             local cornerDepth = math.clamp(endpointToGoal.Magnitude * 0.25, 2, 8)
             local cornerLateral = cornerSide * moduleState.GoalWidth * 0.3
             
             local cornerPos = goalPos + moduleState.GoalForward * cornerDepth + goalRight * cornerLateral
             
-            -- Не подходим слишком близко к углу
             local forwardDist = (cornerPos - goalPos):Dot(moduleState.GoalForward)
             if forwardDist < 1.0 then
                 cornerPos = goalPos + moduleState.GoalForward * 1.0 + goalRight * cornerLateral * 0.7
@@ -747,11 +715,9 @@ local function moveToPosition(root, targetPos, ballPos, velMag, isUrgent)
     local ballDist = (ballPos - root.Position).Magnitude
     
     if ballDist < CONFIG.CLOSE_DISTANCE then
-        -- Сближаемся с увеличенной скоростью
         speed = CONFIG.SPEED * CONFIG.CLOSE_SPEED_MULT
         
         if ballDist < CONFIG.ATTACK_DISTANCE then
-            -- Атакующая дистанция - максимальная скорость
             speed = CONFIG.AGGRESSIVE_SPEED
         end
     elseif isUrgent then
@@ -769,7 +735,7 @@ local function moveToPosition(root, targetPos, ballPos, velMag, isUrgent)
     game.Debris:AddItem(moduleState.currentBV, 0.15)
 end
 
--- Улучшенная ротация
+-- УМНАЯ РОТАЦИЯ (ПОЛНОСТЬЮ ПЕРЕДЕЛАННАЯ)
 local function smartRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyBall, isJumping)
     if isMyBall or isJumping then return end
     
@@ -778,20 +744,46 @@ local function smartRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyB
     
     -- Если ныряем, используем специальную ротацию для Dive
     if isDiving and diveTarget then
-        -- Улучшенная ротация для нырка с учетом отскока
+        -- Интеллектуальная ротация для нырка
         local goalToBall = (diveTarget - moduleState.GoalCFrame.Position) * Vector3.new(1,0,1)
         
-        -- Нормализуем и увеличиваем расстояние для точки взгляда
-        local safeLookDirection = goalToBall.Unit
-        local safeLookPos = root.Position + safeLookDirection * 20
+        -- Определяем безопасное направление для отбития
+        local ballToGoal = goalToBall.Unit
+        local goalRight = moduleState.GoalCFrame.RightVector
         
-        -- Мгновенная ротация
+        -- Анализируем угол атаки
+        local lateralAngle = math.deg(math.acos(math.clamp(math.abs(ballToGoal:Dot(goalRight)), 0, 1)))
+        
+        -- Выбираем направление взгляда в зависимости от угла атаки
+        local lookDirection
+        
+        if lateralAngle > 45 then
+            -- Угловая атака - смотрим в сторону от ворот
+            lookDirection = ballToGoal
+        else
+            -- Центральная атака - смотрим под углом для безопасного отбития
+            local safeAngle = math.rad(30)
+            if ballToGoal:Dot(goalRight) > 0 then
+                lookDirection = (ballToGoal + goalRight * math.sin(safeAngle)).Unit
+            else
+                lookDirection = (ballToGoal - goalRight * math.sin(safeAngle)).Unit
+            end
+        end
+        
+        -- Учитываем высоту мяча
+        local ballHeight = diveTarget.Y - root.Position.Y
+        local verticalAngle = math.clamp(ballHeight * 0.1, -0.3, 0.3)
+        
+        lookDirection = (lookDirection + Vector3.new(0, verticalAngle, 0)).Unit
+        
+        -- Мгновенная ротация для нырка
+        local safeLookPos = root.Position + lookDirection * 25
         root.CFrame = CFrame.lookAt(root.Position, safeLookPos)
         
         return
     end
     
-    -- Обычная ротация (не во время нырка)
+    -- Обычная интеллектуальная ротация
     if not isDiving then
         local targetLookPos = ballPos
         
@@ -801,24 +793,66 @@ local function smartRotation(root, ballPos, ballVel, isDiving, diveTarget, isMyB
             targetLookPos = predictionPoint
         end
         
-        -- Определяем направление взгляда
-        local lookDir = (targetLookPos - root.Position).Unit
+        -- Определяем вектор к мячу
+        local toBall = (targetLookPos - root.Position).Unit
+        local goalRight = moduleState.GoalCFrame.RightVector
+        local goalForward = moduleState.GoalForward
         
-        -- Плавная ротация с интерполяцией
+        -- Анализируем ситуацию
+        local ballToGoal = (targetLookPos - moduleState.GoalCFrame.Position) * Vector3.new(1,0,1)
+        local lateralDist = math.abs((targetLookPos - moduleState.GoalCFrame.Position):Dot(goalRight))
+        local goalHalfWidth = moduleState.GoalWidth / 2
+        
+        -- Интеллектуальное определение направления взгляда
+        local lookDirection
+        
+        if lateralDist > goalHalfWidth * 0.6 then
+            -- Мяч летит сбоку - смотрим под углом для перехвата
+            local sideFactor = (lateralDist / goalHalfWidth) * 0.5
+            local sideDirection = (targetLookPos - root.Position):Dot(goalRight) > 0 and goalRight or -goalRight
+            
+            lookDirection = (toBall + sideDirection * sideFactor).Unit
+        else
+            -- Центральная атака - смотрим прямо на мяч
+            lookDirection = toBall
+        end
+        
+        -- Учитываем высоту мяча интеллектуально
+        local ballHeight = targetLookPos.Y - root.Position.Y
+        local heightFactor = math.clamp(ballHeight * 0.08, -0.2, 0.3)
+        
+        -- Если мяч высоко, немного поднимаем взгляд, но не наклоняемся
+        if ballHeight > 5 then
+            lookDirection = (lookDirection + Vector3.new(0, heightFactor * 0.5, 0)).Unit
+        elseif ballHeight < 2 then
+            -- Низкий мяч - смотрим немного вниз
+            lookDirection = (lookDirection + Vector3.new(0, -0.1, 0)).Unit
+        end
+        
+        -- Плавная ротация с интеллектуальной интерполяцией
         if not moduleState.smoothCFrame then
             moduleState.smoothCFrame = root.CFrame
         end
         
         local currentDir = root.CFrame.LookVector
-        local targetDir = lookDir
+        local targetDir = lookDirection
         
-        if currentDir:Dot(targetDir) < 0.99 then
-            local smoothFactor = CONFIG.NORMAL_ROTATION_SPEED
-            local newDir = (currentDir * (1 - smoothFactor) + targetDir * smoothFactor).Unit
-            root.CFrame = CFrame.lookAt(root.Position, root.Position + newDir)
-        else
-            root.CFrame = CFrame.lookAt(root.Position, root.Position + targetDir)
+        -- Умная интерполяция в зависимости от угла
+        local angle = math.acos(math.clamp(currentDir:Dot(targetDir), -1, 1))
+        local smoothFactor = CONFIG.SMART_ROTATION_SMOOTH
+        
+        if angle > math.rad(30) then
+            -- Большой угол - быстрее поворачиваем
+            smoothFactor = smoothFactor * 1.5
+        elseif angle < math.rad(5) then
+            -- Маленький угол - плавнее
+            smoothFactor = smoothFactor * 0.7
         end
+        
+        smoothFactor = math.clamp(smoothFactor, 0.05, 0.3)
+        
+        local newDir = (currentDir * (1 - smoothFactor) + targetDir * smoothFactor).Unit
+        root.CFrame = CFrame.lookAt(root.Position, root.Position + newDir)
     end
 end
 
@@ -1018,9 +1052,9 @@ local function performDive(root, hum, targetPos, ballHeight, ball)
     -- ФИКСИРОВАННАЯ СКОРОСТЬ: 4 studs для обычных ворот, 9 studs для больших
     local diveSpeed
     if moduleState.isBigGoal then
-        diveSpeed = 9 / CONFIG.DIVE_DURATION  -- 9 studs за время нырка
+        diveSpeed = 9 / CONFIG.DIVE_DURATION
     else
-        diveSpeed = 4 / CONFIG.DIVE_DURATION  -- 4 studs за время нырка
+        diveSpeed = 4 / CONFIG.DIVE_DURATION
     end
     
     if dir == "Right" then
@@ -1145,7 +1179,6 @@ local function startRenderLoop()
                 elseif shouldDive(root, ball, velMag, endpoint) then
                     -- Перед нырком устанавливаем правильную ротацию
                     if endpoint then
-                        -- Определяем точку для безопасного отбития (от ворот)
                         local goalToEndpoint = (endpoint - moduleState.GoalCFrame.Position) * Vector3.new(1,0,1)
                         local safeTarget = endpoint + goalToEndpoint.Unit * 5
                         smartRotation(root, ball.Position, ball.Velocity, true, safeTarget, isMyBall, false)
@@ -1175,7 +1208,6 @@ local function startRenderLoop()
                 moduleState.currentBV = nil 
             end
             
-            -- Ротация ТОЛЬКО когда не ныряем и не прыгаем
             if not moduleState.isDiving and not moduleState.willJump then
                 smartRotation(root, ball.Position, ball.Velocity, false, nil, isMyBall, false)
             end
@@ -1211,12 +1243,10 @@ local function startHeartbeat()
             return 
         end
         
-        -- Отрисовка ворот
         if CONFIG.SHOW_GOAL_CUBE and moduleState.visualObjects.GoalCube then
             drawCube(moduleState.visualObjects.GoalCube, moduleState.GoalCFrame, Vector3.new(moduleState.GoalWidth, 8, 2), CONFIG.GOAL_CUBE_COLOR)
         end
         
-        -- Отрисовка зоны
         if CONFIG.SHOW_ZONE then 
             drawFlatZone() 
         end
@@ -1224,7 +1254,6 @@ local function startHeartbeat()
         local root = char.HumanoidRootPart
         local distBall = (root.Position - ball.Position).Magnitude
         
-        -- Отрисовка траектории
         if CONFIG.SHOW_TRAJECTORY and moduleState.cachedPoints and moduleState.visualObjects.trajLines then
             local cam = ws.CurrentCamera
             for i = 1, math.min(CONFIG.PRED_STEPS, #moduleState.cachedPoints - 1) do
@@ -1238,7 +1267,6 @@ local function startHeartbeat()
                 end
             end
             
-            -- Отрисовка конечной точки
             if CONFIG.SHOW_ENDPOINT then
                 drawEndpoint(moduleState.cachedPoints[#moduleState.cachedPoints])
             end
@@ -1246,7 +1274,6 @@ local function startHeartbeat()
             clearTrajAndEndpoint()
         end
         
-        -- Отрисовка бокса мяча
         if CONFIG.SHOW_BALL_BOX and distBall < 80 and moduleState.visualObjects.BallBox then 
             local col
             if moduleState.willJump then
@@ -1294,7 +1321,7 @@ local function cleanup()
     moduleState.smoothCFrame = nil
 end
 
--- Модуль AutoGK ULTRA с фиксированным рывком
+-- Модуль AutoGK ULTRA с умной ротацией
 local AutoGKUltraModule = {}
 
 function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
@@ -1304,7 +1331,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
     if UI.Sections.AutoGoalKeeper then
         UI.Sections.AutoGoalKeeper:Header({ Name = "AutoGoalKeeper" })
         
-        -- Основной переключатель
         moduleState.uiElements.Enabled = UI.Sections.AutoGoalKeeper:Toggle({ 
             Name = "Enabled", 
             Default = CONFIG.ENABLED, 
@@ -1325,13 +1351,12 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- НОВЫЕ: Настройки сближения и атаки
         UI.Sections.AutoGoalKeeper:Header({ Name = "Approach & Attack Settings" })
         
         moduleState.uiElements.CLOSE_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Close Distance",
             Minimum = 5,
-            Maximum = 80,
+            Maximum = 30,
             Default = CONFIG.CLOSE_DISTANCE,
             Precision = 1,
             Callback = function(v) CONFIG.CLOSE_DISTANCE = v end
@@ -1340,7 +1365,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.ATTACK_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Attack Distance",
             Minimum = 3,
-            Maximum = 80,
+            Maximum = 15,
             Default = CONFIG.ATTACK_DISTANCE,
             Precision = 1,
             Callback = function(v) CONFIG.ATTACK_DISTANCE = v end
@@ -1357,7 +1382,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Настройки движения
         UI.Sections.AutoGoalKeeper:Header({ Name = "Movement Settings" })
         
         moduleState.uiElements.SPEED = UI.Sections.AutoGoalKeeper:Slider({
@@ -1398,7 +1422,37 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Настройки нырка
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Smart Rotation Settings" })
+        
+        moduleState.uiElements.SMART_ROTATION_SMOOTH = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Rotation Smoothness",
+            Minimum = 0.05,
+            Maximum = 0.3,
+            Default = CONFIG.SMART_ROTATION_SMOOTH,
+            Precision = 2,
+            Callback = function(v) CONFIG.SMART_ROTATION_SMOOTH = v end
+        }, 'AutoGKUltraSmartRotSmooth')
+        
+        moduleState.uiElements.MAX_ROTATION_ANGLE = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Max Rotation Angle",
+            Minimum = 30,
+            Maximum = 90,
+            Default = CONFIG.MAX_ROTATION_ANGLE,
+            Precision = 1,
+            Callback = function(v) CONFIG.MAX_ROTATION_ANGLE = v end
+        }, 'AutoGKUltraMaxRotAngle')
+        
+        moduleState.uiElements.MIN_SAFE_ANGLE = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Min Safe Angle",
+            Minimum = 5,
+            Maximum = 30,
+            Default = CONFIG.MIN_SAFE_ANGLE,
+            Precision = 1,
+            Callback = function(v) CONFIG.MIN_SAFE_ANGLE = v end
+        }, 'AutoGKUltraMinSafeAngle')
+        
+        UI.Sections.AutoGoalKeeper:Divider()
+        
         UI.Sections.AutoGoalKeeper:Header({ Name = "Dive Settings" })
         
         moduleState.uiElements.DIVE_DIST = UI.Sections.AutoGoalKeeper:Slider({
@@ -1430,30 +1484,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Настройки ротации
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Rotation Settings" })
-        
-        moduleState.uiElements.DIVE_ROTATION_SPEED = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Dive Rotation Speed",
-            Minimum = 0.1,
-            Maximum = 1.0,
-            Default = CONFIG.DIVE_ROTATION_SPEED,
-            Precision = 2,
-            Callback = function(v) CONFIG.DIVE_ROTATION_SPEED = v end
-        }, 'AutoGKUltraDiveRotationSpeed')
-        
-        moduleState.uiElements.NORMAL_ROTATION_SPEED = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Normal Rotation Speed",
-            Minimum = 0.1,
-            Maximum = 0.5,
-            Default = CONFIG.NORMAL_ROTATION_SPEED,
-            Precision = 2,
-            Callback = function(v) CONFIG.NORMAL_ROTATION_SPEED = v end
-        }, 'AutoGKUltraNormalRotationSpeed')
-        
-        UI.Sections.AutoGoalKeeper:Divider()
-        
-        -- Настройки прыжка
         UI.Sections.AutoGoalKeeper:Header({ Name = "Jump Settings" })
         
         moduleState.uiElements.JUMP_VEL_THRES = UI.Sections.AutoGoalKeeper:Slider({
@@ -1494,7 +1524,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Настройки перехвата и касания
         UI.Sections.AutoGoalKeeper:Header({ Name = "Intercept & Touch Settings" })
         
         moduleState.uiElements.INTERCEPT_DISTANCE = UI.Sections.AutoGoalKeeper:Slider({
@@ -1518,7 +1547,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.TOUCH_RANGE = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Touch Distance",
             Minimum = 5,
-            Maximum = 80,
+            Maximum = 30,
             Default = CONFIG.TOUCH_RANGE,
             Precision = 1,
             Callback = function(v) CONFIG.TOUCH_RANGE = v end
@@ -1527,7 +1556,7 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         moduleState.uiElements.NEAR_BALL_DIST = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Near Ball Dist",
             Minimum = 2,
-            Maximum = 20,
+            Maximum = 10,
             Default = CONFIG.NEAR_BALL_DIST,
             Precision = 1,
             Callback = function(v) CONFIG.NEAR_BALL_DIST = v end
@@ -1535,7 +1564,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Настройки зоны защиты
         UI.Sections.AutoGoalKeeper:Header({ Name = "Defense Zone Settings" })
         
         moduleState.uiElements.ZONE_WIDTH_MULTIPLIER = UI.Sections.AutoGoalKeeper:Slider({
@@ -1567,7 +1595,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Настройки визуализации
         UI.Sections.AutoGoalKeeper:Header({ Name = "Visual Settings" })
         
         moduleState.uiElements.SHOW_TRAJECTORY = UI.Sections.AutoGoalKeeper:Toggle({
@@ -1627,7 +1654,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Цветовые настройки
         UI.Sections.AutoGoalKeeper:Header({ Name = "Color Settings" })
         
         moduleState.uiElements.TRAJECTORY_COLOR = UI.Sections.AutoGoalKeeper:Colorpicker({
@@ -1710,39 +1736,43 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- Информация
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Фиксированные настройки Dive" })
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Умная ротация" })
         
         UI.Sections.AutoGoalKeeper:Paragraph({
-            Header = "Исправления рывка",
+            Header = "Полностью переделанная логика",
             Body = [[
-ФИКСИРОВАННЫЕ ПАРАМЕТРЫ DIVE:
+УМНАЯ РОТАЦИЯ (ИНТЕЛЛЕКТУАЛЬНАЯ):
 
-1. СКОРОСТЬ РЫВКА:
-   - Обычные ворота: 4 studs за время нырка
-   - Большие ворота: 9 studs за время нырка
-   - Независимо от стороны нырка (Left/Right)
+1. АНАЛИЗ СИТУАЦИИ:
+   - Определяет тип атаки (угловая/центральная)
+   - Анализирует высоту мяча
+   - Учитывает скорость и траекторию
 
-2. УБРАНЫ НАСТРОЙКИ:
-   - DIVE_SPEED_BOOST (теперь фиксировано)
-   - DIVE_SIDE_MULTIPLIER (теперь простое определение)
-   - MAX_VERTICAL_ANGLE (убрано ограничение)
-   - MIN_VERTICAL_ANGLE (убрано ограничение)
+2. ИНТЕЛЛЕКТУАЛЬНОЕ ОПРЕДЕЛЕНИЕ НАПРАВЛЕНИЯ:
+   - Угловые атаки: смотрит под углом для перехвата
+   - Центральные атаки: смотрит прямо на мяч
+   - Высокие мячи: поднимает взгляд без наклона
 
-3. ЛОГИКА РЫВКА:
-   diveSpeed = (дистанция_рывка) / DIVE_DURATION
-   Дистанция рывка: 4 studs для обычных ворот, 9 studs для больших
+3. АДАПТИВНАЯ ИНТЕРПОЛЯЦИЯ:
+   - Большие углы: быстрая ротация
+   - Малые углы: плавная ротация
+   - Учитывает скорость мяча
 
-4. ПРЕИМУЩЕСТВА:
-   - Консистентный рывок независимо от ситуации
-   - Предсказуемое расстояние перемещения
-   - Равная эффективность для всех типов ворот
+4. БЕЗОПАСНОЕ ОТБИТИЕ:
+   - Не смотрит в ворота
+   - Выбирает направление для безопасного отбития
+   - Учитывает отскок мяча
+
+5. РЕШЕНЫ ПРОБЛЕМЫ:
+   - Не путает угловые и центральные атаки
+   - Не смотрит в ворота
+   - Правильно работает с высокими мячами
+   - Адаптируется к любой ситуации
 ]]
         })
         
     end
     
-    -- Секция синхронизации в Config
     if UI.Tabs.Config then
         local syncSection = UI.Tabs.Config:Section({Name = 'AutoGK Sync', Side = 'Right'})
         
@@ -1751,7 +1781,6 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
         syncSection:Button({
             Name = "Sync Configuration Now",
             Callback = function()
-                -- Правильная синхронизация
                 CONFIG.ENABLED = moduleState.uiElements.Enabled and moduleState.uiElements.Enabled:GetState()
                 CONFIG.SPEED = moduleState.uiElements.SPEED and moduleState.uiElements.SPEED:GetValue()
                 CONFIG.AGGRESSIVE_SPEED = moduleState.uiElements.AGGRESSIVE_SPEED and moduleState.uiElements.AGGRESSIVE_SPEED:GetValue()
@@ -1779,8 +1808,9 @@ function AutoGKUltraModule.Init(UI, coreParam, notifyFunc)
                 CONFIG.SHOW_GOAL_CUBE = moduleState.uiElements.SHOW_GOAL_CUBE and moduleState.uiElements.SHOW_GOAL_CUBE:GetState()
                 CONFIG.SHOW_ZONE = moduleState.uiElements.SHOW_ZONE and moduleState.uiElements.SHOW_ZONE:GetState()
                 CONFIG.SHOW_BALL_BOX = moduleState.uiElements.SHOW_BALL_BOX and moduleState.uiElements.SHOW_BALL_BOX:GetState()
-                CONFIG.DIVE_ROTATION_SPEED = moduleState.uiElements.DIVE_ROTATION_SPEED and moduleState.uiElements.DIVE_ROTATION_SPEED:GetValue()
-                CONFIG.NORMAL_ROTATION_SPEED = moduleState.uiElements.NORMAL_ROTATION_SPEED and moduleState.uiElements.NORMAL_ROTATION_SPEED:GetValue()
+                CONFIG.SMART_ROTATION_SMOOTH = moduleState.uiElements.SMART_ROTATION_SMOOTH and moduleState.uiElements.SMART_ROTATION_SMOOTH:GetValue()
+                CONFIG.MAX_ROTATION_ANGLE = moduleState.uiElements.MAX_ROTATION_ANGLE and moduleState.uiElements.MAX_ROTATION_ANGLE:GetValue()
+                CONFIG.MIN_SAFE_ANGLE = moduleState.uiElements.MIN_SAFE_ANGLE and moduleState.uiElements.MIN_SAFE_ANGLE:GetValue()
                 
                 moduleState.enabled = CONFIG.ENABLED
                 
@@ -1846,4 +1876,3 @@ function AutoGKUltraModule:Destroy()
 end
 
 return AutoGKUltraModule
-
