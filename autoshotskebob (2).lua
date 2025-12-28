@@ -899,8 +899,6 @@ local function SetupUI(UI)
                 else 
                     AutoShoot.Stop() 
                 end
-                -- Явно вызываем обновление цели
-                if v then CalculateTarget() end
             end
         }, "AutoShootEnabled")
         
@@ -909,8 +907,6 @@ local function SetupUI(UI)
             Default = AutoShootLegit, 
             Callback = function(v) 
                 AutoShootLegit = v
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootLegit")
         
@@ -922,8 +918,6 @@ local function SetupUI(UI)
             Callback = function(v) 
                 AutoShootManualShot = v
                 UpdateModeText()
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootManual")
         
@@ -934,8 +928,6 @@ local function SetupUI(UI)
                 AutoShootShootKey = v
                 AutoShootStatus.Key = v
                 UpdateModeText()
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootKey")
         
@@ -945,8 +937,6 @@ local function SetupUI(UI)
             Callback = function(v) 
                 AutoShootManualButton = v
                 ToggleManualButton(v)
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootManualButton")
         
@@ -959,8 +949,6 @@ local function SetupUI(UI)
             Callback = function(v) 
                 AutoShootButtonScale = v
                 SetButtonScale(v)
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootButtonScale")
         
@@ -974,8 +962,6 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootMaxDistance = v
-                -- Явно вызываем обновление цели сразу
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootMaxDist")
         
@@ -988,8 +974,6 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootReverseCompensation = v
-                -- Явно вызываем обновление цели сразу
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootReverseCompensation")
         
@@ -999,21 +983,17 @@ local function SetupUI(UI)
             Default = AutoShootSpoofPowerEnabled, 
             Callback = function(v) 
                 AutoShootSpoofPowerEnabled = v
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootSpoofPowerEnabled")
         
-        -- Spoof Power Type Dropdown (Исправлено: Items -> Options, добавлен Required = true)
+        -- Spoof Power Type Dropdown - ИСПРАВЛЕНО
         uiElements.AutoShootSpoofPowerType = UI.Sections.AutoShoot:Dropdown({ 
             Name = "Spoof Power Type", 
             Default = AutoShootSpoofPowerType, 
-            Options = {"math.huge", "9999999", "100"}, 
-            Required = true,
+            Options = {"math.huge", "9999999", "100"},  -- Исправлено с Items на Options
+            Required = true,  -- Добавлено Required = true
             Callback = function(v) 
                 AutoShootSpoofPowerType = v
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootSpoofPowerType")
         
@@ -1023,8 +1003,6 @@ local function SetupUI(UI)
             Callback = function(v) 
                 AutoShootDebugText = v
                 AutoShoot.SetDebugText(v)
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootDebugText")
     end
@@ -1085,8 +1063,6 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootInset = v
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedInset")
         
@@ -1101,8 +1077,6 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootGravity = v
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedGravity")
         
@@ -1116,8 +1090,6 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 AutoShootMinPower = v
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedMinPower")
         
@@ -1129,8 +1101,6 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 AutoShootMaxPower = v
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedMaxPower")
         
@@ -1142,8 +1112,6 @@ local function SetupUI(UI)
             Precision = 3, 
             Callback = function(v) 
                 AutoShootPowerPerStud = v
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedPowerPerStud")
         
@@ -1157,8 +1125,6 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootMaxHeight = v
-                -- Явно вызываем обновление цели
-                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedMaxHeight")
         
@@ -1174,338 +1140,1274 @@ local function SetupUI(UI)
         })
         UI.Sections.Attacks:Divider()
         
-        -- Создаем таблицу для хранения всех элементов атак
-        local attackElements = {}
+        -- SideRicochet
+        UI.Sections.Attacks:Header({ Name = "SideRicochet" })
         
-        -- Функция для создания элементов атаки
-        local function CreateAttackElements(attackName, attackConfig)
-            attackElements[attackName] = {}
-            
-            -- Enabled Toggle
-            attackElements[attackName].Enabled = UI.Sections.Attacks:Toggle({ 
-                Name = "Enabled", 
-                Default = attackConfig.Enabled, 
-                Callback = function(v) 
-                    Attacks[attackName].Enabled = v
-                    if AutoShootEnabled then CalculateTarget() end
-                end
-            }, attackName .. "Enabled")
-            
-            -- Min Dist Slider
-            attackElements[attackName].MinDist = UI.Sections.Attacks:Slider({ 
-                Name = "Min Dist", 
-                Minimum = 0, 
-                Maximum = 300, 
-                Default = attackConfig.MinDist, 
-                Precision = 1, 
-                Callback = function(v) 
-                    Attacks[attackName].MinDist = v
-                    if AutoShootEnabled then CalculateTarget() end
-                end
-            }, attackName .. "MinDist")
-            
-            -- Max Dist Slider
-            attackElements[attackName].MaxDist = UI.Sections.Attacks:Slider({ 
-                Name = "Max Dist", 
-                Minimum = 0, 
-                Maximum = 300, 
-                Default = attackConfig.MaxDist, 
-                Precision = 1, 
-                Callback = function(v) 
-                    Attacks[attackName].MaxDist = v
-                    if AutoShootEnabled then CalculateTarget() end
-                end
-            }, attackName .. "MaxDist")
-            
-            -- Power/PowerMin Slider
-            if attackConfig.Power then
-                attackElements[attackName].Power = UI.Sections.Attacks:Slider({ 
-                    Name = "Power", 
-                    Minimum = 0.5, 
-                    Maximum = 100.0, 
-                    Default = attackConfig.Power, 
-                    Precision = 2, 
-                    Callback = function(v) 
-                        Attacks[attackName].Power = v
-                        if AutoShootEnabled then CalculateTarget() end
-                    end
-                }, attackName .. "Power")
-            elseif attackConfig.PowerMin then
-                attackElements[attackName].PowerMin = UI.Sections.Attacks:Slider({ 
-                    Name = "Power Min", 
-                    Minimum = 0.5, 
-                    Maximum = 10.0, 
-                    Default = attackConfig.PowerMin, 
-                    Precision = 2, 
-                    Callback = function(v) 
-                        Attacks[attackName].PowerMin = v
-                        if AutoShootEnabled then CalculateTarget() end
-                    end
-                }, attackName .. "PowerMin")
+        uiElements.SideRicochetEnabled = UI.Sections.Attacks:Toggle({ 
+            Name = "Enabled", 
+            Default = Attacks.SideRicochet.Enabled, 
+            Callback = function(v) 
+                Attacks.SideRicochet.Enabled = v
             end
-            
-            -- PowerAdd Slider (если есть)
-            if attackConfig.PowerAdd then
-                attackElements[attackName].PowerAdd = UI.Sections.Attacks:Slider({ 
-                    Name = "Power Add", 
-                    Minimum = -5.0, 
-                    Maximum = 5.0, 
-                    Default = attackConfig.PowerAdd, 
-                    Precision = 2, 
-                    Callback = function(v) 
-                        Attacks[attackName].PowerAdd = v
-                        if AutoShootEnabled then CalculateTarget() end
-                    end
-                }, attackName .. "PowerAdd")
-            end
-            
-            -- X Mult Slider
-            attackElements[attackName].XMult = UI.Sections.Attacks:Slider({ 
-                Name = "X Mult", 
-                Minimum = 0.1, 
-                Maximum = 2.0, 
-                Default = attackConfig.XMult, 
-                Precision = 2, 
-                Callback = function(v) 
-                    Attacks[attackName].XMult = v
-                    if AutoShootEnabled then CalculateTarget() end
-                end
-            }, attackName .. "XMult")
-            
-            -- Spin Toggle
-            if attackConfig.Spin ~= nil and attackConfig.Spin ~= "None" then
-                attackElements[attackName].Spin = UI.Sections.Attacks:Toggle({ 
-                    Name = "Spin", 
-                    Default = attackConfig.Spin == true, 
-                    Callback = function(v) 
-                        Attacks[attackName].Spin = v
-                        if AutoShootEnabled then CalculateTarget() end
-                    end
-                }, attackName .. "Spin")
-            end
-            
-            -- Height Mult Slider
-            attackElements[attackName].HeightMult = UI.Sections.Attacks:Slider({ 
-                Name = "Height Mult", 
-                Minimum = 0.1, 
-                Maximum = 3.0, 
-                Default = attackConfig.HeightMult, 
-                Precision = 2, 
-                Callback = function(v) 
-                    Attacks[attackName].HeightMult = v
-                    if AutoShootEnabled then CalculateTarget() end
-                end
-            }, attackName .. "HeightMult")
-            
-            -- Base Min Slider
-            attackElements[attackName].BaseMin = UI.Sections.Attacks:Slider({ 
-                Name = "Base Min", 
-                Minimum = 0.0, 
-                Maximum = 100.0, 
-                Default = attackConfig.BaseHeightRange.Min, 
-                Precision = 2, 
-                Callback = function(v) 
-                    Attacks[attackName].BaseHeightRange.Min = v
-                    if AutoShootEnabled then CalculateTarget() end
-                end
-            }, attackName .. "BaseMin")
-            
-            -- Base Max Slider
-            attackElements[attackName].BaseMax = UI.Sections.Attacks:Slider({ 
-                Name = "Base Max", 
-                Minimum = 0.0, 
-                Maximum = 100.0, 
-                Default = attackConfig.BaseHeightRange.Max, 
-                Precision = 2, 
-                Callback = function(v) 
-                    Attacks[attackName].BaseHeightRange.Max = v
-                    if AutoShootEnabled then CalculateTarget() end
-                end
-            }, attackName .. "BaseMax")
-            
-            -- Derivation Mult Slider
-            attackElements[attackName].DerivationMult = UI.Sections.Attacks:Slider({ 
-                Name = "Derivation Mult", 
-                Minimum = 0.0, 
-                Maximum = 10.0, 
-                Default = attackConfig.DerivationMult, 
-                Precision = 2, 
-                Callback = function(v) 
-                    Attacks[attackName].DerivationMult = v
-                    if AutoShootEnabled then CalculateTarget() end
-                end
-            }, attackName .. "DerivationMult")
-            
-            -- Y Reverse Toggle
-            attackElements[attackName].YReverse = UI.Sections.Attacks:Toggle({ 
-                Name = "Y Reverse", 
-                Default = attackConfig.YReverse, 
-                Callback = function(v) 
-                    Attacks[attackName].YReverse = v
-                    if AutoShootEnabled then CalculateTarget() end
-                end
-            }, attackName .. "YReverse")
-        end
+        }, "SideRicochetEnabled")
         
-        -- Создаем элементы для всех атак
-        for attackName, attackConfig in pairs(Attacks) do
-            UI.Sections.Attacks:Header({ Name = attackName })
-            CreateAttackElements(attackName, attackConfig)
-            UI.Sections.Attacks:Divider()
-        end
-    end
-end
-
--- === ФУНКЦИИ ДЛЯ ЗАГРУЗКИ/СОХРАНЕНИЯ КОНФИГА ===
-local function ApplyConfigToUI(config)
-    -- Обновляем основные переменные напрямую
-    AutoShootEnabled = config.AutoShootEnabled or AutoShootEnabled
-    AutoShootLegit = config.AutoShootLegit or AutoShootLegit
-    AutoShootManualShot = config.AutoShootManualShot or AutoShootManualShot
-    AutoShootShootKey = config.AutoShootShootKey or AutoShootShootKey
-    AutoShootMaxDistance = config.AutoShootMaxDistance or AutoShootMaxDistance
-    AutoShootInset = config.AutoShootInset or AutoShootInset
-    AutoShootGravity = config.AutoShootGravity or AutoShootGravity
-    AutoShootMinPower = config.AutoShootMinPower or AutoShootMinPower
-    AutoShootMaxPower = config.AutoShootMaxPower or AutoShootMaxPower
-    AutoShootPowerPerStud = config.AutoShootPowerPerStud or AutoShootPowerPerStud
-    AutoShootMaxHeight = config.AutoShootMaxHeight or AutoShootMaxHeight
-    AutoShootDebugText = config.AutoShootDebugText or AutoShootDebugText
-    AutoShootManualButton = config.AutoShootManualButton or AutoShootManualButton
-    AutoShootButtonScale = config.AutoShootButtonScale or AutoShootButtonScale
-    AutoShootReverseCompensation = config.AutoShootReverseCompensation or AutoShootReverseCompensation
-    AutoShootSpoofPowerEnabled = config.AutoShootSpoofPowerEnabled or AutoShootSpoofPowerEnabled
-    AutoShootSpoofPowerType = config.AutoShootSpoofPowerType or AutoShootSpoofPowerType
-    
-    AutoPickupEnabled = config.AutoPickupEnabled or AutoPickupEnabled
-    AutoPickupDist = config.AutoPickupDist or AutoPickupDist
-    AutoPickupSpoofValue = config.AutoPickupSpoofValue or AutoPickupSpoofValue
-    
-    -- Обновляем атаки напрямую
-    if config.Attacks then
-        for attackName, attackConfig in pairs(config.Attacks) do
-            if Attacks[attackName] then
-                for key, value in pairs(attackConfig) do
-                    if Attacks[attackName][key] ~= nil then
-                        if key == "BaseHeightRange" then
-                            Attacks[attackName][key].Min = value.Min or Attacks[attackName][key].Min
-                            Attacks[attackName][key].Max = value.Max or Attacks[attackName][key].Max
-                        else
-                            Attacks[attackName][key] = value
-                        end
-                    end
-                end
+        uiElements.SideRicochetMinDist = UI.Sections.Attacks:Slider({ 
+            Name = "Min Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SideRicochet.MinDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SideRicochet.MinDist = v
             end
-        end
-    end
-    
-    -- Обновляем UI элементы через их методы
-    for elementName, element in pairs(uiElements) do
-        if config[elementName] ~= nil then
-            if element.Set then
-                element:Set(config[elementName])
-            elseif element.SetValue then
-                element:SetValue(config[elementName])
-            elseif element.UpdateValue then
-                element:UpdateValue(config[elementName])
-            elseif element.UpdateSelection then
-                element:UpdateSelection(config[elementName])
+        }, "SideRicochetMinDist")
+        
+        uiElements.SideRicochetMaxDist = UI.Sections.Attacks:Slider({ 
+            Name = "Max Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SideRicochet.MaxDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SideRicochet.MaxDist = v
             end
-        end
-    end
-    
-    -- После обновления всех значений - вручную обновляем цель
-    if AutoShootEnabled then
-        AutoShoot.Start()
-        -- Явно вызываем обновление цели после загрузки всех значений
-        task.defer(function()
-            CalculateTarget()
-        end)
-    else
-        AutoShoot.Stop()
-    end
-    
-    if AutoPickupEnabled then
-        AutoPickup.Start()
-    else
-        AutoPickup.Stop()
-    end
-    
-    -- Обновляем отладочный текст
-    AutoShoot.SetDebugText(AutoShootDebugText)
-    
-    -- Обновляем ручную кнопку
-    ToggleManualButton(AutoShootManualButton)
-    
-    -- Обновляем текст режима
-    UpdateModeText()
-    
-    notify("Config", "Configuration loaded successfully", true)
-end
-
-local function GetCurrentConfig()
-    local config = {}
-    
-    -- Сохраняем основные настройки
-    config.AutoShootEnabled = AutoShootEnabled
-    config.AutoShootLegit = AutoShootLegit
-    config.AutoShootManualShot = AutoShootManualShot
-    config.AutoShootShootKey = AutoShootShootKey
-    config.AutoShootMaxDistance = AutoShootMaxDistance
-    config.AutoShootInset = AutoShootInset
-    config.AutoShootGravity = AutoShootGravity
-    config.AutoShootMinPower = AutoShootMinPower
-    config.AutoShootMaxPower = AutoShootMaxPower
-    config.AutoShootPowerPerStud = AutoShootPowerPerStud
-    config.AutoShootMaxHeight = AutoShootMaxHeight
-    config.AutoShootDebugText = AutoShootDebugText
-    config.AutoShootManualButton = AutoShootManualButton
-    config.AutoShootButtonScale = AutoShootButtonScale
-    config.AutoShootReverseCompensation = AutoShootReverseCompensation
-    config.AutoShootSpoofPowerEnabled = AutoShootSpoofPowerEnabled
-    config.AutoShootSpoofPowerType = AutoShootSpoofPowerType
-    
-    config.AutoPickupEnabled = AutoPickupEnabled
-    config.AutoPickupDist = AutoPickupDist
-    config.AutoPickupSpoofValue = AutoPickupSpoofValue
-    
-    -- Сохраняем настройки атак
-    config.Attacks = {}
-    for attackName, attackConfig in pairs(Attacks) do
-        config.Attacks[attackName] = {}
-        for key, value in pairs(attackConfig) do
-            if key == "BaseHeightRange" then
-                config.Attacks[attackName][key] = {
-                    Min = value.Min,
-                    Max = value.Max
-                }
-            else
-                config.Attacks[attackName][key] = value
+        }, "SideRicochetMaxDist")
+        
+        uiElements.SideRicochetPower = UI.Sections.Attacks:Slider({ 
+            Name = "Power", 
+            Minimum = 0.5, 
+            Maximum = 100.0, 
+            Default = Attacks.SideRicochet.Power, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SideRicochet.Power = v
             end
-        end
+        }, "SideRicochetPower")
+        
+        uiElements.SideRicochetXMult = UI.Sections.Attacks:Slider({ 
+            Name = "X Mult", 
+            Minimum = 0.1, 
+            Maximum = 2.0, 
+            Default = Attacks.SideRicochet.XMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SideRicochet.XMult = v
+            end
+        }, "SideRicochetXMult")
+        
+        uiElements.SideRicochetHeightMult = UI.Sections.Attacks:Slider({ 
+            Name = "Height Mult", 
+            Minimum = 0.1, 
+            Maximum = 3.0, 
+            Default = Attacks.SideRicochet.HeightMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SideRicochet.HeightMult = v
+            end
+        }, "SideRicochetHeightMult")
+        
+        uiElements.SideRicochetBaseMin = UI.Sections.Attacks:Slider({ 
+            Name = "Base Min", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SideRicochet.BaseHeightRange.Min, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SideRicochet.BaseHeightRange.Min = v
+            end
+        }, "SideRicochetBaseMin")
+        
+        uiElements.SideRicochetBaseMax = UI.Sections.Attacks:Slider({ 
+            Name = "Base Max", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SideRicochet.BaseHeightRange.Max, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SideRicochet.BaseHeightRange.Max = v
+            end
+        }, "SideRicochetBaseMax")
+        
+        uiElements.SideRicochetDerivationMult = UI.Sections.Attacks:Slider({ 
+            Name = "Derivation Mult", 
+            Minimum = 0.0, 
+            Maximum = 10.0, 
+            Default = Attacks.SideRicochet.DerivationMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SideRicochet.DerivationMult = v
+            end
+        }, "SideRicochetDerivationMult")
+        
+        uiElements.SideRicochetYReverse = UI.Sections.Attacks:Toggle({ 
+            Name = "Y Reverse", 
+            Default = Attacks.SideRicochet.YReverse, 
+            Callback = function(v) 
+                Attacks.SideRicochet.YReverse = v
+            end
+        }, "SideRicochetYReverse")
+        
+        UI.Sections.Attacks:Divider()
+        
+        -- CloseSpin
+        UI.Sections.Attacks:Header({ Name = "CloseSpin" })
+        
+        uiElements.CloseSpinEnabled = UI.Sections.Attacks:Toggle({ 
+            Name = "Enabled", 
+            Default = Attacks.CloseSpin.Enabled, 
+            Callback = function(v) 
+                Attacks.CloseSpin.Enabled = v
+            end
+        }, "CloseSpinEnabled")
+        
+        uiElements.CloseSpinMinDist = UI.Sections.Attacks:Slider({ 
+            Name = "Min Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.CloseSpin.MinDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.CloseSpin.MinDist = v
+            end
+        }, "CloseSpinMinDist")
+        
+        uiElements.CloseSpinMaxDist = UI.Sections.Attacks:Slider({ 
+            Name = "Max Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.CloseSpin.MaxDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.CloseSpin.MaxDist = v
+            end
+        }, "CloseSpinMaxDist")
+        
+        uiElements.CloseSpinPower = UI.Sections.Attacks:Slider({ 
+            Name = "Power", 
+            Minimum = 0.5, 
+            Maximum = 100.0, 
+            Default = Attacks.CloseSpin.Power, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.CloseSpin.Power = v
+            end
+        }, "CloseSpinPower")
+        
+        uiElements.CloseSpinXMult = UI.Sections.Attacks:Slider({ 
+            Name = "X Mult", 
+            Minimum = 0.1, 
+            Maximum = 2.0, 
+            Default = Attacks.CloseSpin.XMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.CloseSpin.XMult = v
+            end
+        }, "CloseSpinXMult")
+        
+        uiElements.CloseSpinSpin = UI.Sections.Attacks:Toggle({ 
+            Name = "Spin", 
+            Default = Attacks.CloseSpin.Spin, 
+            Callback = function(v) 
+                Attacks.CloseSpin.Spin = v
+            end
+        }, "CloseSpinSpin")
+        
+        uiElements.CloseSpinHeightMult = UI.Sections.Attacks:Slider({ 
+            Name = "Height Mult", 
+            Minimum = 0.1, 
+            Maximum = 3.0, 
+            Default = Attacks.CloseSpin.HeightMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.CloseSpin.HeightMult = v
+            end
+        }, "CloseSpinHeightMult")
+        
+        uiElements.CloseSpinBaseMin = UI.Sections.Attacks:Slider({ 
+            Name = "Base Min", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.CloseSpin.BaseHeightRange.Min, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.CloseSpin.BaseHeightRange.Min = v
+            end
+        }, "CloseSpinBaseMin")
+        
+        uiElements.CloseSpinBaseMax = UI.Sections.Attacks:Slider({ 
+            Name = "Base Max", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.CloseSpin.BaseHeightRange.Max, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.CloseSpin.BaseHeightRange.Max = v
+            end
+        }, "CloseSpinBaseMax")
+        
+        uiElements.CloseSpinDerivationMult = UI.Sections.Attacks:Slider({ 
+            Name = "Derivation Mult", 
+            Minimum = 0.0, 
+            Maximum = 10.0, 
+            Default = Attacks.CloseSpin.DerivationMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.CloseSpin.DerivationMult = v
+            end
+        }, "CloseSpinDerivationMult")
+        
+        uiElements.CloseSpinYReverse = UI.Sections.Attacks:Toggle({ 
+            Name = "Y Reverse", 
+            Default = Attacks.CloseSpin.YReverse, 
+            Callback = function(v) 
+                Attacks.CloseSpin.YReverse = v
+            end
+        }, "CloseSpinYReverse")
+        
+        UI.Sections.Attacks:Divider()
+        
+        -- SmartCorner
+        UI.Sections.Attacks:Header({ Name = "SmartCorner" })
+        
+        uiElements.SmartCornerEnabled = UI.Sections.Attacks:Toggle({ 
+            Name = "Enabled", 
+            Default = Attacks.SmartCorner.Enabled, 
+            Callback = function(v) 
+                Attacks.SmartCorner.Enabled = v
+            end
+        }, "SmartCornerEnabled")
+        
+        uiElements.SmartCornerMinDist = UI.Sections.Attacks:Slider({ 
+            Name = "Min Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SmartCorner.MinDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SmartCorner.MinDist = v
+            end
+        }, "SmartCornerMinDist")
+        
+        uiElements.SmartCornerMaxDist = UI.Sections.Attacks:Slider({ 
+            Name = "Max Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SmartCorner.MaxDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SmartCorner.MaxDist = v
+            end
+        }, "SmartCornerMaxDist")
+        
+        uiElements.SmartCornerPowerMin = UI.Sections.Attacks:Slider({ 
+            Name = "Power Min", 
+            Minimum = 0.5, 
+            Maximum = 10.0, 
+            Default = Attacks.SmartCorner.PowerMin, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCorner.PowerMin = v
+            end
+        }, "SmartCornerPowerMin")
+        
+        uiElements.SmartCornerXMult = UI.Sections.Attacks:Slider({ 
+            Name = "X Mult", 
+            Minimum = 0.1, 
+            Maximum = 2.0, 
+            Default = Attacks.SmartCorner.XMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCorner.XMult = v
+            end
+        }, "SmartCornerXMult")
+        
+        uiElements.SmartCornerHeightMult = UI.Sections.Attacks:Slider({ 
+            Name = "Height Mult", 
+            Minimum = 0.1, 
+            Maximum = 3.0, 
+            Default = Attacks.SmartCorner.HeightMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCorner.HeightMult = v
+            end
+        }, "SmartCornerHeightMult")
+        
+        uiElements.SmartCornerBaseMin = UI.Sections.Attacks:Slider({ 
+            Name = "Base Min", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartCorner.BaseHeightRange.Min, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCorner.BaseHeightRange.Min = v
+            end
+        }, "SmartCornerBaseMin")
+        
+        uiElements.SmartCornerBaseMax = UI.Sections.Attacks:Slider({ 
+            Name = "Base Max", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartCorner.BaseHeightRange.Max, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCorner.BaseHeightRange.Max = v
+            end
+        }, "SmartCornerBaseMax")
+        
+        uiElements.SmartCornerDerivationMult = UI.Sections.Attacks:Slider({ 
+            Name = "Derivation Mult", 
+            Minimum = 0.0, 
+            Maximum = 10.0, 
+            Default = Attacks.SmartCorner.DerivationMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCorner.DerivationMult = v
+            end
+        }, "SmartCornerDerivationMult")
+        
+        uiElements.SmartCornerYReverse = UI.Sections.Attacks:Toggle({ 
+            Name = "Y Reverse", 
+            Default = Attacks.SmartCorner.YReverse, 
+            Callback = function(v) 
+                Attacks.SmartCorner.YReverse = v
+            end
+        }, "SmartCornerYReverse")
+        
+        UI.Sections.Attacks:Divider()
+        
+        -- SmartCandle
+        UI.Sections.Attacks:Header({ Name = "SmartCandle" })
+        
+        uiElements.SmartCandleEnabled = UI.Sections.Attacks:Toggle({ 
+            Name = "Enabled", 
+            Default = Attacks.SmartCandle.Enabled, 
+            Callback = function(v) 
+                Attacks.SmartCandle.Enabled = v
+            end
+        }, "SmartCandleEnabled")
+        
+        uiElements.SmartCandleMinDist = UI.Sections.Attacks:Slider({ 
+            Name = "Min Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SmartCandle.MinDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SmartCandle.MinDist = v
+            end
+        }, "SmartCandleMinDist")
+        
+        uiElements.SmartCandleMaxDist = UI.Sections.Attacks:Slider({ 
+            Name = "Max Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SmartCandle.MaxDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SmartCandle.MaxDist = v
+            end
+        }, "SmartCandleMaxDist")
+        
+        uiElements.SmartCandlePower = UI.Sections.Attacks:Slider({ 
+            Name = "Power", 
+            Minimum = 0.5, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartCandle.Power, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandle.Power = v
+            end
+        }, "SmartCandlePower")
+        
+        uiElements.SmartCandleXMult = UI.Sections.Attacks:Slider({ 
+            Name = "X Mult", 
+            Minimum = 0.1, 
+            Maximum = 2.0, 
+            Default = Attacks.SmartCandle.XMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandle.XMult = v
+            end
+        }, "SmartCandleXMult")
+        
+        uiElements.SmartCandleSpin = UI.Sections.Attacks:Toggle({ 
+            Name = "Spin", 
+            Default = Attacks.SmartCandle.Spin, 
+            Callback = function(v) 
+                Attacks.SmartCandle.Spin = v
+            end
+        }, "SmartCandleSpin")
+        
+        uiElements.SmartCandleHeightMult = UI.Sections.Attacks:Slider({ 
+            Name = "Height Mult", 
+            Minimum = 0.1, 
+            Maximum = 3.0, 
+            Default = Attacks.SmartCandle.HeightMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandle.HeightMult = v
+            end
+        }, "SmartCandleHeightMult")
+        
+        uiElements.SmartCandleBaseMin = UI.Sections.Attacks:Slider({ 
+            Name = "Base Min", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartCandle.BaseHeightRange.Min, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandle.BaseHeightRange.Min = v
+            end
+        }, "SmartCandleBaseMin")
+        
+        uiElements.SmartCandleBaseMax = UI.Sections.Attacks:Slider({ 
+            Name = "Base Max", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartCandle.BaseHeightRange.Max, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandle.BaseHeightRange.Max = v
+            end
+        }, "SmartCandleBaseMax")
+        
+        uiElements.SmartCandleDerivationMult = UI.Sections.Attacks:Slider({ 
+            Name = "Derivation Mult", 
+            Minimum = 0.0, 
+            Maximum = 10.0, 
+            Default = Attacks.SmartCandle.DerivationMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandle.DerivationMult = v
+            end
+        }, "SmartCandleDerivationMult")
+        
+        uiElements.SmartCandleYReverse = UI.Sections.Attacks:Toggle({ 
+            Name = "Y Reverse", 
+            Default = Attacks.SmartCandle.YReverse, 
+            Callback = function(v) 
+                Attacks.SmartCandle.YReverse = v
+            end
+        }, "SmartCandleYReverse")
+        
+        UI.Sections.Attacks:Divider()
+        
+        -- SmartRicochet
+        UI.Sections.Attacks:Header({ Name = "SmartRicochet" })
+        
+        uiElements.SmartRicochetEnabled = UI.Sections.Attacks:Toggle({ 
+            Name = "Enabled", 
+            Default = Attacks.SmartRicochet.Enabled, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.Enabled = v
+            end
+        }, "SmartRicochetEnabled")
+        
+        uiElements.SmartRicochetMinDist = UI.Sections.Attacks:Slider({ 
+            Name = "Min Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SmartRicochet.MinDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.MinDist = v
+            end
+        }, "SmartRicochetMinDist")
+        
+        uiElements.SmartRicochetMaxDist = UI.Sections.Attacks:Slider({ 
+            Name = "Max Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SmartRicochet.MaxDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.MaxDist = v
+            end
+        }, "SmartRicochetMaxDist")
+        
+        uiElements.SmartRicochetPower = UI.Sections.Attacks:Slider({ 
+            Name = "Power", 
+            Minimum = 0.5, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartRicochet.Power, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.Power = v
+            end
+        }, "SmartRicochetPower")
+        
+        uiElements.SmartRicochetXMult = UI.Sections.Attacks:Slider({ 
+            Name = "X Mult", 
+            Minimum = 0.1, 
+            Maximum = 2.0, 
+            Default = Attacks.SmartRicochet.XMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.XMult = v
+            end
+        }, "SmartRicochetXMult")
+        
+        uiElements.SmartRicochetSpin = UI.Sections.Attacks:Toggle({ 
+            Name = "Spin", 
+            Default = Attacks.SmartRicochet.Spin, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.Spin = v
+            end
+        }, "SmartRicochetSpin")
+        
+        uiElements.SmartRicochetHeightMult = UI.Sections.Attacks:Slider({ 
+            Name = "Height Mult", 
+            Minimum = 0.1, 
+            Maximum = 3.0, 
+            Default = Attacks.SmartRicochet.HeightMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.HeightMult = v
+            end
+        }, "SmartRicochetHeightMult")
+        
+        uiElements.SmartRicochetBaseMin = UI.Sections.Attacks:Slider({ 
+            Name = "Base Min", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartRicochet.BaseHeightRange.Min, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.BaseHeightRange.Min = v
+            end
+        }, "SmartRicochetBaseMin")
+        
+        uiElements.SmartRicochetBaseMax = UI.Sections.Attacks:Slider({ 
+            Name = "Base Max", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartRicochet.BaseHeightRange.Max, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.BaseHeightRange.Max = v
+            end
+        }, "SmartRicochetBaseMax")
+        
+        uiElements.SmartRicochetDerivationMult = UI.Sections.Attacks:Slider({ 
+            Name = "Derivation Mult", 
+            Minimum = 0.0, 
+            Maximum = 10.0, 
+            Default = Attacks.SmartRicochet.DerivationMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.DerivationMult = v
+            end
+        }, "SmartRicochetDerivationMult")
+        
+        uiElements.SmartRicochetYReverse = UI.Sections.Attacks:Toggle({ 
+            Name = "Y Reverse", 
+            Default = Attacks.SmartRicochet.YReverse, 
+            Callback = function(v) 
+                Attacks.SmartRicochet.YReverse = v
+            end
+        }, "SmartRicochetYReverse")
+        
+        UI.Sections.Attacks:Divider()
+        
+        -- SmartSpin
+        UI.Sections.Attacks:Header({ Name = "SmartSpin" })
+        
+        uiElements.SmartSpinEnabled = UI.Sections.Attacks:Toggle({ 
+            Name = "Enabled", 
+            Default = Attacks.SmartSpin.Enabled, 
+            Callback = function(v) 
+                Attacks.SmartSpin.Enabled = v
+            end
+        }, "SmartSpinEnabled")
+        
+        uiElements.SmartSpinMinDist = UI.Sections.Attacks:Slider({ 
+            Name = "Min Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SmartSpin.MinDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SmartSpin.MinDist = v
+            end
+        }, "SmartSpinMinDist")
+        
+        uiElements.SmartSpinMaxDist = UI.Sections.Attacks:Slider({ 
+            Name = "Max Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SmartSpin.MaxDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SmartSpin.MaxDist = v
+            end
+        }, "SmartSpinMaxDist")
+        
+        uiElements.SmartSpinPowerAdd = UI.Sections.Attacks:Slider({ 
+            Name = "Power Add", 
+            Minimum = -5.0, 
+            Maximum = 5.0, 
+            Default = Attacks.SmartSpin.PowerAdd, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartSpin.PowerAdd = v
+            end
+        }, "SmartSpinPowerAdd")
+        
+        uiElements.SmartSpinXMult = UI.Sections.Attacks:Slider({ 
+            Name = "X Mult", 
+            Minimum = 0.1, 
+            Maximum = 2.0, 
+            Default = Attacks.SmartSpin.XMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartSpin.XMult = v
+            end
+        }, "SmartSpinXMult")
+        
+        uiElements.SmartSpinSpin = UI.Sections.Attacks:Toggle({ 
+            Name = "Spin", 
+            Default = Attacks.SmartSpin.Spin, 
+            Callback = function(v) 
+                Attacks.SmartSpin.Spin = v
+            end
+        }, "SmartSpinSpin")
+        
+        uiElements.SmartSpinHeightMult = UI.Sections.Attacks:Slider({ 
+            Name = "Height Mult", 
+            Minimum = 0.1, 
+            Maximum = 3.0, 
+            Default = Attacks.SmartSpin.HeightMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartSpin.HeightMult = v
+            end
+        }, "SmartSpinHeightMult")
+        
+        uiElements.SmartSpinBaseMin = UI.Sections.Attacks:Slider({ 
+            Name = "Base Min", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartSpin.BaseHeightRange.Min, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartSpin.BaseHeightRange.Min = v
+            end
+        }, "SmartSpinBaseMin")
+        
+        uiElements.SmartSpinBaseMax = UI.Sections.Attacks:Slider({ 
+            Name = "Base Max", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartSpin.BaseHeightRange.Max, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartSpin.BaseHeightRange.Max = v
+            end
+        }, "SmartSpinBaseMax")
+        
+        uiElements.SmartSpinDerivationMult = UI.Sections.Attacks:Slider({ 
+            Name = "Derivation Mult", 
+            Minimum = 0.0, 
+            Maximum = 10.0, 
+            Default = Attacks.SmartSpin.DerivationMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartSpin.DerivationMult = v
+            end
+        }, "SmartSpinDerivationMult")
+        
+        uiElements.SmartSpinYReverse = UI.Sections.Attacks:Toggle({ 
+            Name = "Y Reverse", 
+            Default = Attacks.SmartSpin.YReverse, 
+            Callback = function(v) 
+                Attacks.SmartSpin.YReverse = v
+            end
+        }, "SmartSpinYReverse")
+        
+        UI.Sections.Attacks:Divider()
+        
+        -- SmartCandleMid
+        UI.Sections.Attacks:Header({ Name = "SmartCandleMid" })
+        
+        uiElements.SmartCandleMidEnabled = UI.Sections.Attacks:Toggle({ 
+            Name = "Enabled", 
+            Default = Attacks.SmartCandleMid.Enabled, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.Enabled = v
+            end
+        }, "SmartCandleMidEnabled")
+        
+        uiElements.SmartCandleMidMinDist = UI.Sections.Attacks:Slider({ 
+            Name = "Min Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SmartCandleMid.MinDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.MinDist = v
+            end
+        }, "SmartCandleMidMinDist")
+        
+        uiElements.SmartCandleMidMaxDist = UI.Sections.Attacks:Slider({ 
+            Name = "Max Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.SmartCandleMid.MaxDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.MaxDist = v
+            end
+        }, "SmartCandleMidMaxDist")
+        
+        uiElements.SmartCandleMidPowerAdd = UI.Sections.Attacks:Slider({ 
+            Name = "Power Add", 
+            Minimum = -5.0, 
+            Maximum = 5.0, 
+            Default = Attacks.SmartCandleMid.PowerAdd, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.PowerAdd = v
+            end
+        }, "SmartCandleMidPowerAdd")
+        
+        uiElements.SmartCandleMidXMult = UI.Sections.Attacks:Slider({ 
+            Name = "X Mult", 
+            Minimum = 0.1, 
+            Maximum = 2.0, 
+            Default = Attacks.SmartCandleMid.XMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.XMult = v
+            end
+        }, "SmartCandleMidXMult")
+        
+        uiElements.SmartCandleMidSpin = UI.Sections.Attacks:Toggle({ 
+            Name = "Spin", 
+            Default = Attacks.SmartCandleMid.Spin, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.Spin = v
+            end
+        }, "SmartCandleMidSpin")
+        
+        uiElements.SmartCandleMidHeightMult = UI.Sections.Attacks:Slider({ 
+            Name = "Height Mult", 
+            Minimum = 0.1, 
+            Maximum = 3.0, 
+            Default = Attacks.SmartCandleMid.HeightMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.HeightMult = v
+            end
+        }, "SmartCandleMidHeightMult")
+        
+        uiElements.SmartCandleMidBaseMin = UI.Sections.Attacks:Slider({ 
+            Name = "Base Min", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartCandleMid.BaseHeightRange.Min, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.BaseHeightRange.Min = v
+            end
+        }, "SmartCandleMidBaseMin")
+        
+        uiElements.SmartCandleMidBaseMax = UI.Sections.Attacks:Slider({ 
+            Name = "Base Max", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.SmartCandleMid.BaseHeightRange.Max, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.BaseHeightRange.Max = v
+            end
+        }, "SmartCandleMidBaseMax")
+        
+        uiElements.SmartCandleMidDerivationMult = UI.Sections.Attacks:Slider({ 
+            Name = "Derivation Mult", 
+            Minimum = 0.0, 
+            Maximum = 10.0, 
+            Default = Attacks.SmartCandleMid.DerivationMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.DerivationMult = v
+            end
+        }, "SmartCandleMidDerivationMult")
+        
+        uiElements.SmartCandleMidYReverse = UI.Sections.Attacks:Toggle({ 
+            Name = "Y Reverse", 
+            Default = Attacks.SmartCandleMid.YReverse, 
+            Callback = function(v) 
+                Attacks.SmartCandleMid.YReverse = v
+            end
+        }, "SmartCandleMidYReverse")
+        
+        UI.Sections.Attacks:Divider()
+        
+        -- FarSmartCandle
+        UI.Sections.Attacks:Header({ Name = "FarSmartCandle" })
+        
+        uiElements.FarSmartCandleEnabled = UI.Sections.Attacks:Toggle({ 
+            Name = "Enabled", 
+            Default = Attacks.FarSmartCandle.Enabled, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.Enabled = v
+            end
+        }, "FarSmartCandleEnabled")
+        
+        uiElements.FarSmartCandleMinDist = UI.Sections.Attacks:Slider({ 
+            Name = "Min Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.FarSmartCandle.MinDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.MinDist = v
+            end
+        }, "FarSmartCandleMinDist")
+        
+        uiElements.FarSmartCandleMaxDist = UI.Sections.Attacks:Slider({ 
+            Name = "Max Dist", 
+            Minimum = 0, 
+            Maximum = 300, 
+            Default = Attacks.FarSmartCandle.MaxDist, 
+            Precision = 1, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.MaxDist = v
+            end
+        }, "FarSmartCandleMaxDist")
+        
+        uiElements.FarSmartCandlePower = UI.Sections.Attacks:Slider({ 
+            Name = "Power", 
+            Minimum = 0.5, 
+            Maximum = 100.0, 
+            Default = Attacks.FarSmartCandle.Power, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.Power = v
+            end
+        }, "FarSmartCandlePower")
+        
+        uiElements.FarSmartCandleXMult = UI.Sections.Attacks:Slider({ 
+            Name = "X Mult", 
+            Minimum = 0.1, 
+            Maximum = 2.0, 
+            Default = Attacks.FarSmartCandle.XMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.XMult = v
+            end
+        }, "FarSmartCandleXMult")
+        
+        uiElements.FarSmartCandleSpin = UI.Sections.Attacks:Toggle({ 
+            Name = "Spin", 
+            Default = Attacks.FarSmartCandle.Spin, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.Spin = v
+            end
+        }, "FarSmartCandleSpin")
+        
+        uiElements.FarSmartCandleHeightMult = UI.Sections.Attacks:Slider({ 
+            Name = "Height Mult", 
+            Minimum = 0.1, 
+            Maximum = 3.0, 
+            Default = Attacks.FarSmartCandle.HeightMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.HeightMult = v
+            end
+        }, "FarSmartCandleHeightMult")
+        
+        uiElements.FarSmartCandleBaseMin = UI.Sections.Attacks:Slider({ 
+            Name = "Base Min", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.FarSmartCandle.BaseHeightRange.Min, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.BaseHeightRange.Min = v
+            end
+        }, "FarSmartCandleBaseMin")
+        
+        uiElements.FarSmartCandleBaseMax = UI.Sections.Attacks:Slider({ 
+            Name = "Base Max", 
+            Minimum = 0.0, 
+            Maximum = 100.0, 
+            Default = Attacks.FarSmartCandle.BaseHeightRange.Max, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.BaseHeightRange.Max = v
+            end
+        }, "FarSmartCandleBaseMax")
+        
+        uiElements.FarSmartCandleDerivationMult = UI.Sections.Attacks:Slider({ 
+            Name = "Derivation Mult", 
+            Minimum = 0.0, 
+            Maximum = 10.0, 
+            Default = Attacks.FarSmartCandle.DerivationMult, 
+            Precision = 2, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.DerivationMult = v
+            end
+        }, "FarSmartCandleDerivationMult")
+        
+        uiElements.FarSmartCandleYReverse = UI.Sections.Attacks:Toggle({ 
+            Name = "Y Reverse", 
+            Default = Attacks.FarSmartCandle.YReverse, 
+            Callback = function(v) 
+                Attacks.FarSmartCandle.YReverse = v
+            end
+        }, "FarSmartCandleYReverse")
     end
-    
-    -- Сохраняем значения UI элементов
-    for elementName, element in pairs(uiElements) do
-        if element.GetValue then
-            config[elementName] = element:GetValue()
-        elseif element.Get then
-            config[elementName] = element:Get()
-        end
-    end
-    
-    return config
 end
 
 -- === МОДУЛЬ ===
 local AutoShootModule = {}
 function AutoShootModule.Init(UI, coreParam, notifyFunc)
     notify = notifyFunc
+    
+    -- Функция для синхронизации значений из UI с переменными скрипта
+    local function SynchronizeConfigValues()
+        if not uiElements then return end
+        
+        -- Синхронизируем основные значения из UI элементов (слайдеры)
+        if uiElements.AutoShootMaxDist and uiElements.AutoShootMaxDist:GetValue then
+            local uiValue = uiElements.AutoShootMaxDist:GetValue()
+            if uiValue ~= AutoShootMaxDistance then
+                AutoShootMaxDistance = uiValue
+            end
+        end
+        
+        if uiElements.AdvancedInset and uiElements.AdvancedInset:GetValue then
+            AutoShootInset = uiElements.AdvancedInset:GetValue()
+        end
+        
+        if uiElements.AdvancedGravity and uiElements.AdvancedGravity:GetValue then
+            AutoShootGravity = uiElements.AdvancedGravity:GetValue()
+        end
+        
+        if uiElements.AdvancedMinPower and uiElements.AdvancedMinPower:GetValue then
+            AutoShootMinPower = uiElements.AdvancedMinPower:GetValue()
+        end
+        
+        if uiElements.AdvancedMaxPower and uiElements.AdvancedMaxPower:GetValue then
+            AutoShootMaxPower = uiElements.AdvancedMaxPower:GetValue()
+        end
+        
+        if uiElements.AdvancedPowerPerStud and uiElements.AdvancedPowerPerStud:GetValue then
+            AutoShootPowerPerStud = uiElements.AdvancedPowerPerStud:GetValue()
+        end
+        
+        if uiElements.AdvancedMaxHeight and uiElements.AdvancedMaxHeight:GetValue then
+            AutoShootMaxHeight = uiElements.AdvancedMaxHeight:GetValue()
+        end
+        
+        if uiElements.AutoShootReverseCompensation and uiElements.AutoShootReverseCompensation:GetValue then
+            AutoShootReverseCompensation = uiElements.AutoShootReverseCompensation:GetValue()
+        end
+        
+        -- Синхронизируем AutoPickup значения
+        if uiElements.AutoPickupDist and uiElements.AutoPickupDist:GetValue then
+            AutoPickupDist = uiElements.AutoPickupDist:GetValue()
+        end
+        
+        if uiElements.AutoPickupSpoof and uiElements.AutoPickupSpoof:GetValue then
+            AutoPickupSpoofValue = uiElements.AutoPickupSpoof:GetValue()
+        end
+        
+        -- Синхронизируем значения атак
+        if uiElements.SideRicochetEnabled and uiElements.SideRicochetEnabled:GetState then
+            Attacks.SideRicochet.Enabled = uiElements.SideRicochetEnabled:GetState()
+        end
+        if uiElements.SideRicochetMinDist and uiElements.SideRicochetMinDist:GetValue then
+            Attacks.SideRicochet.MinDist = uiElements.SideRicochetMinDist:GetValue()
+        end
+        if uiElements.SideRicochetMaxDist and uiElements.SideRicochetMaxDist:GetValue then
+            Attacks.SideRicochet.MaxDist = uiElements.SideRicochetMaxDist:GetValue()
+        end
+        if uiElements.SideRicochetPower and uiElements.SideRicochetPower:GetValue then
+            Attacks.SideRicochet.Power = uiElements.SideRicochetPower:GetValue()
+        end
+        if uiElements.SideRicochetXMult and uiElements.SideRicochetXMult:GetValue then
+            Attacks.SideRicochet.XMult = uiElements.SideRicochetXMult:GetValue()
+        end
+        if uiElements.SideRicochetHeightMult and uiElements.SideRicochetHeightMult:GetValue then
+            Attacks.SideRicochet.HeightMult = uiElements.SideRicochetHeightMult:GetValue()
+        end
+        if uiElements.SideRicochetBaseMin and uiElements.SideRicochetBaseMin:GetValue then
+            Attacks.SideRicochet.BaseHeightRange.Min = uiElements.SideRicochetBaseMin:GetValue()
+        end
+        if uiElements.SideRicochetBaseMax and uiElements.SideRicochetBaseMax:GetValue then
+            Attacks.SideRicochet.BaseHeightRange.Max = uiElements.SideRicochetBaseMax:GetValue()
+        end
+        if uiElements.SideRicochetDerivationMult and uiElements.SideRicochetDerivationMult:GetValue then
+            Attacks.SideRicochet.DerivationMult = uiElements.SideRicochetDerivationMult:GetValue()
+        end
+        if uiElements.SideRicochetYReverse and uiElements.SideRicochetYReverse:GetState then
+            Attacks.SideRicochet.YReverse = uiElements.SideRicochetYReverse:GetState()
+        end
+        
+        -- CloseSpin
+        if uiElements.CloseSpinEnabled and uiElements.CloseSpinEnabled:GetState then
+            Attacks.CloseSpin.Enabled = uiElements.CloseSpinEnabled:GetState()
+        end
+        if uiElements.CloseSpinMinDist and uiElements.CloseSpinMinDist:GetValue then
+            Attacks.CloseSpin.MinDist = uiElements.CloseSpinMinDist:GetValue()
+        end
+        if uiElements.CloseSpinMaxDist and uiElements.CloseSpinMaxDist:GetValue then
+            Attacks.CloseSpin.MaxDist = uiElements.CloseSpinMaxDist:GetValue()
+        end
+        if uiElements.CloseSpinPower and uiElements.CloseSpinPower:GetValue then
+            Attacks.CloseSpin.Power = uiElements.CloseSpinPower:GetValue()
+        end
+        if uiElements.CloseSpinXMult and uiElements.CloseSpinXMult:GetValue then
+            Attacks.CloseSpin.XMult = uiElements.CloseSpinXMult:GetValue()
+        end
+        if uiElements.CloseSpinSpin and uiElements.CloseSpinSpin:GetState then
+            Attacks.CloseSpin.Spin = uiElements.CloseSpinSpin:GetState()
+        end
+        if uiElements.CloseSpinHeightMult and uiElements.CloseSpinHeightMult:GetValue then
+            Attacks.CloseSpin.HeightMult = uiElements.CloseSpinHeightMult:GetValue()
+        end
+        if uiElements.CloseSpinBaseMin and uiElements.CloseSpinBaseMin:GetValue then
+            Attacks.CloseSpin.BaseHeightRange.Min = uiElements.CloseSpinBaseMin:GetValue()
+        end
+        if uiElements.CloseSpinBaseMax and uiElements.CloseSpinBaseMax:GetValue then
+            Attacks.CloseSpin.BaseHeightRange.Max = uiElements.CloseSpinBaseMax:GetValue()
+        end
+        if uiElements.CloseSpinDerivationMult and uiElements.CloseSpinDerivationMult:GetValue then
+            Attacks.CloseSpin.DerivationMult = uiElements.CloseSpinDerivationMult:GetValue()
+        end
+        if uiElements.CloseSpinYReverse and uiElements.CloseSpinYReverse:GetState then
+            Attacks.CloseSpin.YReverse = uiElements.CloseSpinYReverse:GetState()
+        end
+        
+        -- SmartCorner
+        if uiElements.SmartCornerEnabled and uiElements.SmartCornerEnabled:GetState then
+            Attacks.SmartCorner.Enabled = uiElements.SmartCornerEnabled:GetState()
+        end
+        if uiElements.SmartCornerMinDist and uiElements.SmartCornerMinDist:GetValue then
+            Attacks.SmartCorner.MinDist = uiElements.SmartCornerMinDist:GetValue()
+        end
+        if uiElements.SmartCornerMaxDist and uiElements.SmartCornerMaxDist:GetValue then
+            Attacks.SmartCorner.MaxDist = uiElements.SmartCornerMaxDist:GetValue()
+        end
+        if uiElements.SmartCornerPowerMin and uiElements.SmartCornerPowerMin:GetValue then
+            Attacks.SmartCorner.PowerMin = uiElements.SmartCornerPowerMin:GetValue()
+        end
+        if uiElements.SmartCornerXMult and uiElements.SmartCornerXMult:GetValue then
+            Attacks.SmartCorner.XMult = uiElements.SmartCornerXMult:GetValue()
+        end
+        if uiElements.SmartCornerHeightMult and uiElements.SmartCornerHeightMult:GetValue then
+            Attacks.SmartCorner.HeightMult = uiElements.SmartCornerHeightMult:GetValue()
+        end
+        if uiElements.SmartCornerBaseMin and uiElements.SmartCornerBaseMin:GetValue then
+            Attacks.SmartCorner.BaseHeightRange.Min = uiElements.SmartCornerBaseMin:GetValue()
+        end
+        if uiElements.SmartCornerBaseMax and uiElements.SmartCornerBaseMax:GetValue then
+            Attacks.SmartCorner.BaseHeightRange.Max = uiElements.SmartCornerBaseMax:GetValue()
+        end
+        if uiElements.SmartCornerDerivationMult and uiElements.SmartCornerDerivationMult:GetValue then
+            Attacks.SmartCorner.DerivationMult = uiElements.SmartCornerDerivationMult:GetValue()
+        end
+        if uiElements.SmartCornerYReverse and uiElements.SmartCornerYReverse:GetState then
+            Attacks.SmartCorner.YReverse = uiElements.SmartCornerYReverse:GetState()
+        end
+        
+        -- SmartCandle
+        if uiElements.SmartCandleEnabled and uiElements.SmartCandleEnabled:GetState then
+            Attacks.SmartCandle.Enabled = uiElements.SmartCandleEnabled:GetState()
+        end
+        if uiElements.SmartCandleMinDist and uiElements.SmartCandleMinDist:GetValue then
+            Attacks.SmartCandle.MinDist = uiElements.SmartCandleMinDist:GetValue()
+        end
+        if uiElements.SmartCandleMaxDist and uiElements.SmartCandleMaxDist:GetValue then
+            Attacks.SmartCandle.MaxDist = uiElements.SmartCandleMaxDist:GetValue()
+        end
+        if uiElements.SmartCandlePower and uiElements.SmartCandlePower:GetValue then
+            Attacks.SmartCandle.Power = uiElements.SmartCandlePower:GetValue()
+        end
+        if uiElements.SmartCandleXMult and uiElements.SmartCandleXMult:GetValue then
+            Attacks.SmartCandle.XMult = uiElements.SmartCandleXMult:GetValue()
+        end
+        if uiElements.SmartCandleSpin and uiElements.SmartCandleSpin:GetState then
+            Attacks.SmartCandle.Spin = uiElements.SmartCandleSpin:GetState()
+        end
+        if uiElements.SmartCandleHeightMult and uiElements.SmartCandleHeightMult:GetValue then
+            Attacks.SmartCandle.HeightMult = uiElements.SmartCandleHeightMult:GetValue()
+        end
+        if uiElements.SmartCandleBaseMin and uiElements.SmartCandleBaseMin:GetValue then
+            Attacks.SmartCandle.BaseHeightRange.Min = uiElements.SmartCandleBaseMin:GetValue()
+        end
+        if uiElements.SmartCandleBaseMax and uiElements.SmartCandleBaseMax:GetValue then
+            Attacks.SmartCandle.BaseHeightRange.Max = uiElements.SmartCandleBaseMax:GetValue()
+        end
+        if uiElements.SmartCandleDerivationMult and uiElements.SmartCandleDerivationMult:GetValue then
+            Attacks.SmartCandle.DerivationMult = uiElements.SmartCandleDerivationMult:GetValue()
+        end
+        if uiElements.SmartCandleYReverse and uiElements.SmartCandleYReverse:GetState then
+            Attacks.SmartCandle.YReverse = uiElements.SmartCandleYReverse:GetState()
+        end
+        
+        -- SmartRicochet
+        if uiElements.SmartRicochetEnabled and uiElements.SmartRicochetEnabled:GetState then
+            Attacks.SmartRicochet.Enabled = uiElements.SmartRicochetEnabled:GetState()
+        end
+        if uiElements.SmartRicochetMinDist and uiElements.SmartRicochetMinDist:GetValue then
+            Attacks.SmartRicochet.MinDist = uiElements.SmartRicochetMinDist:GetValue()
+        end
+        if uiElements.SmartRicochetMaxDist and uiElements.SmartRicochetMaxDist:GetValue then
+            Attacks.SmartRicochet.MaxDist = uiElements.SmartRicochetMaxDist:GetValue()
+        end
+        if uiElements.SmartRicochetPower and uiElements.SmartRicochetPower:GetValue then
+            Attacks.SmartRicochet.Power = uiElements.SmartRicochetPower:GetValue()
+        end
+        if uiElements.SmartRicochetXMult and uiElements.SmartRicochetXMult:GetValue then
+            Attacks.SmartRicochet.XMult = uiElements.SmartRicochetXMult:GetValue()
+        end
+        if uiElements.SmartRicochetSpin and uiElements.SmartRicochetSpin:GetState then
+            Attacks.SmartRicochet.Spin = uiElements.SmartRicochetSpin:GetState()
+        end
+        if uiElements.SmartRicochetHeightMult and uiElements.SmartRicochetHeightMult:GetValue then
+            Attacks.SmartRicochet.HeightMult = uiElements.SmartRicochetHeightMult:GetValue()
+        end
+        if uiElements.SmartRicochetBaseMin and uiElements.SmartRicochetBaseMin:GetValue then
+            Attacks.SmartRicochet.BaseHeightRange.Min = uiElements.SmartRicochetBaseMin:GetValue()
+        end
+        if uiElements.SmartRicochetBaseMax and uiElements.SmartRicochetBaseMax:GetValue then
+            Attacks.SmartRicochet.BaseHeightRange.Max = uiElements.SmartRicochetBaseMax:GetValue()
+        end
+        if uiElements.SmartRicochetDerivationMult and uiElements.SmartRicochetDerivationMult:GetValue then
+            Attacks.SmartRicochet.DerivationMult = uiElements.SmartRicochetDerivationMult:GetValue()
+        end
+        if uiElements.SmartRicochetYReverse and uiElements.SmartRicochetYReverse:GetState then
+            Attacks.SmartRicochet.YReverse = uiElements.SmartRicochetYReverse:GetState()
+        end
+        
+        -- SmartSpin
+        if uiElements.SmartSpinEnabled and uiElements.SmartSpinEnabled:GetState then
+            Attacks.SmartSpin.Enabled = uiElements.SmartSpinEnabled:GetState()
+        end
+        if uiElements.SmartSpinMinDist and uiElements.SmartSpinMinDist:GetValue then
+            Attacks.SmartSpin.MinDist = uiElements.SmartSpinMinDist:GetValue()
+        end
+        if uiElements.SmartSpinMaxDist and uiElements.SmartSpinMaxDist:GetValue then
+            Attacks.SmartSpin.MaxDist = uiElements.SmartSpinMaxDist:GetValue()
+        end
+        if uiElements.SmartSpinPowerAdd and uiElements.SmartSpinPowerAdd:GetValue then
+            Attacks.SmartSpin.PowerAdd = uiElements.SmartSpinPowerAdd:GetValue()
+        end
+        if uiElements.SmartSpinXMult and uiElements.SmartSpinXMult:GetValue then
+            Attacks.SmartSpin.XMult = uiElements.SmartSpinXMult:GetValue()
+        end
+        if uiElements.SmartSpinSpin and uiElements.SmartSpinSpin:GetState then
+            Attacks.SmartSpin.Spin = uiElements.SmartSpinSpin:GetState()
+        end
+        if uiElements.SmartSpinHeightMult and uiElements.SmartSpinHeightMult:GetValue then
+            Attacks.SmartSpin.HeightMult = uiElements.SmartSpinHeightMult:GetValue()
+        end
+        if uiElements.SmartSpinBaseMin and uiElements.SmartSpinBaseMin:GetValue then
+            Attacks.SmartSpin.BaseHeightRange.Min = uiElements.SmartSpinBaseMin:GetValue()
+        end
+        if uiElements.SmartSpinBaseMax and uiElements.SmartSpinBaseMax:GetValue then
+            Attacks.SmartSpin.BaseHeightRange.Max = uiElements.SmartSpinBaseMax:GetValue()
+        end
+        if uiElements.SmartSpinDerivationMult and uiElements.SmartSpinDerivationMult:GetValue then
+            Attacks.SmartSpin.DerivationMult = uiElements.SmartSpinDerivationMult:GetValue()
+        end
+        if uiElements.SmartSpinYReverse and uiElements.SmartSpinYReverse:GetState then
+            Attacks.SmartSpin.YReverse = uiElements.SmartSpinYReverse:GetState()
+        end
+        
+        -- SmartCandleMid
+        if uiElements.SmartCandleMidEnabled and uiElements.SmartCandleMidEnabled:GetState then
+            Attacks.SmartCandleMid.Enabled = uiElements.SmartCandleMidEnabled:GetState()
+        end
+        if uiElements.SmartCandleMidMinDist and uiElements.SmartCandleMidMinDist:GetValue then
+            Attacks.SmartCandleMid.MinDist = uiElements.SmartCandleMidMinDist:GetValue()
+        end
+        if uiElements.SmartCandleMidMaxDist and uiElements.SmartCandleMidMaxDist:GetValue then
+            Attacks.SmartCandleMid.MaxDist = uiElements.SmartCandleMidMaxDist:GetValue()
+        end
+        if uiElements.SmartCandleMidPowerAdd and uiElements.SmartCandleMidPowerAdd:GetValue then
+            Attacks.SmartCandleMid.PowerAdd = uiElements.SmartCandleMidPowerAdd:GetValue()
+        end
+        if uiElements.SmartCandleMidXMult and uiElements.SmartCandleMidXMult:GetValue then
+            Attacks.SmartCandleMid.XMult = uiElements.SmartCandleMidXMult:GetValue()
+        end
+        if uiElements.SmartCandleMidSpin and uiElements.SmartCandleMidSpin:GetState then
+            Attacks.SmartCandleMid.Spin = uiElements.SmartCandleMidSpin:GetState()
+        end
+        if uiElements.SmartCandleMidHeightMult and uiElements.SmartCandleMidHeightMult:GetValue then
+            Attacks.SmartCandleMid.HeightMult = uiElements.SmartCandleMidHeightMult:GetValue()
+        end
+        if uiElements.SmartCandleMidBaseMin and uiElements.SmartCandleMidBaseMin:GetValue then
+            Attacks.SmartCandleMid.BaseHeightRange.Min = uiElements.SmartCandleMidBaseMin:GetValue()
+        end
+        if uiElements.SmartCandleMidBaseMax and uiElements.SmartCandleMidBaseMax:GetValue then
+            Attacks.SmartCandleMid.BaseHeightRange.Max = uiElements.SmartCandleMidBaseMax:GetValue()
+        end
+        if uiElements.SmartCandleMidDerivationMult and uiElements.SmartCandleMidDerivationMult:GetValue then
+            Attacks.SmartCandleMid.DerivationMult = uiElements.SmartCandleMidDerivationMult:GetValue()
+        end
+        if uiElements.SmartCandleMidYReverse and uiElements.SmartCandleMidYReverse:GetState then
+            Attacks.SmartCandleMid.YReverse = uiElements.SmartCandleMidYReverse:GetState()
+        end
+        
+        -- FarSmartCandle
+        if uiElements.FarSmartCandleEnabled and uiElements.FarSmartCandleEnabled:GetState then
+            Attacks.FarSmartCandle.Enabled = uiElements.FarSmartCandleEnabled:GetState()
+        end
+        if uiElements.FarSmartCandleMinDist and uiElements.FarSmartCandleMinDist:GetValue then
+            Attacks.FarSmartCandle.MinDist = uiElements.FarSmartCandleMinDist:GetValue()
+        end
+        if uiElements.FarSmartCandleMaxDist and uiElements.FarSmartCandleMaxDist:GetValue then
+            Attacks.FarSmartCandle.MaxDist = uiElements.FarSmartCandleMaxDist:GetValue()
+        end
+        if uiElements.FarSmartCandlePower and uiElements.FarSmartCandlePower:GetValue then
+            Attacks.FarSmartCandle.Power = uiElements.FarSmartCandlePower:GetValue()
+        end
+        if uiElements.FarSmartCandleXMult and uiElements.FarSmartCandleXMult:GetValue then
+            Attacks.FarSmartCandle.XMult = uiElements.FarSmartCandleXMult:GetValue()
+        end
+        if uiElements.FarSmartCandleSpin and uiElements.FarSmartCandleSpin:GetState then
+            Attacks.FarSmartCandle.Spin = uiElements.FarSmartCandleSpin:GetState()
+        end
+        if uiElements.FarSmartCandleHeightMult and uiElements.FarSmartCandleHeightMult:GetValue then
+            Attacks.FarSmartCandle.HeightMult = uiElements.FarSmartCandleHeightMult:GetValue()
+        end
+        if uiElements.FarSmartCandleBaseMin and uiElements.FarSmartCandleBaseMin:GetValue then
+            Attacks.FarSmartCandle.BaseHeightRange.Min = uiElements.FarSmartCandleBaseMin:GetValue()
+        end
+        if uiElements.FarSmartCandleBaseMax and uiElements.FarSmartCandleBaseMax:GetValue then
+            Attacks.FarSmartCandle.BaseHeightRange.Max = uiElements.FarSmartCandleBaseMax:GetValue()
+        end
+        if uiElements.FarSmartCandleDerivationMult and uiElements.FarSmartCandleDerivationMult:GetValue then
+            Attacks.FarSmartCandle.DerivationMult = uiElements.FarSmartCandleDerivationMult:GetValue()
+        end
+        if uiElements.FarSmartCandleYReverse and uiElements.FarSmartCandleYReverse:GetState then
+            Attacks.FarSmartCandle.YReverse = uiElements.FarSmartCandleYReverse:GetState()
+        end
+    end
+    
     SetupUI(UI)
     
-    -- Экспортируем функции для работы с конфигами
-    AutoShootModule.ApplyConfig = ApplyConfigToUI
-    AutoShootModule.GetCurrentConfig = GetCurrentConfig
+    -- Запускаем таймер для синхронизации значений каждую секунду
+    local synchronizationTimer = 0
+    RunService.Heartbeat:Connect(function(deltaTime)
+        synchronizationTimer = synchronizationTimer + deltaTime
+        
+        -- Синхронизируем каждую секунду
+        if synchronizationTimer >= 1.0 then
+            synchronizationTimer = 0
+            SynchronizeConfigValues()
+        end
+    end)
+    
+    -- Первоначальная синхронизация
+    task.spawn(function()
+        task.wait(0.5) -- Даем UI время загрузиться
+        SynchronizeConfigValues()
+    end)
     
     LocalPlayer.CharacterAdded:Connect(function(newChar)
         task.wait(1)
