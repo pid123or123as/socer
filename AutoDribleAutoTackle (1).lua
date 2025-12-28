@@ -1,4 +1,4 @@
--- [v2.3] AUTO DRIBBLE + AUTO TACKLE + FULL GUI + UI INTEGRATION (С MANUAL BUTTON ИСПРАВЛЕННАЯ)
+-- [v2.4] AUTO DRIBBLE + AUTO TACKLE + FULL GUI + UI INTEGRATION (УЛУЧШЕННАЯ ВЕРСИЯ)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -6,6 +6,8 @@ local Workspace = game:GetService("Workspace")
 local Camera = Workspace.CurrentCamera
 local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
+local Stats = game:GetService("Stats")
+local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -25,6 +27,22 @@ for _, anim in pairs(DribbleAnims:GetChildren()) do
     end
 end
 
+-- === ПИНГ ===
+local function GetPing()
+    local success, pingValue = pcall(function()
+        local pingStat = Stats.Network.ServerStatsItem["Data Ping"]
+        local pingStr = pingStat:GetValueString()
+        local ping = tonumber(pingStr:match("%d+"))
+        return ping or 0
+    end)
+    
+    if success and pingValue then
+        return pingValue / 1000 -- конвертируем в секунды
+    end
+    
+    return 0.1 -- fallback значение
+end
+
 -- === CONFIG ===
 local AutoTackleConfig = {
     Enabled = false,
@@ -37,7 +55,7 @@ local AutoTackleConfig = {
     PredictionTime = 0.8,
     OnlyPlayer = true,
     RotationMethod = "Snap",
-    RotationType = "CFrame",
+    RotationType = "SmoothCFrame", -- Изменено с CFrame на SmoothCFrame
     MaxAngle = 360,
     DribbleDelayTime = 0.3,
     EagleEyeMinDelay = 0.1,
@@ -46,7 +64,16 @@ local AutoTackleConfig = {
     ManualTackleKeybind = Enum.KeyCode.Q,
     ManualTackleCooldown = 0.5,
     ManualButton = false,
-    ButtonScale = 1.0
+    ButtonScale = 1.0,
+    
+    -- Новые параметры для улучшенного предикта
+    UseAdvancedPrediction = true,
+    PredictionSamples = 3, -- количество семплов для усреднения
+    MaxPredictionDeviation = 5, -- максимальное отклонение предсказания
+    AccountPing = true, -- учитывать пинг
+    TackleLeadTime = 0.2, -- время упреждения для такла
+    VelocityWeight = 0.7, -- вес скорости в предсказании
+    HistoryWeight = 0.3 -- вес истории движений
 }
 
 local AutoDribbleConfig = {
@@ -57,7 +84,16 @@ local AutoDribbleConfig = {
     PredictionTime = 0.098,
     MaxPredictionAngle = 38,
     TacklePredictionTime = 0.3,
-    TackleAngleThreshold = 0.7
+    TackleAngleThreshold = 0.7,
+    
+    -- Новые параметры для улучшения AutoDribble
+    UseServerPosition = true, -- использовать серверную позицию
+    DribbleReactionTime = 0.05, -- время реакции на противника
+    MinDribbleDelay = 0.01, -- минимальная задержка между дриблами
+    MaxDribbleDelay = 0.1, -- максимальная задержка
+    PredictiveDribble = true, -- предиктивный дрибл
+    AccelerationFactor = 1.2, -- фактор ускорения реакции
+    SmartDribbleTiming = true -- умное определение времени дрибла
 }
 
 -- === DEBUG CONFIG ===
@@ -79,12 +115,24 @@ local AutoTackleStatus = {
     TouchStartTime = 0,
     Dragging = false,
     DragStart = Vector2.new(0, 0),
-    StartPos = UDim2.new(0, 0, 0, 0)
+    StartPos = UDim2.new(0, 0, 0, 0),
+    
+    -- Новые состояния для улучшенного предикта
+    TargetHistory = {}, -- история позиций целей
+    Ping = 0.1,
+    LastPingUpdate = 0,
+    CurrentRotationTween = nil
 }
 local AutoDribbleStatus = {
     Running = false,
     Connection = nil,
-    DebugConnection = nil
+    DebugConnection = nil,
+    
+    -- Новые состояния для улучшения AutoDribble
+    LastDribbleTime = 0,
+    ServerPosition = Vector3.new(0, 0, 0),
+    PositionOffset = Vector3.new(0, 0, 0),
+    ReactionBoost = 1.0
 }
 
 -- === SHARED STATES ===
@@ -118,6 +166,8 @@ local function SetupGUI()
         CooldownListLabel = Drawing.new("Text"),
         ModeLabel = Drawing.new("Text"),
         ManualTackleLabel = Drawing.new("Text"),
+        PingLabel = Drawing.new("Text"), -- Новая метка для пинга
+        PredictionLabel = Drawing.new("Text"), -- Новая метка для предсказания
         TargetRingLines = {},
         TargetRings = {},
         
@@ -136,7 +186,7 @@ local function SetupGUI()
     local tackleLabels = {
         Gui.TackleWaitLabel, Gui.TackleTargetLabel, Gui.TackleDribblingLabel,
         Gui.TackleTacklingLabel, Gui.EagleEyeLabel, Gui.CooldownListLabel,
-        Gui.ModeLabel, Gui.ManualTackleLabel
+        Gui.ModeLabel, Gui.ManualTackleLabel, Gui.PingLabel, Gui.PredictionLabel
     }
     
     for _, label in ipairs(tackleLabels) do
@@ -156,7 +206,9 @@ local function SetupGUI()
     Gui.EagleEyeLabel.Position = Vector2.new(centerX, offsetTackleY); offsetTackleY += 15
     Gui.CooldownListLabel.Position = Vector2.new(centerX, offsetTackleY); offsetTackleY += 15
     Gui.ModeLabel.Position = Vector2.new(centerX, offsetTackleY); offsetTackleY += 15
-    Gui.ManualTackleLabel.Position = Vector2.new(centerX, offsetTackleY)
+    Gui.ManualTackleLabel.Position = Vector2.new(centerX, offsetTackleY); offsetTackleY += 15
+    Gui.PingLabel.Position = Vector2.new(centerX, offsetTackleY); offsetTackleY += 15
+    Gui.PredictionLabel.Position = Vector2.new(centerX, offsetTackleY)
     
     -- Текстовые метки AutoDribble
     local dribbleLabels = {
@@ -186,6 +238,8 @@ local function SetupGUI()
     Gui.CooldownListLabel.Text = "CooldownList: 0"
     Gui.ModeLabel.Text = "Mode: " .. AutoTackleConfig.Mode
     Gui.ManualTackleLabel.Text = "ManualTackle: Ready [" .. tostring(AutoTackleConfig.ManualTackleKeybind) .. "]"
+    Gui.PingLabel.Text = "Ping: 0ms"
+    Gui.PredictionLabel.Text = "Prediction: Off"
     Gui.DribbleStatusLabel.Text = "Dribble: Ready"
     Gui.DribbleTargetLabel.Text = "Targets: 0"
     Gui.DribbleTacklingLabel.Text = "Nearest: None"
@@ -240,6 +294,8 @@ local function CleanupDebugText()
         Gui.EagleEyeLabel.Text = "EagleEye: Idle"
         Gui.ManualTackleLabel.Text = "ManualTackle: Ready [" .. tostring(AutoTackleConfig.ManualTackleKeybind) .. "]"
         Gui.ModeLabel.Text = "Mode: " .. AutoTackleConfig.Mode
+        Gui.PingLabel.Text = "Ping: 0ms"
+        Gui.PredictionLabel.Text = "Prediction: Off"
     end
     
     -- Очищаем текст меток AutoDribble при выключении
@@ -252,6 +308,18 @@ local function CleanupDebugText()
 end
 
 -- === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+local function UpdatePing()
+    local currentTime = tick()
+    if currentTime - AutoTackleStatus.LastPingUpdate > 1 then -- обновляем пинг раз в секунду
+        AutoTackleStatus.Ping = GetPing()
+        AutoTackleStatus.LastPingUpdate = currentTime
+        
+        if Gui and AutoTackleConfig.Enabled then
+            Gui.PingLabel.Text = string.format("Ping: %dms", math.round(AutoTackleStatus.Ping * 1000))
+        end
+    end
+end
+
 local function CheckIfTypingInChat()
     local success, result = pcall(function()
         local playerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -509,14 +577,42 @@ local function PrecomputePlayers()
 
         if not Gui.TargetRings[player] then Gui.TargetRings[player] = CreateTargetRing() end
 
-        local predictedPos = targetRoot.Position + targetRoot.AssemblyLinearVelocity * AutoDribbleConfig.PredictionTime
+        -- Улучшенный предикт с учетом истории
+        local predictedPos
+        if AutoDribbleConfig.PredictiveDribble then
+            local velocity = targetRoot.AssemblyLinearVelocity
+            local history = AutoTackleStatus.TargetHistory[player] or {}
+            
+            if #history >= 2 then
+                local avgVelocity = Vector3.new(0, 0, 0)
+                for i = 2, #history do
+                    avgVelocity = avgVelocity + (history[i] - history[i-1])
+                end
+                avgVelocity = avgVelocity / (#history - 1)
+                
+                -- Комбинируем текущую скорость и историю
+                velocity = velocity * 0.7 + avgVelocity * 0.3
+            end
+            
+            predictedPos = targetRoot.Position + velocity * AutoDribbleConfig.PredictionTime
+            
+            -- Обновляем историю
+            table.insert(history, targetRoot.Position)
+            if #history > 5 then
+                table.remove(history, 1)
+            end
+            AutoTackleStatus.TargetHistory[player] = history
+        else
+            predictedPos = targetRoot.Position + targetRoot.AssemblyLinearVelocity * AutoDribbleConfig.PredictionTime
+        end
 
         PrecomputedPlayers[player] = {
             Distance = distance,
             PredictedPos = predictedPos,
             IsValid = true,
             IsTackling = TackleStates[player].IsTackling,
-            RootPart = targetRoot
+            RootPart = targetRoot,
+            Velocity = targetRoot.AssemblyLinearVelocity
         }
     end
 end
@@ -551,47 +647,257 @@ local function CanTackle()
     return true, ball, distance, owner
 end
 
-local function PredictBallPosition(ball)
+-- УЛУЧШЕННАЯ ФУНКЦИЯ ПРЕДИКТА С УЧЕТОМ ПИНГА
+local function PredictBallPosition(ball, owner)
     if not ball or not ball.Parent then return nil end
-    return ball.Position + ball.AssemblyLinearVelocity * AutoTackleConfig.PredictionTime
+    
+    if not AutoTackleConfig.UseAdvancedPrediction then
+        return ball.Position + ball.AssemblyLinearVelocity * AutoTackleConfig.PredictionTime
+    end
+    
+    local currentTime = tick()
+    local ownerChar = owner and owner.Character
+    local ownerRoot = ownerChar and ownerChar:FindFirstChild("HumanoidRootPart")
+    
+    if not ownerRoot then
+        return ball.Position + ball.AssemblyLinearVelocity * AutoTackleConfig.PredictionTime
+    end
+    
+    -- Получаем историю движений владельца мяча
+    local ownerHistory = AutoTackleStatus.TargetHistory[owner] or {}
+    
+    -- Расчет времени с учетом пинга
+    local totalTime = AutoTackleConfig.PredictionTime
+    if AutoTackleConfig.AccountPing then
+        totalTime = totalTime + AutoTackleStatus.Ping + AutoTackleConfig.TackleLeadTime
+    end
+    
+    -- Расчет времени, которое потребуется для достижения цели
+    local distanceToBall = (HumanoidRootPart.Position - ball.Position).Magnitude
+    local timeToReach = distanceToBall / AutoTackleConfig.TackleSpeed
+    
+    -- Общее время предсказания
+    local predictionTime = totalTime + timeToReach
+    
+    -- Улучшенный алгоритм предсказания
+    local predictedPos = ball.Position
+    local velocity = ball.AssemblyLinearVelocity
+    local ownerVelocity = ownerRoot.AssemblyLinearVelocity
+    
+    -- Если есть история, используем её для более точного предсказания
+    if #ownerHistory >= 2 then
+        -- Рассчитываем ускорение владельца
+        local recentPositions = {}
+        for i = math.max(1, #ownerHistory - 3), #ownerHistory do
+            table.insert(recentPositions, ownerHistory[i])
+        end
+        
+        if #recentPositions >= 2 then
+            local accelerations = {}
+            for i = 2, #recentPositions do
+                local pos1 = recentPositions[i-1]
+                local pos2 = recentPositions[i]
+                -- Это упрощенное ускорение (разница позиций)
+                table.insert(accelerations, pos2 - pos1)
+            end
+            
+            -- Усредняем ускорение
+            local avgAcceleration = Vector3.new(0, 0, 0)
+            for _, acc in ipairs(accelerations) do
+                avgAcceleration = avgAcceleration + acc
+            end
+            avgAcceleration = avgAcceleration / #accelerations
+            
+            -- Применяем ускорение к предсказанию
+            ownerVelocity = ownerVelocity + avgAcceleration * 0.5
+        end
+    end
+    
+    -- Предсказываем позицию владельца
+    local predictedOwnerPos = ownerRoot.Position + ownerVelocity * predictionTime
+    
+    -- Учитываем возможные резкие изменения направления
+    local directionToOwner = (predictedOwnerPos - ball.Position).Unit
+    local currentDirection = ownerVelocity.Unit
+    
+    -- Если владелец резко меняет направление, корректируем предсказание
+    local dotProduct = directionToOwner:Dot(currentDirection)
+    if dotProduct < 0.5 then
+        -- Вероятно, владелец поворачивает
+        predictedOwnerPos = ownerRoot.Position + currentDirection * ownerVelocity.Magnitude * predictionTime * 0.7
+    end
+    
+    -- Ограничиваем максимальное отклонение
+    local maxDeviation = AutoTackleConfig.MaxPredictionDeviation
+    local deviation = (predictedOwnerPos - ownerRoot.Position).Magnitude
+    if deviation > maxDeviation then
+        predictedOwnerPos = ownerRoot.Position + (predictedOwnerPos - ownerRoot.Position).Unit * maxDeviation
+    end
+    
+    -- Обновляем историю
+    table.insert(ownerHistory, ownerRoot.Position)
+    if #ownerHistory > AutoTackleConfig.PredictionSamples then
+        table.remove(ownerHistory, 1)
+    end
+    AutoTackleStatus.TargetHistory[owner] = ownerHistory
+    
+    if Gui and AutoTackleConfig.Enabled then
+        Gui.PredictionLabel.Text = string.format("Prediction: %.1f studs", deviation)
+    end
+    
+    return predictedOwnerPos
 end
 
+-- УЛУЧШЕННАЯ РОТАЦИЯ БЕЗ BodyGyro
 local function RotateToTarget(targetPos)
-    if AutoTackleConfig.RotationType == "CFrame" then
-        HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position, targetPos)
+    if AutoTackleConfig.RotationType == "SmoothCFrame" then
+        -- Плавная ротация через CFrame с интерполяцией
+        local currentCFrame = HumanoidRootPart.CFrame
+        local targetCFrame = CFrame.new(HumanoidRootPart.Position, Vector3.new(targetPos.X, HumanoidRootPart.Position.Y, targetPos.Z))
+        
+        -- Интерполяция
+        local newCFrame = currentCFrame:Lerp(targetCFrame, 0.3) -- коэффициент сглаживания
+        HumanoidRootPart.CFrame = newCFrame
+        
+    elseif AutoTackleConfig.RotationType == "CFrame" then
+        -- Мгновенная ротация
+        HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position, Vector3.new(targetPos.X, HumanoidRootPart.Position.Y, targetPos.Z))
     end
 end
 
 local function PerformTackle(ball, owner)
     local bools = Workspace:FindFirstChild(LocalPlayer.Name) and Workspace[LocalPlayer.Name]:FindFirstChild("Bools")
     if not bools or bools.TackleDebounce.Value or bools.Tackled.Value or Character:FindFirstChild("Bools") and Character.Bools.Debounce.Value then return end
-    if AutoTackleConfig.RotationMethod == "Snap" and ball then
-        local predictedPos = PredictBallPosition(ball) or ball.Position
+    
+    -- Используем улучшенный предикт
+    local predictedPos = PredictBallPosition(ball, owner) or ball.Position
+    
+    -- Ротация перед таклом
+    if AutoTackleConfig.RotationMethod == "Snap" then
+        RotateToTarget(predictedPos)
+    elseif AutoTackleConfig.RotationMethod == "Always" then
         RotateToTarget(predictedPos)
     end
+    
+    -- Выполняем такл
     pcall(function() ActionRemote:FireServer("TackIe") end)
+    
+    -- Создаем BodyVelocity для движения вперед
     local bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Parent = HumanoidRootPart
     bodyVelocity.Velocity = HumanoidRootPart.CFrame.LookVector * AutoTackleConfig.TackleSpeed
     bodyVelocity.MaxForce = Vector3.new(50000000, 0, 50000000)
-    local bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.Parent = HumanoidRootPart
-    bodyGyro.Name = "TackleGyro"
-    bodyGyro.P = 950000
-    bodyGyro.MaxTorque = Vector3.new(0, 100000, 0)
-    bodyGyro.CFrame = HumanoidRootPart.CFrame
-    Debris:AddItem(bodyVelocity, 0.65)
-    Debris:AddItem(bodyGyro, 0.65)
+    
+    -- ВМЕСТО BodyGyro используем плавное обновление CFrame
+    local tackleStartTime = tick()
+    local tackleDuration = 0.65
+    local startCFrame = HumanoidRootPart.CFrame
+    
+    -- Запускаем плавную ротацию
+    local rotateConnection = RunService.Heartbeat:Connect(function()
+        local elapsed = tick() - tackleStartTime
+        if elapsed < tackleDuration then
+            -- Плавно поворачиваем к цели
+            RotateToTarget(predictedPos)
+        else
+            rotateConnection:Disconnect()
+        end
+    end)
+    
+    Debris:AddItem(bodyVelocity, tackleDuration)
+    
+    -- Отключаем ротацию через время
+    task.delay(tackleDuration, function()
+        if rotateConnection then
+            rotateConnection:Disconnect()
+        end
+    end)
+    
+    -- Отправляем серверу информацию о дистанции
     if owner and ball:FindFirstChild("playerWeld") then
         local distance = (HumanoidRootPart.Position - ball.Position).Magnitude
         pcall(function() SoftDisPlayerRemote:FireServer(owner, distance, false, ball.Size) end)
     end
 end
 
+-- УЛУЧШЕННЫЙ AutoDribble С УЧЕТОМ СЕРВЕРНОЙ ПОЗИЦИИ
+local function UpdateServerPosition()
+    if not AutoDribbleConfig.UseServerPosition then return end
+    
+    -- Симулируем серверную позицию с учетом пинга
+    local ping = AutoTackleStatus.Ping
+    AutoDribbleStatus.ServerPosition = HumanoidRootPart.Position - HumanoidRootPart.AssemblyLinearVelocity * ping * 0.5
+end
+
 local function PerformDribble()
+    local currentTime = tick()
+    local timeSinceLastDribble = currentTime - AutoDribbleStatus.LastDribbleTime
+    
+    -- Проверяем минимальную задержку
+    if timeSinceLastDribble < AutoDribbleConfig.MinDribbleDelay then
+        return
+    end
+    
     local bools = Workspace:FindFirstChild(LocalPlayer.Name) and Workspace[LocalPlayer.Name]:FindFirstChild("Bools")
     if not bools or bools.dribbleDebounce.Value then return end
+    
+    -- Ускоряем реакцию на основе конфигурации
+    local reactionDelay = AutoDribbleConfig.DribbleReactionTime / AutoDribbleStatus.ReactionBoost
+    
+    -- Используем умное определение времени для дрибла
+    if AutoDribbleConfig.SmartDribbleTiming then
+        -- Находим ближайшего противника, который делает такл
+        local nearestTackler = nil
+        local minDistance = math.huge
+        
+        for player, data in pairs(PrecomputedPlayers) do
+            if data.IsValid and TackleStates[player].IsTackling then
+                local distance = data.Distance
+                if distance < minDistance then
+                    minDistance = distance
+                    nearestTackler = player
+                end
+            end
+        end
+        
+        if nearestTackler then
+            local tacklerData = PrecomputedPlayers[nearestTackler]
+            if tacklerData then
+                -- Рассчитываем время, за которое таклер достигнет нас
+                local relativeVelocity = tacklerData.Velocity - HumanoidRootPart.AssemblyLinearVelocity
+                local closingSpeed = relativeVelocity.Magnitude
+                
+                if closingSpeed > 0 then
+                    local timeToImpact = minDistance / closingSpeed
+                    
+                    -- Если время до столкновения меньше порога, используем дрибл
+                    if timeToImpact < 0.3 then -- 0.3 секунды до столкновения
+                        pcall(function() ActionRemote:FireServer("Deke") end)
+                        AutoDribbleStatus.LastDribbleTime = currentTime
+                        
+                        if Gui and AutoDribbleConfig.Enabled then
+                            Gui.DribbleStatusLabel.Text = "Dribble: Cooldown"
+                            Gui.DribbleStatusLabel.Color = Color3.fromRGB(255, 0, 0)
+                            Gui.AutoDribbleLabel.Text = "AutoDribble: SMART DEKE!"
+                        end
+                        return
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Стандартный дрибл
     pcall(function() ActionRemote:FireServer("Deke") end)
+    AutoDribbleStatus.LastDribbleTime = currentTime
+    
+    -- Динамически корректируем скорость реакции
+    if timeSinceLastDribble < 0.5 then
+        AutoDribbleStatus.ReactionBoost = math.min(AutoDribbleStatus.ReactionBoost * AutoDribbleConfig.AccelerationFactor, 2.0)
+    else
+        AutoDribbleStatus.ReactionBoost = math.max(AutoDribbleStatus.ReactionBoost * 0.95, 1.0)
+    end
+    
     if Gui and AutoDribbleConfig.Enabled then
         Gui.DribbleStatusLabel.Text = "Dribble: Cooldown"
         Gui.DribbleStatusLabel.Color = Color3.fromRGB(255, 0, 0)
@@ -892,7 +1198,8 @@ local function ProcessTackle(ball, owner)
     local targetRoot = owner.Character:FindFirstChild("HumanoidRootPart")
     if not targetRoot then return false end
 
-    local predictedPos = PredictBallPosition(ball) or ball.Position
+    -- Используем улучшенный предикт с учетом пинга
+    local predictedPos = PredictBallPosition(ball, owner) or ball.Position
     local distance = (HumanoidRootPart.Position - predictedPos).Magnitude
 
     if AutoTackleConfig.RotationMethod == "Always" and distance <= AutoTackleConfig.MaxDistance then
@@ -1108,6 +1415,7 @@ AutoTackle.Start = function()
     
     -- Heartbeat для обновления состояний
     AutoTackleStatus.HeartbeatConnection = RunService.Heartbeat:Connect(function()
+        pcall(UpdatePing)
         pcall(UpdateDribbleStates)
         pcall(PrecomputePlayers)
         pcall(UpdateTargetRings)
@@ -1172,7 +1480,9 @@ AutoTackle.Start = function()
     end
     
     UpdateDebugVisibility()
-    notify("AutoTackle", "Started", true)
+    if notify then
+        notify("AutoTackle", "Started", true)
+    end
 end
 
 AutoTackle.Stop = function()
@@ -1190,7 +1500,9 @@ AutoTackle.Stop = function()
         AutoTackleStatus.ButtonGui = nil 
     end
     
-    notify("AutoTackle", "Stopped", true)
+    if notify then
+        notify("AutoTackle", "Stopped", true)
+    end
 end
 
 -- === AUTO DRIBBLE MODULE ===
@@ -1207,6 +1519,9 @@ AutoDribble.Start = function()
         end
 
         pcall(function()
+            -- Обновляем серверную позицию
+            UpdateServerPosition()
+            
             local specificTarget = nil
             local minDist = math.huge
             local targetCount = 0
@@ -1237,7 +1552,9 @@ AutoDribble.Start = function()
     end)
     
     UpdateDebugVisibility()
-    notify("AutoDribble", "Started", true)
+    if notify then
+        notify("AutoDribble", "Started", true)
+    end
 end
 
 AutoDribble.Stop = function()
@@ -1246,7 +1563,9 @@ AutoDribble.Stop = function()
     
     CleanupDebugText()
     UpdateDebugVisibility()
-    notify("AutoDribble", "Stopped", true)
+    if notify then
+        notify("AutoDribble", "Stopped", true)
+    end
 end
 
 -- === UI ===
@@ -1341,6 +1660,48 @@ local function SetupUI(UI)
         
         UI.Sections.AutoTackle:Divider()
         
+        -- Новые настройки для улучшенного предикта
+        uiElements.AutoTackleUseAdvancedPrediction = UI.Sections.AutoTackle:Toggle({
+            Name = "Use Advanced Prediction",
+            Default = AutoTackleConfig.UseAdvancedPrediction,
+            Callback = function(v) AutoTackleConfig.UseAdvancedPrediction = v end
+        }, "AutoTackleUseAdvancedPrediction")
+        
+        uiElements.AutoTackleAccountPing = UI.Sections.AutoTackle:Toggle({
+            Name = "Account for Ping",
+            Default = AutoTackleConfig.AccountPing,
+            Callback = function(v) AutoTackleConfig.AccountPing = v end
+        }, "AutoTackleAccountPing")
+        
+        uiElements.AutoTackleTackleLeadTime = UI.Sections.AutoTackle:Slider({
+            Name = "Tackle Lead Time",
+            Minimum = 0.0,
+            Maximum = 0.5,
+            Default = AutoTackleConfig.TackleLeadTime,
+            Precision = 2,
+            Callback = function(v) AutoTackleConfig.TackleLeadTime = v end
+        }, "AutoTackleTackleLeadTime")
+        
+        uiElements.AutoTacklePredictionSamples = UI.Sections.AutoTackle:Slider({
+            Name = "Prediction Samples",
+            Minimum = 2,
+            Maximum = 10,
+            Default = AutoTackleConfig.PredictionSamples,
+            Precision = 0,
+            Callback = function(v) AutoTackleConfig.PredictionSamples = v end
+        }, "AutoTacklePredictionSamples")
+        
+        uiElements.AutoTackleMaxPredictionDeviation = UI.Sections.AutoTackle:Slider({
+            Name = "Max Prediction Deviation",
+            Minimum = 1,
+            Maximum = 20,
+            Default = AutoTackleConfig.MaxPredictionDeviation,
+            Precision = 1,
+            Callback = function(v) AutoTackleConfig.MaxPredictionDeviation = v end
+        }, "AutoTackleMaxPredictionDeviation")
+        
+        UI.Sections.AutoTackle:Divider()
+        
         uiElements.AutoTackleOnlyPlayer = UI.Sections.AutoTackle:Toggle({
             Name = "Only Player",
             Default = AutoTackleConfig.OnlyPlayer,
@@ -1357,7 +1718,7 @@ local function SetupUI(UI)
         uiElements.AutoTackleRotationType = UI.Sections.AutoTackle:Dropdown({
             Name = "Rotation Type",
             Default = AutoTackleConfig.RotationType,
-            Options = {"CFrame", "BodyGyro"},
+            Options = {"SmoothCFrame", "CFrame"},
             Callback = function(v) AutoTackleConfig.RotationType = v end
         }, "AutoTackleRotationType")
         
@@ -1433,7 +1794,7 @@ local function SetupUI(UI)
         UI.Sections.AutoTackle:Divider()
         UI.Sections.AutoTackle:Paragraph({
             Header = "Information",
-            Body = "OnlyDribble: Tackle when enemy dribble is on cooldown\nEagleEye: Random delay + dribble cooldown tracking\nManualTackle: Only tackle when you press the key\n TackleDistance - the distance at which the tackle is immediately used\nPrediction Time - how long will the trajectory take to predict\nEagleEye Delays - random delay from min to max"
+            Body = "OnlyDribble: Tackle when enemy dribble is on cooldown\nEagleEye: Random delay + dribble cooldown tracking\nManualTackle: Only tackle when you press the key\nAdvanced Prediction: Uses ping, history, and movement patterns\nTackleDistance - the distance at which the tackle is immediately used\nPrediction Time - how long will the trajectory take to predict\nEagleEye Delays - random delay from min to max"
         })
     end
     
@@ -1455,6 +1816,45 @@ local function SetupUI(UI)
                 UpdateDebugVisibility()
             end
         }, "AutoDribbleEnabled")
+        
+        UI.Sections.AutoDribble:Divider()
+        
+        -- Новые настройки для улучшенного AutoDribble
+        uiElements.AutoDribbleUseServerPosition = UI.Sections.AutoDribble:Toggle({
+            Name = "Use Server Position",
+            Default = AutoDribbleConfig.UseServerPosition,
+            Callback = function(v) AutoDribbleConfig.UseServerPosition = v end
+        }, "AutoDribbleUseServerPosition")
+        
+        uiElements.AutoDribblePredictiveDribble = UI.Sections.AutoDribble:Toggle({
+            Name = "Predictive Dribble",
+            Default = AutoDribbleConfig.PredictiveDribble,
+            Callback = function(v) AutoDribbleConfig.PredictiveDribble = v end
+        }, "AutoDribblePredictiveDribble")
+        
+        uiElements.AutoDribbleSmartDribbleTiming = UI.Sections.AutoDribble:Toggle({
+            Name = "Smart Dribble Timing",
+            Default = AutoDribbleConfig.SmartDribbleTiming,
+            Callback = function(v) AutoDribbleConfig.SmartDribbleTiming = v end
+        }, "AutoDribbleSmartDribbleTiming")
+        
+        uiElements.AutoDribbleDribbleReactionTime = UI.Sections.AutoDribble:Slider({
+            Name = "Dribble Reaction Time",
+            Minimum = 0.01,
+            Maximum = 0.2,
+            Default = AutoDribbleConfig.DribbleReactionTime,
+            Precision = 3,
+            Callback = function(v) AutoDribbleConfig.DribbleReactionTime = v end
+        }, "AutoDribbleDribbleReactionTime")
+        
+        uiElements.AutoDribbleAccelerationFactor = UI.Sections.AutoDribble:Slider({
+            Name = "Acceleration Factor",
+            Minimum = 1.0,
+            Maximum = 2.0,
+            Default = AutoDribbleConfig.AccelerationFactor,
+            Precision = 2,
+            Callback = function(v) AutoDribbleConfig.AccelerationFactor = v end
+        }, "AutoDribbleAccelerationFactor")
         
         UI.Sections.AutoDribble:Divider()
         
@@ -1524,7 +1924,7 @@ local function SetupUI(UI)
         UI.Sections.AutoDribble:Divider()
         UI.Sections.AutoDribble:Paragraph({
             Header = "Information",
-            Body = "AutoDribble: Automatically use dribble when enemy is using tackle"
+            Body = "AutoDribble: Automatically use dribble when enemy is using tackle\nSmart Timing: Predicts when enemy will reach you\nPredictive Dribble: Uses movement history for better timing\nServer Position: Accounts for network delay\nAcceleration Factor: Dynamically adjusts reaction speed"
         })
     end
     
@@ -1560,14 +1960,23 @@ local function SetupUI(UI)
     local syncSection = UI.Tabs.Config:Section({ Name = "AutoDribble & AutoTackle Sync", Side = "Right" })
     syncSection:Header({ Name = "AutoDribble/AutoTackle" })
     syncSection:Button({ Name = "Sync Config", Callback = function()
+        -- AutoTackle Config
         AutoTackleConfig.Enabled = uiElements.AutoTackleEnabled:GetState()
+        AutoTackleConfig.Mode = uiElements.AutoTackleMode:GetValue()
         AutoTackleConfig.MaxDistance = uiElements.AutoTackleMaxDistance:GetValue()
         AutoTackleConfig.TackleDistance = uiElements.AutoTackleTackleDistance:GetValue()
         AutoTackleConfig.OptimalDistanceMin = uiElements.AutoTackleOptimalDistanceMin:GetValue()
         AutoTackleConfig.OptimalDistanceMax = uiElements.AutoTackleOptimalDistanceMax:GetValue()
         AutoTackleConfig.TackleSpeed = uiElements.AutoTackleTackleSpeed:GetValue()
         AutoTackleConfig.PredictionTime = uiElements.AutoTacklePredictionTime:GetValue()
+        AutoTackleConfig.UseAdvancedPrediction = uiElements.AutoTackleUseAdvancedPrediction:GetState()
+        AutoTackleConfig.AccountPing = uiElements.AutoTackleAccountPing:GetState()
+        AutoTackleConfig.TackleLeadTime = uiElements.AutoTackleTackleLeadTime:GetValue()
+        AutoTackleConfig.PredictionSamples = uiElements.AutoTacklePredictionSamples:GetValue()
+        AutoTackleConfig.MaxPredictionDeviation = uiElements.AutoTackleMaxPredictionDeviation:GetValue()
         AutoTackleConfig.OnlyPlayer = uiElements.AutoTackleOnlyPlayer:GetState()
+        AutoTackleConfig.RotationMethod = uiElements.AutoTackleRotationMethod:GetValue()
+        AutoTackleConfig.RotationType = uiElements.AutoTackleRotationType:GetValue()
         AutoTackleConfig.DribbleDelayTime = uiElements.AutoTackleDribbleDelayTime:GetValue()
         AutoTackleConfig.EagleEyeMinDelay = uiElements.AutoTackleEagleEyeMinDelay:GetValue()
         AutoTackleConfig.EagleEyeMaxDelay = uiElements.AutoTackleEagleEyeMaxDelay:GetValue()
@@ -1577,7 +1986,13 @@ local function SetupUI(UI)
         AutoTackleConfig.ManualButton = uiElements.AutoTackleManualButton:GetState()
         AutoTackleConfig.ButtonScale = uiElements.AutoTackleButtonScale:GetValue()
         
+        -- AutoDribble Config
         AutoDribbleConfig.Enabled = uiElements.AutoDribbleEnabled:GetState()
+        AutoDribbleConfig.UseServerPosition = uiElements.AutoDribbleUseServerPosition:GetState()
+        AutoDribbleConfig.PredictiveDribble = uiElements.AutoDribblePredictiveDribble:GetState()
+        AutoDribbleConfig.SmartDribbleTiming = uiElements.AutoDribbleSmartDribbleTiming:GetState()
+        AutoDribbleConfig.DribbleReactionTime = uiElements.AutoDribbleDribbleReactionTime:GetValue()
+        AutoDribbleConfig.AccelerationFactor = uiElements.AutoDribbleAccelerationFactor:GetValue()
         AutoDribbleConfig.MaxDribbleDistance = uiElements.AutoDribbleMaxDistance:GetValue()
         AutoDribbleConfig.DribbleActivationDistance = uiElements.AutoDribbleActivationDistance:GetValue()
         AutoDribbleConfig.PredictionTime = uiElements.AutoDribblePredictionTime:GetValue()
@@ -1586,6 +2001,7 @@ local function SetupUI(UI)
         AutoDribbleConfig.TacklePredictionTime = uiElements.AutoDribbleTacklePredictionTime:GetValue()
         AutoDribbleConfig.TackleAngleThreshold = uiElements.AutoDribbleTackleAngleThreshold:GetValue()
         
+        -- Debug Config
         DebugConfig.Enabled = uiElements.DebugEnabled:GetState()
         DebugConfig.MoveEnabled = uiElements.DebugMoveEnabled:GetState()
         
@@ -1616,7 +2032,9 @@ local function SetupUI(UI)
         end
         
         UpdateDebugVisibility()
-        notify("Syllinse", "Config synchronized!", true)
+        if notify then
+            notify("Syllinse", "Config synchronized!", true)
+        end
     end })
 end
 
@@ -1643,6 +2061,7 @@ function AutoDribbleTackleModule.Init(UI, coreParam, notifyFunc)
         DribbleCooldownList = {}
         PowerShootingPlayers = {}
         EagleEyeTimers = {}
+        AutoTackleStatus.TargetHistory = {}
         CurrentTargetOwner = nil
         
         if AutoTackleConfig.Enabled then
