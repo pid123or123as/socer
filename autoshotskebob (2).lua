@@ -972,8 +972,8 @@ local function SetupUI(UI)
         -- Reverse Compensation Slider
         uiElements.AutoShootReverseCompensation = UI.Sections.AutoShoot:Slider({ 
             Name = "Reverse Compensation", 
-            Minimum = 1.0, 
-            Maximum = 10.0, 
+            Minimum = 2.0, 
+            Maximum = 30.0, 
             Default = AutoShootReverseCompensation, 
             Precision = 1, 
             Callback = function(v) 
@@ -2613,3 +2613,4 @@ function AutoShootModule:Destroy()
 end
 
 return AutoShootModule
+
