@@ -962,6 +962,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootMaxDistance = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "AutoShootMaxDist")
         
@@ -974,6 +978,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootReverseCompensation = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "AutoShootReverseCompensation")
         
@@ -983,16 +991,25 @@ local function SetupUI(UI)
             Default = AutoShootSpoofPowerEnabled, 
             Callback = function(v) 
                 AutoShootSpoofPowerEnabled = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "AutoShootSpoofPowerEnabled")
         
-        -- Spoof Power Type Dropdown
+        -- Spoof Power Type Dropdown (Исправлено: Items -> Options, добавлен Required = true)
         uiElements.AutoShootSpoofPowerType = UI.Sections.AutoShoot:Dropdown({ 
             Name = "Spoof Power Type", 
             Default = AutoShootSpoofPowerType, 
-            Items = {"math.huge", "9999999", "100"}, 
+            Options = {"math.huge", "9999999", "100"}, 
+            Required = true,
             Callback = function(v) 
                 AutoShootSpoofPowerType = v
+                -- Обновляем значение для скрипта при изменении выпадающего списка
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "AutoShootSpoofPowerType")
         
@@ -1062,6 +1079,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootInset = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "AdvancedInset")
         
@@ -1076,6 +1097,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootGravity = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "AdvancedGravity")
         
@@ -1089,6 +1114,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 AutoShootMinPower = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "AdvancedMinPower")
         
@@ -1100,6 +1129,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 AutoShootMaxPower = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "AdvancedMaxPower")
         
@@ -1111,6 +1144,10 @@ local function SetupUI(UI)
             Precision = 3, 
             Callback = function(v) 
                 AutoShootPowerPerStud = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "AdvancedPowerPerStud")
         
@@ -1124,6 +1161,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootMaxHeight = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "AdvancedMaxHeight")
         
@@ -1147,6 +1188,10 @@ local function SetupUI(UI)
             Default = Attacks.SideRicochet.Enabled, 
             Callback = function(v) 
                 Attacks.SideRicochet.Enabled = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SideRicochetEnabled")
         
@@ -1158,6 +1203,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SideRicochet.MinDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SideRicochetMinDist")
         
@@ -1169,6 +1218,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SideRicochet.MaxDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SideRicochetMaxDist")
         
@@ -1180,6 +1233,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SideRicochet.Power = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SideRicochetPower")
         
@@ -1191,6 +1248,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SideRicochet.XMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SideRicochetXMult")
         
@@ -1202,6 +1263,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SideRicochet.HeightMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SideRicochetHeightMult")
         
@@ -1213,6 +1278,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SideRicochet.BaseHeightRange.Min = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SideRicochetBaseMin")
         
@@ -1224,6 +1293,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SideRicochet.BaseHeightRange.Max = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SideRicochetBaseMax")
         
@@ -1235,6 +1308,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SideRicochet.DerivationMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SideRicochetDerivationMult")
         
@@ -1243,6 +1320,10 @@ local function SetupUI(UI)
             Default = Attacks.SideRicochet.YReverse, 
             Callback = function(v) 
                 Attacks.SideRicochet.YReverse = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SideRicochetYReverse")
         
@@ -1256,6 +1337,10 @@ local function SetupUI(UI)
             Default = Attacks.CloseSpin.Enabled, 
             Callback = function(v) 
                 Attacks.CloseSpin.Enabled = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinEnabled")
         
@@ -1267,6 +1352,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.CloseSpin.MinDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinMinDist")
         
@@ -1278,6 +1367,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.CloseSpin.MaxDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinMaxDist")
         
@@ -1289,6 +1382,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.CloseSpin.Power = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinPower")
         
@@ -1300,6 +1397,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.CloseSpin.XMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinXMult")
         
@@ -1308,6 +1409,10 @@ local function SetupUI(UI)
             Default = Attacks.CloseSpin.Spin, 
             Callback = function(v) 
                 Attacks.CloseSpin.Spin = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinSpin")
         
@@ -1319,6 +1424,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.CloseSpin.HeightMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinHeightMult")
         
@@ -1330,6 +1439,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.CloseSpin.BaseHeightRange.Min = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinBaseMin")
         
@@ -1341,6 +1454,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.CloseSpin.BaseHeightRange.Max = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinBaseMax")
         
@@ -1352,6 +1469,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.CloseSpin.DerivationMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinDerivationMult")
         
@@ -1360,6 +1481,10 @@ local function SetupUI(UI)
             Default = Attacks.CloseSpin.YReverse, 
             Callback = function(v) 
                 Attacks.CloseSpin.YReverse = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "CloseSpinYReverse")
         
@@ -1373,6 +1498,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartCorner.Enabled, 
             Callback = function(v) 
                 Attacks.SmartCorner.Enabled = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCornerEnabled")
         
@@ -1384,6 +1513,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SmartCorner.MinDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCornerMinDist")
         
@@ -1395,6 +1528,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SmartCorner.MaxDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCornerMaxDist")
         
@@ -1406,6 +1543,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCorner.PowerMin = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCornerPowerMin")
         
@@ -1417,6 +1558,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCorner.XMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCornerXMult")
         
@@ -1428,6 +1573,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCorner.HeightMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCornerHeightMult")
         
@@ -1439,6 +1588,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCorner.BaseHeightRange.Min = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCornerBaseMin")
         
@@ -1450,6 +1603,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCorner.BaseHeightRange.Max = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCornerBaseMax")
         
@@ -1461,6 +1618,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCorner.DerivationMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCornerDerivationMult")
         
@@ -1469,6 +1630,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartCorner.YReverse, 
             Callback = function(v) 
                 Attacks.SmartCorner.YReverse = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCornerYReverse")
         
@@ -1482,6 +1647,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartCandle.Enabled, 
             Callback = function(v) 
                 Attacks.SmartCandle.Enabled = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleEnabled")
         
@@ -1493,6 +1662,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SmartCandle.MinDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMinDist")
         
@@ -1504,6 +1677,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SmartCandle.MaxDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMaxDist")
         
@@ -1515,6 +1692,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandle.Power = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandlePower")
         
@@ -1526,6 +1707,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandle.XMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleXMult")
         
@@ -1534,6 +1719,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartCandle.Spin, 
             Callback = function(v) 
                 Attacks.SmartCandle.Spin = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleSpin")
         
@@ -1545,6 +1734,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandle.HeightMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleHeightMult")
         
@@ -1556,6 +1749,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandle.BaseHeightRange.Min = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleBaseMin")
         
@@ -1567,6 +1764,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandle.BaseHeightRange.Max = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleBaseMax")
         
@@ -1578,6 +1779,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandle.DerivationMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleDerivationMult")
         
@@ -1586,6 +1791,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartCandle.YReverse, 
             Callback = function(v) 
                 Attacks.SmartCandle.YReverse = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleYReverse")
         
@@ -1599,6 +1808,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartRicochet.Enabled, 
             Callback = function(v) 
                 Attacks.SmartRicochet.Enabled = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetEnabled")
         
@@ -1610,6 +1823,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SmartRicochet.MinDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetMinDist")
         
@@ -1621,6 +1838,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SmartRicochet.MaxDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetMaxDist")
         
@@ -1632,6 +1853,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartRicochet.Power = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetPower")
         
@@ -1643,6 +1868,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartRicochet.XMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetXMult")
         
@@ -1651,6 +1880,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartRicochet.Spin, 
             Callback = function(v) 
                 Attacks.SmartRicochet.Spin = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetSpin")
         
@@ -1662,6 +1895,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartRicochet.HeightMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetHeightMult")
         
@@ -1673,6 +1910,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartRicochet.BaseHeightRange.Min = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetBaseMin")
         
@@ -1684,6 +1925,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartRicochet.BaseHeightRange.Max = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetBaseMax")
         
@@ -1695,6 +1940,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartRicochet.DerivationMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetDerivationMult")
         
@@ -1703,6 +1952,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartRicochet.YReverse, 
             Callback = function(v) 
                 Attacks.SmartRicochet.YReverse = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartRicochetYReverse")
         
@@ -1716,6 +1969,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartSpin.Enabled, 
             Callback = function(v) 
                 Attacks.SmartSpin.Enabled = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinEnabled")
         
@@ -1727,6 +1984,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SmartSpin.MinDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinMinDist")
         
@@ -1738,6 +1999,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SmartSpin.MaxDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinMaxDist")
         
@@ -1749,6 +2014,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartSpin.PowerAdd = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinPowerAdd")
         
@@ -1760,6 +2029,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartSpin.XMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinXMult")
         
@@ -1768,6 +2041,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartSpin.Spin, 
             Callback = function(v) 
                 Attacks.SmartSpin.Spin = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinSpin")
         
@@ -1779,6 +2056,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartSpin.HeightMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinHeightMult")
         
@@ -1790,6 +2071,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartSpin.BaseHeightRange.Min = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinBaseMin")
         
@@ -1801,6 +2086,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartSpin.BaseHeightRange.Max = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinBaseMax")
         
@@ -1812,6 +2101,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartSpin.DerivationMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinDerivationMult")
         
@@ -1820,6 +2113,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartSpin.YReverse, 
             Callback = function(v) 
                 Attacks.SmartSpin.YReverse = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartSpinYReverse")
         
@@ -1833,6 +2130,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartCandleMid.Enabled, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.Enabled = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidEnabled")
         
@@ -1844,6 +2145,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.MinDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidMinDist")
         
@@ -1855,6 +2160,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.MaxDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidMaxDist")
         
@@ -1866,6 +2175,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.PowerAdd = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidPowerAdd")
         
@@ -1877,6 +2190,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.XMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidXMult")
         
@@ -1885,6 +2202,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartCandleMid.Spin, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.Spin = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidSpin")
         
@@ -1896,6 +2217,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.HeightMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidHeightMult")
         
@@ -1907,6 +2232,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.BaseHeightRange.Min = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidBaseMin")
         
@@ -1918,6 +2247,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.BaseHeightRange.Max = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidBaseMax")
         
@@ -1929,6 +2262,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.DerivationMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidDerivationMult")
         
@@ -1937,6 +2274,10 @@ local function SetupUI(UI)
             Default = Attacks.SmartCandleMid.YReverse, 
             Callback = function(v) 
                 Attacks.SmartCandleMid.YReverse = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "SmartCandleMidYReverse")
         
@@ -1950,6 +2291,10 @@ local function SetupUI(UI)
             Default = Attacks.FarSmartCandle.Enabled, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.Enabled = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandleEnabled")
         
@@ -1961,6 +2306,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.MinDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandleMinDist")
         
@@ -1972,6 +2321,10 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.MaxDist = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandleMaxDist")
         
@@ -1983,6 +2336,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.Power = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandlePower")
         
@@ -1994,6 +2351,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.XMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandleXMult")
         
@@ -2002,6 +2363,10 @@ local function SetupUI(UI)
             Default = Attacks.FarSmartCandle.Spin, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.Spin = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandleSpin")
         
@@ -2013,6 +2378,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.HeightMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandleHeightMult")
         
@@ -2024,6 +2393,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.BaseHeightRange.Min = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandleBaseMin")
         
@@ -2035,6 +2408,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.BaseHeightRange.Max = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandleBaseMax")
         
@@ -2046,6 +2423,10 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.DerivationMult = v
+                -- Обновляем значение для скрипта при изменении слайдера
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandleDerivationMult")
         
@@ -2054,9 +2435,151 @@ local function SetupUI(UI)
             Default = Attacks.FarSmartCandle.YReverse, 
             Callback = function(v) 
                 Attacks.FarSmartCandle.YReverse = v
+                -- Обновляем значение для скрипта при изменении переключателя
+                if AutoShootEnabled then
+                    CalculateTarget()
+                end
             end
         }, "FarSmartCandleYReverse")
     end
+end
+
+-- === ФУНКЦИИ ДЛЯ ЗАГРУЗКИ/СОХРАНЕНИЯ КОНФИГА ===
+local function ApplyConfigToUI(config)
+    -- Обновляем основные переменные
+    AutoShootEnabled = config.AutoShootEnabled or AutoShootEnabled
+    AutoShootLegit = config.AutoShootLegit or AutoShootLegit
+    AutoShootManualShot = config.AutoShootManualShot or AutoShootManualShot
+    AutoShootShootKey = config.AutoShootShootKey or AutoShootShootKey
+    AutoShootMaxDistance = config.AutoShootMaxDistance or AutoShootMaxDistance
+    AutoShootInset = config.AutoShootInset or AutoShootInset
+    AutoShootGravity = config.AutoShootGravity or AutoShootGravity
+    AutoShootMinPower = config.AutoShootMinPower or AutoShootMinPower
+    AutoShootMaxPower = config.AutoShootMaxPower or AutoShootMaxPower
+    AutoShootPowerPerStud = config.AutoShootPowerPerStud or AutoShootPowerPerStud
+    AutoShootMaxHeight = config.AutoShootMaxHeight or AutoShootMaxHeight
+    AutoShootDebugText = config.AutoShootDebugText or AutoShootDebugText
+    AutoShootManualButton = config.AutoShootManualButton or AutoShootManualButton
+    AutoShootButtonScale = config.AutoShootButtonScale or AutoShootButtonScale
+    AutoShootReverseCompensation = config.AutoShootReverseCompensation or AutoShootReverseCompensation
+    AutoShootSpoofPowerEnabled = config.AutoShootSpoofPowerEnabled or AutoShootSpoofPowerEnabled
+    AutoShootSpoofPowerType = config.AutoShootSpoofPowerType or AutoShootSpoofPowerType
+    
+    AutoPickupEnabled = config.AutoPickupEnabled or AutoPickupEnabled
+    AutoPickupDist = config.AutoPickupDist or AutoPickupDist
+    AutoPickupSpoofValue = config.AutoPickupSpoofValue or AutoPickupSpoofValue
+    
+    -- Обновляем атаки
+    if config.Attacks then
+        for attackName, attackConfig in pairs(config.Attacks) do
+            if Attacks[attackName] then
+                for key, value in pairs(attackConfig) do
+                    if Attacks[attackName][key] ~= nil then
+                        if key == "BaseHeightRange" then
+                            Attacks[attackName][key].Min = value.Min or Attacks[attackName][key].Min
+                            Attacks[attackName][key].Max = value.Max or Attacks[attackName][key].Max
+                        else
+                            Attacks[attackName][key] = value
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Обновляем UI элементы
+    for elementName, element in pairs(uiElements) do
+        if config[elementName] ~= nil then
+            if element.Set then
+                element:Set(config[elementName])
+            elseif element.SetValue then
+                element:SetValue(config[elementName])
+            end
+        end
+    end
+    
+    -- Применяем изменения к скрипту
+    if AutoShootEnabled then
+        AutoShoot.Start()
+    else
+        AutoShoot.Stop()
+    end
+    
+    if AutoPickupEnabled then
+        AutoPickup.Start()
+    else
+        AutoPickup.Stop()
+    end
+    
+    -- Обновляем отладочный текст
+    AutoShoot.SetDebugText(AutoShootDebugText)
+    
+    -- Обновляем ручную кнопку
+    ToggleManualButton(AutoShootManualButton)
+    
+    -- Обновляем текст режима
+    UpdateModeText()
+    
+    -- Пересчитываем цель
+    if AutoShootEnabled then
+        CalculateTarget()
+    end
+    
+    notify("Config", "Configuration loaded successfully", true)
+end
+
+local function GetCurrentConfig()
+    local config = {}
+    
+    -- Сохраняем основные настройки
+    config.AutoShootEnabled = AutoShootEnabled
+    config.AutoShootLegit = AutoShootLegit
+    config.AutoShootManualShot = AutoShootManualShot
+    config.AutoShootShootKey = AutoShootShootKey
+    config.AutoShootMaxDistance = AutoShootMaxDistance
+    config.AutoShootInset = AutoShootInset
+    config.AutoShootGravity = AutoShootGravity
+    config.AutoShootMinPower = AutoShootMinPower
+    config.AutoShootMaxPower = AutoShootMaxPower
+    config.AutoShootPowerPerStud = AutoShootPowerPerStud
+    config.AutoShootMaxHeight = AutoShootMaxHeight
+    config.AutoShootDebugText = AutoShootDebugText
+    config.AutoShootManualButton = AutoShootManualButton
+    config.AutoShootButtonScale = AutoShootButtonScale
+    config.AutoShootReverseCompensation = AutoShootReverseCompensation
+    config.AutoShootSpoofPowerEnabled = AutoShootSpoofPowerEnabled
+    config.AutoShootSpoofPowerType = AutoShootSpoofPowerType
+    
+    config.AutoPickupEnabled = AutoPickupEnabled
+    config.AutoPickupDist = AutoPickupDist
+    config.AutoPickupSpoofValue = AutoPickupSpoofValue
+    
+    -- Сохраняем настройки атак
+    config.Attacks = {}
+    for attackName, attackConfig in pairs(Attacks) do
+        config.Attacks[attackName] = {}
+        for key, value in pairs(attackConfig) do
+            if key == "BaseHeightRange" then
+                config.Attacks[attackName][key] = {
+                    Min = value.Min,
+                    Max = value.Max
+                }
+            else
+                config.Attacks[attackName][key] = value
+            end
+        end
+    end
+    
+    -- Сохраняем значения UI элементов
+    for elementName, element in pairs(uiElements) do
+        if element.GetValue then
+            config[elementName] = element:GetValue()
+        elseif element.Get then
+            config[elementName] = element:Get()
+        end
+    end
+    
+    return config
 end
 
 -- === МОДУЛЬ ===
@@ -2064,6 +2587,10 @@ local AutoShootModule = {}
 function AutoShootModule.Init(UI, coreParam, notifyFunc)
     notify = notifyFunc
     SetupUI(UI)
+    
+    -- Экспортируем функции для работы с конфигами
+    AutoShootModule.ApplyConfig = ApplyConfigToUI
+    AutoShootModule.GetCurrentConfig = GetCurrentConfig
     
     LocalPlayer.CharacterAdded:Connect(function(newChar)
         task.wait(1)
