@@ -2064,327 +2064,325 @@ end
 local AutoShootModule = {}
 function AutoShootModule.Init(UI, coreParam, notifyFunc)
     notify = notifyFunc
-    
-    -- Функция для синхронизации значений из UI с переменными скрипта
     local function SynchronizeConfigValues()
         if not uiElements then return end
         
         -- Синхронизируем основные значения из UI элементов (слайдеры)
-        if uiElements.AutoShootMaxDist and uiElements.AutoShootMaxDist:GetValue then
+        if uiElements.AutoShootMaxDist and uiElements.AutoShootMaxDist.GetValue then
             local uiValue = uiElements.AutoShootMaxDist:GetValue()
             if uiValue ~= AutoShootMaxDistance then
                 AutoShootMaxDistance = uiValue
             end
         end
         
-        if uiElements.AdvancedInset and uiElements.AdvancedInset:GetValue then
+        if uiElements.AdvancedInset and uiElements.AdvancedInset.GetValue then
             AutoShootInset = uiElements.AdvancedInset:GetValue()
         end
         
-        if uiElements.AdvancedGravity and uiElements.AdvancedGravity:GetValue then
+        if uiElements.AdvancedGravity and uiElements.AdvancedGravity.GetValue then
             AutoShootGravity = uiElements.AdvancedGravity:GetValue()
         end
         
-        if uiElements.AdvancedMinPower and uiElements.AdvancedMinPower:GetValue then
+        if uiElements.AdvancedMinPower and uiElements.AdvancedMinPower.GetValue then
             AutoShootMinPower = uiElements.AdvancedMinPower:GetValue()
         end
         
-        if uiElements.AdvancedMaxPower and uiElements.AdvancedMaxPower:GetValue then
+        if uiElements.AdvancedMaxPower and uiElements.AdvancedMaxPower.GetValue then
             AutoShootMaxPower = uiElements.AdvancedMaxPower:GetValue()
         end
         
-        if uiElements.AdvancedPowerPerStud and uiElements.AdvancedPowerPerStud:GetValue then
+        if uiElements.AdvancedPowerPerStud and uiElements.AdvancedPowerPerStud.GetValue then
             AutoShootPowerPerStud = uiElements.AdvancedPowerPerStud:GetValue()
         end
         
-        if uiElements.AdvancedMaxHeight and uiElements.AdvancedMaxHeight:GetValue then
+        if uiElements.AdvancedMaxHeight and uiElements.AdvancedMaxHeight.GetValue then
             AutoShootMaxHeight = uiElements.AdvancedMaxHeight:GetValue()
         end
         
-        if uiElements.AutoShootReverseCompensation and uiElements.AutoShootReverseCompensation:GetValue then
+        if uiElements.AutoShootReverseCompensation and uiElements.AutoShootReverseCompensation.GetValue then
             AutoShootReverseCompensation = uiElements.AutoShootReverseCompensation:GetValue()
         end
         
         -- Синхронизируем AutoPickup значения
-        if uiElements.AutoPickupDist and uiElements.AutoPickupDist:GetValue then
+        if uiElements.AutoPickupDist and uiElements.AutoPickupDist.GetValue then
             AutoPickupDist = uiElements.AutoPickupDist:GetValue()
         end
         
-        if uiElements.AutoPickupSpoof and uiElements.AutoPickupSpoof:GetValue then
+        if uiElements.AutoPickupSpoof and uiElements.AutoPickupSpoof.GetValue then
             AutoPickupSpoofValue = uiElements.AutoPickupSpoof:GetValue()
         end
         
-        -- Синхронизируем значения атак
-        if uiElements.SideRicochetEnabled and uiElements.SideRicochetEnabled:GetState then
+        -- Синхронизируем значения атак SideRicochet
+        if uiElements.SideRicochetEnabled and uiElements.SideRicochetEnabled.GetState then
             Attacks.SideRicochet.Enabled = uiElements.SideRicochetEnabled:GetState()
         end
-        if uiElements.SideRicochetMinDist and uiElements.SideRicochetMinDist:GetValue then
+        if uiElements.SideRicochetMinDist and uiElements.SideRicochetMinDist.GetValue then
             Attacks.SideRicochet.MinDist = uiElements.SideRicochetMinDist:GetValue()
         end
-        if uiElements.SideRicochetMaxDist and uiElements.SideRicochetMaxDist:GetValue then
+        if uiElements.SideRicochetMaxDist and uiElements.SideRicochetMaxDist.GetValue then
             Attacks.SideRicochet.MaxDist = uiElements.SideRicochetMaxDist:GetValue()
         end
-        if uiElements.SideRicochetPower and uiElements.SideRicochetPower:GetValue then
+        if uiElements.SideRicochetPower and uiElements.SideRicochetPower.GetValue then
             Attacks.SideRicochet.Power = uiElements.SideRicochetPower:GetValue()
         end
-        if uiElements.SideRicochetXMult and uiElements.SideRicochetXMult:GetValue then
+        if uiElements.SideRicochetXMult and uiElements.SideRicochetXMult.GetValue then
             Attacks.SideRicochet.XMult = uiElements.SideRicochetXMult:GetValue()
         end
-        if uiElements.SideRicochetHeightMult and uiElements.SideRicochetHeightMult:GetValue then
+        if uiElements.SideRicochetHeightMult and uiElements.SideRicochetHeightMult.GetValue then
             Attacks.SideRicochet.HeightMult = uiElements.SideRicochetHeightMult:GetValue()
         end
-        if uiElements.SideRicochetBaseMin and uiElements.SideRicochetBaseMin:GetValue then
+        if uiElements.SideRicochetBaseMin and uiElements.SideRicochetBaseMin.GetValue then
             Attacks.SideRicochet.BaseHeightRange.Min = uiElements.SideRicochetBaseMin:GetValue()
         end
-        if uiElements.SideRicochetBaseMax and uiElements.SideRicochetBaseMax:GetValue then
+        if uiElements.SideRicochetBaseMax and uiElements.SideRicochetBaseMax.GetValue then
             Attacks.SideRicochet.BaseHeightRange.Max = uiElements.SideRicochetBaseMax:GetValue()
         end
-        if uiElements.SideRicochetDerivationMult and uiElements.SideRicochetDerivationMult:GetValue then
+        if uiElements.SideRicochetDerivationMult and uiElements.SideRicochetDerivationMult.GetValue then
             Attacks.SideRicochet.DerivationMult = uiElements.SideRicochetDerivationMult:GetValue()
         end
-        if uiElements.SideRicochetYReverse and uiElements.SideRicochetYReverse:GetState then
+        if uiElements.SideRicochetYReverse and uiElements.SideRicochetYReverse.GetState then
             Attacks.SideRicochet.YReverse = uiElements.SideRicochetYReverse:GetState()
         end
         
         -- CloseSpin
-        if uiElements.CloseSpinEnabled and uiElements.CloseSpinEnabled:GetState then
+        if uiElements.CloseSpinEnabled and uiElements.CloseSpinEnabled.GetState then
             Attacks.CloseSpin.Enabled = uiElements.CloseSpinEnabled:GetState()
         end
-        if uiElements.CloseSpinMinDist and uiElements.CloseSpinMinDist:GetValue then
+        if uiElements.CloseSpinMinDist and uiElements.CloseSpinMinDist.GetValue then
             Attacks.CloseSpin.MinDist = uiElements.CloseSpinMinDist:GetValue()
         end
-        if uiElements.CloseSpinMaxDist and uiElements.CloseSpinMaxDist:GetValue then
+        if uiElements.CloseSpinMaxDist and uiElements.CloseSpinMaxDist.GetValue then
             Attacks.CloseSpin.MaxDist = uiElements.CloseSpinMaxDist:GetValue()
         end
-        if uiElements.CloseSpinPower and uiElements.CloseSpinPower:GetValue then
+        if uiElements.CloseSpinPower and uiElements.CloseSpinPower.GetValue then
             Attacks.CloseSpin.Power = uiElements.CloseSpinPower:GetValue()
         end
-        if uiElements.CloseSpinXMult and uiElements.CloseSpinXMult:GetValue then
+        if uiElements.CloseSpinXMult and uiElements.CloseSpinXMult.GetValue then
             Attacks.CloseSpin.XMult = uiElements.CloseSpinXMult:GetValue()
         end
-        if uiElements.CloseSpinSpin and uiElements.CloseSpinSpin:GetState then
+        if uiElements.CloseSpinSpin and uiElements.CloseSpinSpin.GetState then
             Attacks.CloseSpin.Spin = uiElements.CloseSpinSpin:GetState()
         end
-        if uiElements.CloseSpinHeightMult and uiElements.CloseSpinHeightMult:GetValue then
+        if uiElements.CloseSpinHeightMult and uiElements.CloseSpinHeightMult.GetValue then
             Attacks.CloseSpin.HeightMult = uiElements.CloseSpinHeightMult:GetValue()
         end
-        if uiElements.CloseSpinBaseMin and uiElements.CloseSpinBaseMin:GetValue then
+        if uiElements.CloseSpinBaseMin and uiElements.CloseSpinBaseMin.GetValue then
             Attacks.CloseSpin.BaseHeightRange.Min = uiElements.CloseSpinBaseMin:GetValue()
         end
-        if uiElements.CloseSpinBaseMax and uiElements.CloseSpinBaseMax:GetValue then
+        if uiElements.CloseSpinBaseMax and uiElements.CloseSpinBaseMax.GetValue then
             Attacks.CloseSpin.BaseHeightRange.Max = uiElements.CloseSpinBaseMax:GetValue()
         end
-        if uiElements.CloseSpinDerivationMult and uiElements.CloseSpinDerivationMult:GetValue then
+        if uiElements.CloseSpinDerivationMult and uiElements.CloseSpinDerivationMult.GetValue then
             Attacks.CloseSpin.DerivationMult = uiElements.CloseSpinDerivationMult:GetValue()
         end
-        if uiElements.CloseSpinYReverse and uiElements.CloseSpinYReverse:GetState then
+        if uiElements.CloseSpinYReverse and uiElements.CloseSpinYReverse.GetState then
             Attacks.CloseSpin.YReverse = uiElements.CloseSpinYReverse:GetState()
         end
         
         -- SmartCorner
-        if uiElements.SmartCornerEnabled and uiElements.SmartCornerEnabled:GetState then
+        if uiElements.SmartCornerEnabled and uiElements.SmartCornerEnabled.GetState then
             Attacks.SmartCorner.Enabled = uiElements.SmartCornerEnabled:GetState()
         end
-        if uiElements.SmartCornerMinDist and uiElements.SmartCornerMinDist:GetValue then
+        if uiElements.SmartCornerMinDist and uiElements.SmartCornerMinDist.GetValue then
             Attacks.SmartCorner.MinDist = uiElements.SmartCornerMinDist:GetValue()
         end
-        if uiElements.SmartCornerMaxDist and uiElements.SmartCornerMaxDist:GetValue then
+        if uiElements.SmartCornerMaxDist and uiElements.SmartCornerMaxDist.GetValue then
             Attacks.SmartCorner.MaxDist = uiElements.SmartCornerMaxDist:GetValue()
         end
-        if uiElements.SmartCornerPowerMin and uiElements.SmartCornerPowerMin:GetValue then
+        if uiElements.SmartCornerPowerMin and uiElements.SmartCornerPowerMin.GetValue then
             Attacks.SmartCorner.PowerMin = uiElements.SmartCornerPowerMin:GetValue()
         end
-        if uiElements.SmartCornerXMult and uiElements.SmartCornerXMult:GetValue then
+        if uiElements.SmartCornerXMult and uiElements.SmartCornerXMult.GetValue then
             Attacks.SmartCorner.XMult = uiElements.SmartCornerXMult:GetValue()
         end
-        if uiElements.SmartCornerHeightMult and uiElements.SmartCornerHeightMult:GetValue then
+        if uiElements.SmartCornerHeightMult and uiElements.SmartCornerHeightMult.GetValue then
             Attacks.SmartCorner.HeightMult = uiElements.SmartCornerHeightMult:GetValue()
         end
-        if uiElements.SmartCornerBaseMin and uiElements.SmartCornerBaseMin:GetValue then
+        if uiElements.SmartCornerBaseMin and uiElements.SmartCornerBaseMin.GetValue then
             Attacks.SmartCorner.BaseHeightRange.Min = uiElements.SmartCornerBaseMin:GetValue()
         end
-        if uiElements.SmartCornerBaseMax and uiElements.SmartCornerBaseMax:GetValue then
+        if uiElements.SmartCornerBaseMax and uiElements.SmartCornerBaseMax.GetValue then
             Attacks.SmartCorner.BaseHeightRange.Max = uiElements.SmartCornerBaseMax:GetValue()
         end
-        if uiElements.SmartCornerDerivationMult and uiElements.SmartCornerDerivationMult:GetValue then
+        if uiElements.SmartCornerDerivationMult and uiElements.SmartCornerDerivationMult.GetValue then
             Attacks.SmartCorner.DerivationMult = uiElements.SmartCornerDerivationMult:GetValue()
         end
-        if uiElements.SmartCornerYReverse and uiElements.SmartCornerYReverse:GetState then
+        if uiElements.SmartCornerYReverse and uiElements.SmartCornerYReverse.GetState then
             Attacks.SmartCorner.YReverse = uiElements.SmartCornerYReverse:GetState()
         end
         
         -- SmartCandle
-        if uiElements.SmartCandleEnabled and uiElements.SmartCandleEnabled:GetState then
+        if uiElements.SmartCandleEnabled and uiElements.SmartCandleEnabled.GetState then
             Attacks.SmartCandle.Enabled = uiElements.SmartCandleEnabled:GetState()
         end
-        if uiElements.SmartCandleMinDist and uiElements.SmartCandleMinDist:GetValue then
+        if uiElements.SmartCandleMinDist and uiElements.SmartCandleMinDist.GetValue then
             Attacks.SmartCandle.MinDist = uiElements.SmartCandleMinDist:GetValue()
         end
-        if uiElements.SmartCandleMaxDist and uiElements.SmartCandleMaxDist:GetValue then
+        if uiElements.SmartCandleMaxDist and uiElements.SmartCandleMaxDist.GetValue then
             Attacks.SmartCandle.MaxDist = uiElements.SmartCandleMaxDist:GetValue()
         end
-        if uiElements.SmartCandlePower and uiElements.SmartCandlePower:GetValue then
+        if uiElements.SmartCandlePower and uiElements.SmartCandlePower.GetValue then
             Attacks.SmartCandle.Power = uiElements.SmartCandlePower:GetValue()
         end
-        if uiElements.SmartCandleXMult and uiElements.SmartCandleXMult:GetValue then
+        if uiElements.SmartCandleXMult and uiElements.SmartCandleXMult.GetValue then
             Attacks.SmartCandle.XMult = uiElements.SmartCandleXMult:GetValue()
         end
-        if uiElements.SmartCandleSpin and uiElements.SmartCandleSpin:GetState then
+        if uiElements.SmartCandleSpin and uiElements.SmartCandleSpin.GetState then
             Attacks.SmartCandle.Spin = uiElements.SmartCandleSpin:GetState()
         end
-        if uiElements.SmartCandleHeightMult and uiElements.SmartCandleHeightMult:GetValue then
+        if uiElements.SmartCandleHeightMult and uiElements.SmartCandleHeightMult.GetValue then
             Attacks.SmartCandle.HeightMult = uiElements.SmartCandleHeightMult:GetValue()
         end
-        if uiElements.SmartCandleBaseMin and uiElements.SmartCandleBaseMin:GetValue then
+        if uiElements.SmartCandleBaseMin and uiElements.SmartCandleBaseMin.GetValue then
             Attacks.SmartCandle.BaseHeightRange.Min = uiElements.SmartCandleBaseMin:GetValue()
         end
-        if uiElements.SmartCandleBaseMax and uiElements.SmartCandleBaseMax:GetValue then
+        if uiElements.SmartCandleBaseMax and uiElements.SmartCandleBaseMax.GetValue then
             Attacks.SmartCandle.BaseHeightRange.Max = uiElements.SmartCandleBaseMax:GetValue()
         end
-        if uiElements.SmartCandleDerivationMult and uiElements.SmartCandleDerivationMult:GetValue then
+        if uiElements.SmartCandleDerivationMult and uiElements.SmartCandleDerivationMult.GetValue then
             Attacks.SmartCandle.DerivationMult = uiElements.SmartCandleDerivationMult:GetValue()
         end
-        if uiElements.SmartCandleYReverse and uiElements.SmartCandleYReverse:GetState then
+        if uiElements.SmartCandleYReverse and uiElements.SmartCandleYReverse.GetState then
             Attacks.SmartCandle.YReverse = uiElements.SmartCandleYReverse:GetState()
         end
         
         -- SmartRicochet
-        if uiElements.SmartRicochetEnabled and uiElements.SmartRicochetEnabled:GetState then
+        if uiElements.SmartRicochetEnabled and uiElements.SmartRicochetEnabled.GetState then
             Attacks.SmartRicochet.Enabled = uiElements.SmartRicochetEnabled:GetState()
         end
-        if uiElements.SmartRicochetMinDist and uiElements.SmartRicochetMinDist:GetValue then
+        if uiElements.SmartRicochetMinDist and uiElements.SmartRicochetMinDist.GetValue then
             Attacks.SmartRicochet.MinDist = uiElements.SmartRicochetMinDist:GetValue()
         end
-        if uiElements.SmartRicochetMaxDist and uiElements.SmartRicochetMaxDist:GetValue then
+        if uiElements.SmartRicochetMaxDist and uiElements.SmartRicochetMaxDist.GetValue then
             Attacks.SmartRicochet.MaxDist = uiElements.SmartRicochetMaxDist:GetValue()
         end
-        if uiElements.SmartRicochetPower and uiElements.SmartRicochetPower:GetValue then
+        if uiElements.SmartRicochetPower and uiElements.SmartRicochetPower.GetValue then
             Attacks.SmartRicochet.Power = uiElements.SmartRicochetPower:GetValue()
         end
-        if uiElements.SmartRicochetXMult and uiElements.SmartRicochetXMult:GetValue then
+        if uiElements.SmartRicochetXMult and uiElements.SmartRicochetXMult.GetValue then
             Attacks.SmartRicochet.XMult = uiElements.SmartRicochetXMult:GetValue()
         end
-        if uiElements.SmartRicochetSpin and uiElements.SmartRicochetSpin:GetState then
+        if uiElements.SmartRicochetSpin and uiElements.SmartRicochetSpin.GetState then
             Attacks.SmartRicochet.Spin = uiElements.SmartRicochetSpin:GetState()
         end
-        if uiElements.SmartRicochetHeightMult and uiElements.SmartRicochetHeightMult:GetValue then
+        if uiElements.SmartRicochetHeightMult and uiElements.SmartRicochetHeightMult.GetValue then
             Attacks.SmartRicochet.HeightMult = uiElements.SmartRicochetHeightMult:GetValue()
         end
-        if uiElements.SmartRicochetBaseMin and uiElements.SmartRicochetBaseMin:GetValue then
+        if uiElements.SmartRicochetBaseMin and uiElements.SmartRicochetBaseMin.GetValue then
             Attacks.SmartRicochet.BaseHeightRange.Min = uiElements.SmartRicochetBaseMin:GetValue()
         end
-        if uiElements.SmartRicochetBaseMax and uiElements.SmartRicochetBaseMax:GetValue then
+        if uiElements.SmartRicochetBaseMax and uiElements.SmartRicochetBaseMax.GetValue then
             Attacks.SmartRicochet.BaseHeightRange.Max = uiElements.SmartRicochetBaseMax:GetValue()
         end
-        if uiElements.SmartRicochetDerivationMult and uiElements.SmartRicochetDerivationMult:GetValue then
+        if uiElements.SmartRicochetDerivationMult and uiElements.SmartRicochetDerivationMult.GetValue then
             Attacks.SmartRicochet.DerivationMult = uiElements.SmartRicochetDerivationMult:GetValue()
         end
-        if uiElements.SmartRicochetYReverse and uiElements.SmartRicochetYReverse:GetState then
+        if uiElements.SmartRicochetYReverse and uiElements.SmartRicochetYReverse.GetState then
             Attacks.SmartRicochet.YReverse = uiElements.SmartRicochetYReverse:GetState()
         end
         
         -- SmartSpin
-        if uiElements.SmartSpinEnabled and uiElements.SmartSpinEnabled:GetState then
+        if uiElements.SmartSpinEnabled and uiElements.SmartSpinEnabled.GetState then
             Attacks.SmartSpin.Enabled = uiElements.SmartSpinEnabled:GetState()
         end
-        if uiElements.SmartSpinMinDist and uiElements.SmartSpinMinDist:GetValue then
+        if uiElements.SmartSpinMinDist and uiElements.SmartSpinMinDist.GetValue then
             Attacks.SmartSpin.MinDist = uiElements.SmartSpinMinDist:GetValue()
         end
-        if uiElements.SmartSpinMaxDist and uiElements.SmartSpinMaxDist:GetValue then
+        if uiElements.SmartSpinMaxDist and uiElements.SmartSpinMaxDist.GetValue then
             Attacks.SmartSpin.MaxDist = uiElements.SmartSpinMaxDist:GetValue()
         end
-        if uiElements.SmartSpinPowerAdd and uiElements.SmartSpinPowerAdd:GetValue then
+        if uiElements.SmartSpinPowerAdd and uiElements.SmartSpinPowerAdd.GetValue then
             Attacks.SmartSpin.PowerAdd = uiElements.SmartSpinPowerAdd:GetValue()
         end
-        if uiElements.SmartSpinXMult and uiElements.SmartSpinXMult:GetValue then
+        if uiElements.SmartSpinXMult and uiElements.SmartSpinXMult.GetValue then
             Attacks.SmartSpin.XMult = uiElements.SmartSpinXMult:GetValue()
         end
-        if uiElements.SmartSpinSpin and uiElements.SmartSpinSpin:GetState then
+        if uiElements.SmartSpinSpin and uiElements.SmartSpinSpin.GetState then
             Attacks.SmartSpin.Spin = uiElements.SmartSpinSpin:GetState()
         end
-        if uiElements.SmartSpinHeightMult and uiElements.SmartSpinHeightMult:GetValue then
+        if uiElements.SmartSpinHeightMult and uiElements.SmartSpinHeightMult.GetValue then
             Attacks.SmartSpin.HeightMult = uiElements.SmartSpinHeightMult:GetValue()
         end
-        if uiElements.SmartSpinBaseMin and uiElements.SmartSpinBaseMin:GetValue then
+        if uiElements.SmartSpinBaseMin and uiElements.SmartSpinBaseMin.GetValue then
             Attacks.SmartSpin.BaseHeightRange.Min = uiElements.SmartSpinBaseMin:GetValue()
         end
-        if uiElements.SmartSpinBaseMax and uiElements.SmartSpinBaseMax:GetValue then
+        if uiElements.SmartSpinBaseMax and uiElements.SmartSpinBaseMax.GetValue then
             Attacks.SmartSpin.BaseHeightRange.Max = uiElements.SmartSpinBaseMax:GetValue()
         end
-        if uiElements.SmartSpinDerivationMult and uiElements.SmartSpinDerivationMult:GetValue then
+        if uiElements.SmartSpinDerivationMult and uiElements.SmartSpinDerivationMult.GetValue then
             Attacks.SmartSpin.DerivationMult = uiElements.SmartSpinDerivationMult:GetValue()
         end
-        if uiElements.SmartSpinYReverse and uiElements.SmartSpinYReverse:GetState then
+        if uiElements.SmartSpinYReverse and uiElements.SmartSpinYReverse.GetState then
             Attacks.SmartSpin.YReverse = uiElements.SmartSpinYReverse:GetState()
         end
         
         -- SmartCandleMid
-        if uiElements.SmartCandleMidEnabled and uiElements.SmartCandleMidEnabled:GetState then
+        if uiElements.SmartCandleMidEnabled and uiElements.SmartCandleMidEnabled.GetState then
             Attacks.SmartCandleMid.Enabled = uiElements.SmartCandleMidEnabled:GetState()
         end
-        if uiElements.SmartCandleMidMinDist and uiElements.SmartCandleMidMinDist:GetValue then
+        if uiElements.SmartCandleMidMinDist and uiElements.SmartCandleMidMinDist.GetValue then
             Attacks.SmartCandleMid.MinDist = uiElements.SmartCandleMidMinDist:GetValue()
         end
-        if uiElements.SmartCandleMidMaxDist and uiElements.SmartCandleMidMaxDist:GetValue then
+        if uiElements.SmartCandleMidMaxDist and uiElements.SmartCandleMidMaxDist.GetValue then
             Attacks.SmartCandleMid.MaxDist = uiElements.SmartCandleMidMaxDist:GetValue()
         end
-        if uiElements.SmartCandleMidPowerAdd and uiElements.SmartCandleMidPowerAdd:GetValue then
+        if uiElements.SmartCandleMidPowerAdd and uiElements.SmartCandleMidPowerAdd.GetValue then
             Attacks.SmartCandleMid.PowerAdd = uiElements.SmartCandleMidPowerAdd:GetValue()
         end
-        if uiElements.SmartCandleMidXMult and uiElements.SmartCandleMidXMult:GetValue then
+        if uiElements.SmartCandleMidXMult and uiElements.SmartCandleMidXMult.GetValue then
             Attacks.SmartCandleMid.XMult = uiElements.SmartCandleMidXMult:GetValue()
         end
-        if uiElements.SmartCandleMidSpin and uiElements.SmartCandleMidSpin:GetState then
+        if uiElements.SmartCandleMidSpin and uiElements.SmartCandleMidSpin.GetState then
             Attacks.SmartCandleMid.Spin = uiElements.SmartCandleMidSpin:GetState()
         end
-        if uiElements.SmartCandleMidHeightMult and uiElements.SmartCandleMidHeightMult:GetValue then
+        if uiElements.SmartCandleMidHeightMult and uiElements.SmartCandleMidHeightMult.GetValue then
             Attacks.SmartCandleMid.HeightMult = uiElements.SmartCandleMidHeightMult:GetValue()
         end
-        if uiElements.SmartCandleMidBaseMin and uiElements.SmartCandleMidBaseMin:GetValue then
+        if uiElements.SmartCandleMidBaseMin and uiElements.SmartCandleMidBaseMin.GetValue then
             Attacks.SmartCandleMid.BaseHeightRange.Min = uiElements.SmartCandleMidBaseMin:GetValue()
         end
-        if uiElements.SmartCandleMidBaseMax and uiElements.SmartCandleMidBaseMax:GetValue then
+        if uiElements.SmartCandleMidBaseMax and uiElements.SmartCandleMidBaseMax.GetValue then
             Attacks.SmartCandleMid.BaseHeightRange.Max = uiElements.SmartCandleMidBaseMax:GetValue()
         end
-        if uiElements.SmartCandleMidDerivationMult and uiElements.SmartCandleMidDerivationMult:GetValue then
+        if uiElements.SmartCandleMidDerivationMult and uiElements.SmartCandleMidDerivationMult.GetValue then
             Attacks.SmartCandleMid.DerivationMult = uiElements.SmartCandleMidDerivationMult:GetValue()
         end
-        if uiElements.SmartCandleMidYReverse and uiElements.SmartCandleMidYReverse:GetState then
+        if uiElements.SmartCandleMidYReverse and uiElements.SmartCandleMidYReverse.GetState then
             Attacks.SmartCandleMid.YReverse = uiElements.SmartCandleMidYReverse:GetState()
         end
         
         -- FarSmartCandle
-        if uiElements.FarSmartCandleEnabled and uiElements.FarSmartCandleEnabled:GetState then
+        if uiElements.FarSmartCandleEnabled and uiElements.FarSmartCandleEnabled.GetState then
             Attacks.FarSmartCandle.Enabled = uiElements.FarSmartCandleEnabled:GetState()
         end
-        if uiElements.FarSmartCandleMinDist and uiElements.FarSmartCandleMinDist:GetValue then
+        if uiElements.FarSmartCandleMinDist and uiElements.FarSmartCandleMinDist.GetValue then
             Attacks.FarSmartCandle.MinDist = uiElements.FarSmartCandleMinDist:GetValue()
         end
-        if uiElements.FarSmartCandleMaxDist and uiElements.FarSmartCandleMaxDist:GetValue then
+        if uiElements.FarSmartCandleMaxDist and uiElements.FarSmartCandleMaxDist.GetValue then
             Attacks.FarSmartCandle.MaxDist = uiElements.FarSmartCandleMaxDist:GetValue()
         end
-        if uiElements.FarSmartCandlePower and uiElements.FarSmartCandlePower:GetValue then
+        if uiElements.FarSmartCandlePower and uiElements.FarSmartCandlePower.GetValue then
             Attacks.FarSmartCandle.Power = uiElements.FarSmartCandlePower:GetValue()
         end
-        if uiElements.FarSmartCandleXMult and uiElements.FarSmartCandleXMult:GetValue then
+        if uiElements.FarSmartCandleXMult and uiElements.FarSmartCandleXMult.GetValue then
             Attacks.FarSmartCandle.XMult = uiElements.FarSmartCandleXMult:GetValue()
         end
-        if uiElements.FarSmartCandleSpin and uiElements.FarSmartCandleSpin:GetState then
+        if uiElements.FarSmartCandleSpin and uiElements.FarSmartCandleSpin.GetState then
             Attacks.FarSmartCandle.Spin = uiElements.FarSmartCandleSpin:GetState()
         end
-        if uiElements.FarSmartCandleHeightMult and uiElements.FarSmartCandleHeightMult:GetValue then
+        if uiElements.FarSmartCandleHeightMult and uiElements.FarSmartCandleHeightMult.GetValue then
             Attacks.FarSmartCandle.HeightMult = uiElements.FarSmartCandleHeightMult:GetValue()
         end
-        if uiElements.FarSmartCandleBaseMin and uiElements.FarSmartCandleBaseMin:GetValue then
+        if uiElements.FarSmartCandleBaseMin and uiElements.FarSmartCandleBaseMin.GetValue then
             Attacks.FarSmartCandle.BaseHeightRange.Min = uiElements.FarSmartCandleBaseMin:GetValue()
         end
-        if uiElements.FarSmartCandleBaseMax and uiElements.FarSmartCandleBaseMax:GetValue then
+        if uiElements.FarSmartCandleBaseMax and uiElements.FarSmartCandleBaseMax.GetValue then
             Attacks.FarSmartCandle.BaseHeightRange.Max = uiElements.FarSmartCandleBaseMax:GetValue()
         end
-        if uiElements.FarSmartCandleDerivationMult and uiElements.FarSmartCandleDerivationMult:GetValue then
+        if uiElements.FarSmartCandleDerivationMult and uiElements.FarSmartCandleDerivationMult.GetValue then
             Attacks.FarSmartCandle.DerivationMult = uiElements.FarSmartCandleDerivationMult:GetValue()
         end
-        if uiElements.FarSmartCandleYReverse and uiElements.FarSmartCandleYReverse:GetState then
+        if uiElements.FarSmartCandleYReverse and uiElements.FarSmartCandleYReverse.GetState then
             Attacks.FarSmartCandle.YReverse = uiElements.FarSmartCandleYReverse:GetState()
         end
     end
