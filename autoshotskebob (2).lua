@@ -42,6 +42,9 @@ local AutoShootMaxHeight = 100.0
 local AutoShootDebugText = true
 local AutoShootManualButton = false
 local AutoShootButtonScale = 1.0
+local AutoShootReverseCompensation = 2.0 
+local AutoShootSpoofPowerEnabled = false 
+local AutoShootSpoofPowerType = "math.huge" 
 
 -- Параметры атак (БЕЗ ZOffset, с YReverse)
 local Attacks = {
@@ -318,10 +321,10 @@ local function CalculateTrajectoryHeight(dist, power, attackName, isLowShot)
         end
     end
     
-    -- Применяем YReverse - увеличиваем высоту в 2 раза и инвертируем
+    -- Применяем YReverse с ReverseCompensation
     if cfg.YReverse then
-        baseHeight = baseHeight * 2
-        baseHeight = -baseHeight
+        baseHeight = baseHeight * AutoShootReverseCompensation  -- Умножаем на компенсацию реверса
+        baseHeight = -baseHeight  -- Инвертируем
     end
     
     local timeToTarget = dist / 200
@@ -357,6 +360,22 @@ local LastShoot = 0
 local CanShoot = true
 local notify = function(title, text, success) 
     print("[" .. title .. "]: " .. text)
+end
+
+local function GetSpoofPowerValue()
+    if not AutoShootSpoofPowerEnabled then
+        return nil  -- Возвращаем nil, чтобы использовать нормальную силу
+    end
+    
+    if AutoShootSpoofPowerType == "math.huge" then
+        return math.huge
+    elseif AutoShootSpoofPowerType == "9999999" then
+        return 9999999
+    elseif AutoShootSpoofPowerType == "100" then
+        return 100
+    end
+    
+    return nil
 end
 
 local function GetTarget(dist, goalieX, goalieY, isAggressive, goaliePos, playerAngle)
@@ -501,7 +520,17 @@ local function GetTarget(dist, goalieX, goalieY, isAggressive, goaliePos, player
     table.sort(candidates, function(a, b) return a.score > b.score end)
     local selected = candidates[1]
     if not selected then return nil, "None", "None", 0 end
-    return selected.pos, selected.spin, selected.name .. " (" .. selected.targetType .. ")", selected.power, selected.noSpinPos
+    
+    -- Применяем спуф силы если включен
+    local finalPower = selected.power
+    if AutoShootSpoofPowerEnabled then
+        local spoofValue = GetSpoofPowerValue()
+        if spoofValue then
+            finalPower = spoofValue
+        end
+    end
+    
+    return selected.pos, selected.spin, selected.name .. " (" .. selected.targetType .. ")", finalPower, selected.noSpinPos
 end
 
 local function CalculateTarget()
@@ -624,8 +653,17 @@ local function SetupManualButton()
                             RShootAnim:Play()
                             task.delay(AnimationHoldTime, function() IsAnimating = false end)
                         end
+                        
+                        local powerToSend = CurrentPower
+                        if AutoShootSpoofPowerEnabled then
+                            local spoofValue = GetSpoofPowerValue()
+                            if spoofValue then
+                                powerToSend = spoofValue
+                            end
+                        end
+                        
                         local success = pcall(function()
-                            Shooter:FireServer(ShootDir, BallAttachment.CFrame, CurrentPower, ShootVel, false, false, CurrentSpin, nil, false)
+                            Shooter:FireServer(ShootDir, BallAttachment.CFrame, powerToSend, ShootVel, false, false, CurrentSpin, nil, false)
                         end)
                         if success then
                             notify("AutoShoot", "Manual Shoot", true)
@@ -706,8 +744,17 @@ AutoShoot.Start = function()
                 RShootAnim:Play()
                 task.delay(AnimationHoldTime, function() IsAnimating = false end)
             end
+            
+            local powerToSend = CurrentPower
+            if AutoShootSpoofPowerEnabled then
+                local spoofValue = GetSpoofPowerValue()
+                if spoofValue then
+                    powerToSend = spoofValue
+                end
+            end
+            
             pcall(function()
-                Shooter:FireServer(ShootDir, BallAttachment.CFrame, CurrentPower, ShootVel, false, false, CurrentSpin, nil, false)
+                Shooter:FireServer(ShootDir, BallAttachment.CFrame, powerToSend, ShootVel, false, false, CurrentSpin, nil, false)
             end)
             if Gui then
                 Gui.Status.Text = "AUTO SHOT! [" .. CurrentType .. "]"
@@ -730,8 +777,17 @@ AutoShoot.Start = function()
                         RShootAnim:Play()
                         task.delay(AnimationHoldTime, function() IsAnimating = false end)
                     end
+                    
+                    local powerToSend = CurrentPower
+                    if AutoShootSpoofPowerEnabled then
+                        local spoofValue = GetSpoofPowerValue()
+                        if spoofValue then
+                            powerToSend = spoofValue
+                        end
+                    end
+                    
                     local success = pcall(function()
-                        Shooter:FireServer(ShootDir, BallAttachment.CFrame, CurrentPower, ShootVel, false, false, CurrentSpin, nil, false)
+                        Shooter:FireServer(ShootDir, BallAttachment.CFrame, powerToSend, ShootVel, false, false, CurrentSpin, nil, false)
                     end)
                     if success then
                         notify("AutoShoot", "Manual Shoot", true)
@@ -909,6 +965,37 @@ local function SetupUI(UI)
             end
         }, "AutoShootMaxDist")
         
+        -- Reverse Compensation Slider
+        uiElements.AutoShootReverseCompensation = UI.Sections.AutoShoot:Slider({ 
+            Name = "Reverse Compensation", 
+            Minimum = 1.0, 
+            Maximum = 10.0, 
+            Default = AutoShootReverseCompensation, 
+            Precision = 1, 
+            Callback = function(v) 
+                AutoShootReverseCompensation = v
+            end
+        }, "AutoShootReverseCompensation")
+        
+        -- Spoof Power Toggle
+        uiElements.AutoShootSpoofPowerEnabled = UI.Sections.AutoShoot:Toggle({ 
+            Name = "Spoof Power", 
+            Default = AutoShootSpoofPowerEnabled, 
+            Callback = function(v) 
+                AutoShootSpoofPowerEnabled = v
+            end
+        }, "AutoShootSpoofPowerEnabled")
+        
+        -- Spoof Power Type Dropdown
+        uiElements.AutoShootSpoofPowerType = UI.Sections.AutoShoot:Dropdown({ 
+            Name = "Spoof Power Type", 
+            Default = AutoShootSpoofPowerType, 
+            Items = {"math.huge", "9999999", "100"}, 
+            Callback = function(v) 
+                AutoShootSpoofPowerType = v
+            end
+        }, "AutoShootSpoofPowerType")
+        
         uiElements.AutoShootDebugText = UI.Sections.AutoShoot:Toggle({ 
             Name = "Debug Text", 
             Default = AutoShootDebugText, 
@@ -1048,7 +1135,7 @@ local function SetupUI(UI)
         UI.Sections.Attacks:Divider()
         UI.Sections.Attacks:Paragraph({
             Header = "Information",
-            Body = "Min Dist - Minimum Distance for attack, Max Dist - Maximum Distance, X Mult - horizontal position multiplier (from center), Base Min/ Base Max - basic altitude range, DerivationMult - Prediction force of the ball deflection, Y Reverse - инвертирует высоту траектории и увеличивает её в 2 раза"
+            Body = "Min Dist - Minimum Distance for attack, Max Dist - Maximum Distance, X Mult - horizontal position multiplier (from center), Base Min/ Base Max - basic altitude range, DerivationMult - Prediction force of the ball deflection, Y Reverse - инвертирует высоту траектории и умножает её на Reverse Compensation"
         })
         UI.Sections.Attacks:Divider()
         
@@ -1976,79 +2063,7 @@ end
 local AutoShootModule = {}
 function AutoShootModule.Init(UI, coreParam, notifyFunc)
     notify = notifyFunc
-    
-    -- Функция для инициализации значений из UI
-    local function InitializeValuesFromUI()
-        -- Эти значения будут установлены при первом создании UI
-        -- UI библиотека автоматически загрузит сохраненные значения
-    end
-    
     SetupUI(UI)
-    
-    -- Запускаем таймер для проверки и обновления значений из UI
-    -- Это фиксит проблему с загрузкой конфига
-    local checkTimer = 0
-    local function CheckUIValues()
-        checkTimer = checkTimer + 1
-        
-        -- Проверяем и обновляем значения каждые 30 кадров (примерно 0.5 секунды)
-        if checkTimer % 30 == 0 then
-            -- Обновляем основные значения из UI элементов
-            if uiElements.AutoShootMaxDist then
-                local uiValue = uiElements.AutoShootMaxDist:GetValue()
-                if uiValue ~= AutoShootMaxDistance then
-                    AutoShootMaxDistance = uiValue
-                    notify("AutoShoot", "Max Distance updated from UI: " .. uiValue, true)
-                end
-            end
-            
-            -- Обновляем другие слайдеры аналогично
-            if uiElements.AdvancedInset then
-                AutoShootInset = uiElements.AdvancedInset:GetValue()
-            end
-            
-            if uiElements.AdvancedGravity then
-                AutoShootGravity = uiElements.AdvancedGravity:GetValue()
-            end
-            
-            if uiElements.AdvancedMinPower then
-                AutoShootMinPower = uiElements.AdvancedMinPower:GetValue()
-            end
-            
-            if uiElements.AdvancedMaxPower then
-                AutoShootMaxPower = uiElements.AdvancedMaxPower:GetValue()
-            end
-            
-            if uiElements.AdvancedPowerPerStud then
-                AutoShootPowerPerStud = uiElements.AdvancedPowerPerStud:GetValue()
-            end
-            
-            if uiElements.AdvancedMaxHeight then
-                AutoShootMaxHeight = uiElements.AdvancedMaxHeight:GetValue()
-            end
-            
-            -- Обновляем значения атак
-            if uiElements.SideRicochetMinDist then
-                Attacks.SideRicochet.MinDist = uiElements.SideRicochetMinDist:GetValue()
-                Attacks.SideRicochet.MaxDist = uiElements.SideRicochetMaxDist:GetValue()
-                Attacks.SideRicochet.Power = uiElements.SideRicochetPower:GetValue()
-                Attacks.SideRicochet.XMult = uiElements.SideRicochetXMult:GetValue()
-                Attacks.SideRicochet.HeightMult = uiElements.SideRicochetHeightMult:GetValue()
-                Attacks.SideRicochet.BaseHeightRange.Min = uiElements.SideRicochetBaseMin:GetValue()
-                Attacks.SideRicochet.BaseHeightRange.Max = uiElements.SideRicochetBaseMax:GetValue()
-                Attacks.SideRicochet.DerivationMult = uiElements.SideRicochetDerivationMult:GetValue()
-                Attacks.SideRicochet.YReverse = uiElements.SideRicochetYReverse:GetState()
-            end
-            
-            -- Аналогично для других атак...
-        end
-    end
-    
-    -- Подключаем проверку значений
-    local heartbeatConnection
-    heartbeatConnection = RunService.Heartbeat:Connect(function()
-        CheckUIValues()
-    end)
     
     LocalPlayer.CharacterAdded:Connect(function(newChar)
         task.wait(1)
@@ -2063,18 +2078,11 @@ function AutoShootModule.Init(UI, coreParam, notifyFunc)
         if AutoShootEnabled then AutoShoot.Start() end
         if AutoPickupEnabled then AutoPickup.Start() end
     end)
-    
-    -- Сохраняем соединение для очистки
-    AutoShootModule.HeartbeatConnection = heartbeatConnection
 end
 
 function AutoShootModule:Destroy()
     AutoShoot.Stop()
     AutoPickup.Stop()
-    if self.HeartbeatConnection then
-        self.HeartbeatConnection:Disconnect()
-        self.HeartbeatConnection = nil
-    end
 end
 
 return AutoShootModule
