@@ -1,4 +1,4 @@
--- [v2.8] AUTO DRIBBLE + AUTO TACKLE + ИСПРАВЛЕННЫЙ PREDICT И СИНХРОНИЗАЦИЯ
+-- [v2.8] AUTO DRIBBLE + AUTO TACKLE + ИСПРАВЛЕННЫЙ
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -120,8 +120,7 @@ local AutoTackleStatus = {
     LastPredictionUpdate = 0,
     PredictionCache = {},
     ServerPosition = Vector3.new(0, 0, 0), -- Серверная позиция для AutoTackle
-    LastServerPosUpdate = 0,
-    LastPredictedPosition = Vector3.new(0, 0, 0) -- Последняя предиктнутая позиция
+    LastServerPosUpdate = 0
 }
 local AutoDribbleStatus = {
     Running = false,
@@ -247,12 +246,61 @@ local function SetupGUI()
     Gui.DribbleTacklingLabel.Text = "Nearest: None"
     Gui.AutoDribbleLabel.Text = "AutoDribble: Idle"
     
+    -- Создаем 3D кольца для цели
     for i = 1, 24 do
         local line = Drawing.new("Line")
         line.Thickness = 3
         line.Color = Color3.fromRGB(255, 0, 0)
         line.Visible = false
         table.insert(Gui.TargetRingLines, line)
+    end
+end
+
+-- Функция для создания 3D кольца вокруг цели
+local function CreateTargetRing()
+    local ring = {}
+    for i = 1, 24 do
+        local line = Drawing.new("Line")
+        line.Thickness = 3
+        line.Color = Color3.fromRGB(255, 0, 0)
+        line.Visible = false
+        table.insert(ring, line)
+    end
+    return ring
+end
+
+-- Обновление 3D кольца вокруг цели
+local function UpdateTargetRing(ball, distance)
+    for _, line in ipairs(Gui.TargetRingLines) do line.Visible = false end
+    if not ball or not ball.Parent then return end
+    if not AutoTackleConfig.Enabled then return end
+    
+    local center = ball.Position - Vector3.new(0, 0.5, 0)
+    local radius = 2
+    local segments = #Gui.TargetRingLines
+    local points = {}
+    for i = 1, segments do
+        local angle = (i - 1) * 2 * math.pi / segments
+        local point = center + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+        table.insert(points, point)
+    end
+    for i, line in ipairs(Gui.TargetRingLines) do
+        local startPoint = points[i]
+        local endPoint = points[i % segments + 1]
+        local startScreen, startOnScreen = Camera:WorldToViewportPoint(startPoint)
+        local endScreen, endOnScreen = Camera:WorldToViewportPoint(endPoint)
+        if startOnScreen and endOnScreen and startScreen.Z > 0.1 and endScreen.Z > 0.1 then
+            line.From = Vector2.new(startScreen.X, startScreen.Y)
+            line.To = Vector2.new(endScreen.X, endScreen.Y)
+            if distance <= AutoTackleConfig.TackleDistance then
+                line.Color = Color3.fromRGB(0, 255, 0)
+            elseif distance <= AutoTackleConfig.OptimalDistanceMax then
+                line.Color = Color3.fromRGB(255, 165, 0)
+            else
+                line.Color = Color3.fromRGB(255, 0, 0)
+            end
+            line.Visible = true
+        end
     end
 end
 
@@ -405,7 +453,7 @@ local function SetupManualTackleButton()
             AutoTackleStatus.Dragging = false
             
             if AutoTackleStatus.TouchStartTime > 0 and tick() - AutoTackleStatus.TouchStartTime < 0.2 then
-                -- Вызов ManualTackle будет добавлен позже
+                ManualTackleAction()
             end
             
             AutoTackleStatus.TouchStartTime = 0
@@ -522,9 +570,7 @@ end
 
 -- === УЛУЧШЕННЫЙ PREDICT ДЛЯ AUTOTACKLE ===
 local function PredictBallPositionAdvanced(ball, owner)
-    if not ball or not ball.Parent or not owner then 
-        return ball and ball.Position or HumanoidRootPart.Position + HumanoidRootPart.CFrame.LookVector * 5
-    end
+    if not ball or not ball.Parent or not owner then return ball.Position end
     
     local currentTime = tick()
     local cacheKey = tostring(owner) .. "_" .. tostring(math.floor(currentTime * 10))
@@ -555,23 +601,20 @@ local function PredictBallPositionAdvanced(ball, owner)
     end
     AutoTackleStatus.TargetHistory[owner] = ownerHistory
     
-    -- ИСПРАВЛЕННЫЙ РАСЧЕТ ВРЕМЕНИ:
     -- Используем серверную позицию для расчета расстояния
     local myServerPos = AutoTackleStatus.ServerPosition
-    local ballPosition = ball.Position
-    local distanceToBall = (myServerPos - ballPosition).Magnitude
+    local distanceToBall = (myServerPos - ball.Position).Magnitude
     
     -- Рассчитываем время, которое потребуется чтобы достичь цели
-    -- Учитываем нашу скорость и скорость такла
     local myVelocity = HumanoidRootPart.AssemblyLinearVelocity
     local mySpeed = myVelocity.Magnitude
     
     -- Вектор от нас к мячу
-    local toBall = (ballPosition - myServerPos)
+    local toBall = (ball.Position - myServerPos)
     local distanceToTarget = toBall.Magnitude
     
     if distanceToTarget == 0 then
-        return ballPosition
+        return ball.Position
     end
     
     -- Направление к мячу
@@ -581,7 +624,7 @@ local function PredictBallPositionAdvanced(ball, owner)
     local mySpeedTowardsBall = myVelocity:Dot(directionToBall)
     
     -- Эффективная скорость сближения с учетом направления
-    local effectiveSpeed = math.max(AutoTackleConfig.TackleSpeed, math.max(mySpeedTowardsBall, 1))
+    local effectiveSpeed = math.max(AutoTackleConfig.TackleSpeed, mySpeedTowardsBall)
     
     -- Время до достижения мяча
     local timeToReach = distanceToTarget / effectiveSpeed
@@ -633,23 +676,6 @@ local function PredictBallPositionAdvanced(ball, owner)
         predictedPos = predictedPos + currentVelocity * totalPredictionTime
     end
     
-    -- Учитываем, что владелец мяча может двигаться к нам или от нас
-    local toOwner = (ownerRoot.Position - myServerPos)
-    local distanceToOwner = toOwner.Magnitude
-    
-    if distanceToOwner > 0 then
-        local directionToOwner = toOwner.Unit
-        local ownerSpeedTowardsMe = currentVelocity:Dot(-directionToOwner)
-        
-        -- Если владелец движется к нам, корректируем предсказание
-        if ownerSpeedTowardsMe > 0 then
-            predictedPos = predictedPos - directionToOwner * ownerSpeedTowardsMe * totalPredictionTime * 0.3
-        end
-    end
-    
-    -- Сохраняем последнюю предиктнутую позицию
-    AutoTackleStatus.LastPredictedPosition = predictedPos
-    
     -- Визуализация предсказания в Debug
     if Gui and AutoTackleConfig.Enabled then
         Gui.PredictionLabel.Text = string.format("Prediction: %.1fs", totalPredictionTime)
@@ -671,15 +697,6 @@ local function PredictBallPositionAdvanced(ball, owner)
     end
     
     return predictedPos
-end
-
--- === ИСПРАВЛЕННАЯ РОТАЦИЯ В ПРЕДИКТНУТУЮ ПОЗИЦИЮ ===
-local function RotateToPredictedPosition()
-    -- Используем чистый CFrame для мгновенной ротации в предиктнутую позицию
-    local targetPos = AutoTackleStatus.LastPredictedPosition
-    if targetPos and targetPos ~= Vector3.new(0, 0, 0) then
-        HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position, Vector3.new(targetPos.X, HumanoidRootPart.Position.Y, targetPos.Z))
-    end
 end
 
 -- === УЛУЧШЕННЫЙ AUTODRIBBLE ===
@@ -915,10 +932,10 @@ local function CanTackle()
     return true, ball, distance, owner
 end
 
--- ИСПРАВЛЕННАЯ РОТАЦИЯ В ПРЕДИКТНУТУЮ ПОЗИЦИЮ
+-- ИСПРАВЛЕННАЯ РОТАЦИЯ: смотрим на предиктнутую позицию, а не на врага
 local function RotateToTarget(predictedPos)
     if AutoTackleConfig.RotationType == "CFrame" then
-        -- Используем чистый CFrame для мгновенной ротации в предиктнутую позицию
+        -- Используем чистый CFrame для мгновенной ротации К ПРЕДИКТНУТОЙ ПОЗИЦИИ
         HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position, Vector3.new(predictedPos.X, HumanoidRootPart.Position.Y, predictedPos.Z))
     end
 end
@@ -935,7 +952,7 @@ local function PerformTackle(ball, owner)
         predictedPos = ball.Position
     end
     
-    -- ИСПРАВЛЕНИЕ: Поворачиваемся в предиктнутую позицию, а не в текущую позицию владельца
+    -- ИСПРАВЛЕНИЕ: Ротация в предиктнутую позицию, а не к владельцу мяча
     if AutoTackleConfig.RotationMethod == "Snap" or AutoTackleConfig.RotationMethod == "Always" then
         RotateToTarget(predictedPos)
     end
@@ -1072,19 +1089,12 @@ AutoTackle.Start = function()
                 return
             end
             
-            -- Обновляем информацию в GUI
+            -- Обновляем информацию в GUI и 3D кольцо
             if Gui then
                 Gui.TackleTargetLabel.Text = "Target: " .. (owner and owner.Name or "None")
                 Gui.TackleDribblingLabel.Text = "isDribbling: " .. tostring(owner and DribbleStates[owner] and DribbleStates[owner].IsDribbling or false)
                 Gui.TackleTacklingLabel.Text = "isTackling: " .. tostring(owner and IsSpecificTackle(owner) or false)
-            end
-            
-            -- ИСПРАВЛЕНИЕ: Сначала рассчитываем предиктнутую позицию
-            local predictedPos
-            if AutoTackleConfig.UseAdvancedPrediction then
-                predictedPos = PredictBallPositionAdvanced(ball, owner)
-            else
-                predictedPos = ball.Position
+                UpdateTargetRing(ball, distance)
             end
             
             -- Проверяем расстояние для мгновенного такла
@@ -1114,7 +1124,7 @@ AutoTackle.Start = function()
                 local inCooldownList = DribbleCooldownList[owner] ~= nil
                 
                 if AutoTackleConfig.Mode == "EagleEye" then
-                    -- EagleEye сразу таклит при дрибле
+                    -- ИСПРАВЛЕНИЕ: EagleEye теперь сразу таклит при дрибле, не ждет окончания
                     if isDribbling then
                         if not EagleEyeTimers[owner] then
                             -- Создаем случайную задержку
@@ -1167,11 +1177,6 @@ AutoTackle.Start = function()
                             Gui.EagleEyeLabel.Text = "OnlyDribble: Waiting"
                         end
                     end
-                end
-                
-                -- ИСПРАВЛЕНИЕ: Постоянно поворачиваемся в предиктнутую позицию, если режим ротации "Always"
-                if AutoTackleConfig.RotationMethod == "Always" then
-                    RotateToTarget(predictedPos)
                 end
             end
         end)
@@ -1569,11 +1574,11 @@ local function SetupUI(UI)
     end
 end
 
--- === СИНХРОНИЗАЦИЯ КОНФИГА (как в примере) ===
+-- === ИСПРАВЛЕННАЯ СИНХРОНИЗАЦИЯ КОНФИГА (как в примере) ===
 local function SynchronizeConfigValues()
     if not uiElements then return end
     
-    -- Синхронизируем AutoTackle значения из UI элементов (слайдеры)
+    -- Синхронизируем AutoTackle слайдеры
     if uiElements.AutoTackleMaxDistance and uiElements.AutoTackleMaxDistance.GetValue then
         local uiValue = uiElements.AutoTackleMaxDistance:GetValue()
         if uiValue ~= AutoTackleConfig.MaxDistance then
@@ -1617,7 +1622,7 @@ local function SynchronizeConfigValues()
         AutoTackleConfig.ButtonScale = uiElements.AutoTackleButtonScale:GetValue()
     end
     
-    -- Синхронизируем AutoDribble значения
+    -- Синхронизируем AutoDribble слайдеры
     if uiElements.AutoDribbleMaxDistance and uiElements.AutoDribbleMaxDistance.GetValue then
         AutoDribbleConfig.MaxDribbleDistance = uiElements.AutoDribbleMaxDistance:GetValue()
     end
@@ -1637,6 +1642,49 @@ local function SynchronizeConfigValues()
     if uiElements.AutoDribbleHeadOnAngleThreshold and uiElements.AutoDribbleHeadOnAngleThreshold.GetValue then
         AutoDribbleConfig.HeadOnAngleThreshold = uiElements.AutoDribbleHeadOnAngleThreshold:GetValue()
     end
+    
+    -- Синхронизируем переключатели AutoTackle
+    if uiElements.AutoTackleOnlyPlayer and uiElements.AutoTackleOnlyPlayer.GetState then
+        AutoTackleConfig.OnlyPlayer = uiElements.AutoTackleOnlyPlayer:GetState()
+    end
+    
+    if uiElements.AutoTackleRotationMethod and uiElements.AutoTackleRotationMethod.GetValue then
+        AutoTackleConfig.RotationMethod = uiElements.AutoTackleRotationMethod:GetValue()
+    end
+    
+    if uiElements.AutoTackleUseAdvancedPrediction and uiElements.AutoTackleUseAdvancedPrediction.GetState then
+        AutoTackleConfig.UseAdvancedPrediction = uiElements.AutoTackleUseAdvancedPrediction:GetState()
+    end
+    
+    if uiElements.AutoTackleManualTackleEnabled and uiElements.AutoTackleManualTackleEnabled.GetState then
+        AutoTackleConfig.ManualTackleEnabled = uiElements.AutoTackleManualTackleEnabled:GetState()
+    end
+    
+    if uiElements.AutoTackleManualButton and uiElements.AutoTackleManualButton.GetState then
+        AutoTackleConfig.ManualButton = uiElements.AutoTackleManualButton:GetState()
+    end
+    
+    -- Синхронизируем переключатели AutoDribble
+    if uiElements.AutoDribbleUseServerPosition and uiElements.AutoDribbleUseServerPosition.GetState then
+        AutoDribbleConfig.UseServerPosition = uiElements.AutoDribbleUseServerPosition:GetState()
+    end
+    
+    if uiElements.AutoDribblePredictiveDribble and uiElements.AutoDribblePredictiveDribble.GetState then
+        AutoDribbleConfig.PredictiveDribble = uiElements.AutoDribblePredictiveDribble:GetState()
+    end
+    
+    if uiElements.AutoDribbleSmartAngleCheck and uiElements.AutoDribbleSmartAngleCheck.GetState then
+        AutoDribbleConfig.SmartAngleCheck = uiElements.AutoDribbleSmartAngleCheck:GetState()
+    end
+    
+    if uiElements.AutoDribbleHeadOnTackleDetection and uiElements.AutoDribbleHeadOnTackleDetection.GetState then
+        AutoDribbleConfig.HeadOnTackleDetection = uiElements.AutoDribbleHeadOnTackleDetection:GetState()
+    end
+    
+    -- Синхронизируем Debug
+    if uiElements.DebugEnabled and uiElements.DebugEnabled.GetState then
+        DebugConfig.Enabled = uiElements.DebugEnabled:GetState()
+    end
 end
 
 -- === МОДУЛЬ ===
@@ -1650,7 +1698,7 @@ function AutoDribbleTackleModule.Init(UI, coreParam, notifyFunc)
     
     SetupUI(UI)
     
-    -- Запускаем таймер для синхронизации значений каждую секунду
+    -- Запускаем синхронизацию конфига каждую секунду (как в примере)
     local synchronizationTimer = 0
     RunService.Heartbeat:Connect(function(deltaTime)
         synchronizationTimer = synchronizationTimer + deltaTime
@@ -1661,6 +1709,7 @@ function AutoDribbleTackleModule.Init(UI, coreParam, notifyFunc)
             SynchronizeConfigValues()
         end
     end)
+    
     
     LocalPlayerObj.CharacterAdded:Connect(function(newChar)
         task.wait(1)
