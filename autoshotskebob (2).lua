@@ -899,6 +899,8 @@ local function SetupUI(UI)
                 else 
                     AutoShoot.Stop() 
                 end
+                -- Явно вызываем обновление цели
+                if v then CalculateTarget() end
             end
         }, "AutoShootEnabled")
         
@@ -907,6 +909,8 @@ local function SetupUI(UI)
             Default = AutoShootLegit, 
             Callback = function(v) 
                 AutoShootLegit = v
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootLegit")
         
@@ -918,6 +922,8 @@ local function SetupUI(UI)
             Callback = function(v) 
                 AutoShootManualShot = v
                 UpdateModeText()
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootManual")
         
@@ -928,6 +934,8 @@ local function SetupUI(UI)
                 AutoShootShootKey = v
                 AutoShootStatus.Key = v
                 UpdateModeText()
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootKey")
         
@@ -937,6 +945,8 @@ local function SetupUI(UI)
             Callback = function(v) 
                 AutoShootManualButton = v
                 ToggleManualButton(v)
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootManualButton")
         
@@ -949,6 +959,8 @@ local function SetupUI(UI)
             Callback = function(v) 
                 AutoShootButtonScale = v
                 SetButtonScale(v)
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootButtonScale")
         
@@ -962,26 +974,22 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootMaxDistance = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
+                -- Явно вызываем обновление цели сразу
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootMaxDist")
         
         -- Reverse Compensation Slider
         uiElements.AutoShootReverseCompensation = UI.Sections.AutoShoot:Slider({ 
             Name = "Reverse Compensation", 
-            Minimum = 2.0, 
-            Maximum = 30.0, 
+            Minimum = 1.0, 
+            Maximum = 10.0, 
             Default = AutoShootReverseCompensation, 
             Precision = 1, 
             Callback = function(v) 
                 AutoShootReverseCompensation = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
+                -- Явно вызываем обновление цели сразу
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootReverseCompensation")
         
@@ -991,10 +999,8 @@ local function SetupUI(UI)
             Default = AutoShootSpoofPowerEnabled, 
             Callback = function(v) 
                 AutoShootSpoofPowerEnabled = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootSpoofPowerEnabled")
         
@@ -1006,10 +1012,8 @@ local function SetupUI(UI)
             Required = true,
             Callback = function(v) 
                 AutoShootSpoofPowerType = v
-                -- Обновляем значение для скрипта при изменении выпадающего списка
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootSpoofPowerType")
         
@@ -1019,6 +1023,8 @@ local function SetupUI(UI)
             Callback = function(v) 
                 AutoShootDebugText = v
                 AutoShoot.SetDebugText(v)
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AutoShootDebugText")
     end
@@ -1079,10 +1085,8 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootInset = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedInset")
         
@@ -1097,10 +1101,8 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootGravity = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedGravity")
         
@@ -1114,10 +1116,8 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 AutoShootMinPower = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedMinPower")
         
@@ -1129,10 +1129,8 @@ local function SetupUI(UI)
             Precision = 2, 
             Callback = function(v) 
                 AutoShootMaxPower = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedMaxPower")
         
@@ -1144,10 +1142,8 @@ local function SetupUI(UI)
             Precision = 3, 
             Callback = function(v) 
                 AutoShootPowerPerStud = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedPowerPerStud")
         
@@ -1161,10 +1157,8 @@ local function SetupUI(UI)
             Precision = 1, 
             Callback = function(v) 
                 AutoShootMaxHeight = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
+                -- Явно вызываем обновление цели
+                if AutoShootEnabled then CalculateTarget() end
             end
         }, "AdvancedMaxHeight")
         
@@ -1180,1273 +1174,191 @@ local function SetupUI(UI)
         })
         UI.Sections.Attacks:Divider()
         
-        -- SideRicochet
-        UI.Sections.Attacks:Header({ Name = "SideRicochet" })
-        
-        uiElements.SideRicochetEnabled = UI.Sections.Attacks:Toggle({ 
-            Name = "Enabled", 
-            Default = Attacks.SideRicochet.Enabled, 
-            Callback = function(v) 
-                Attacks.SideRicochet.Enabled = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SideRicochetEnabled")
-        
-        uiElements.SideRicochetMinDist = UI.Sections.Attacks:Slider({ 
-            Name = "Min Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SideRicochet.MinDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SideRicochet.MinDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SideRicochetMinDist")
-        
-        uiElements.SideRicochetMaxDist = UI.Sections.Attacks:Slider({ 
-            Name = "Max Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SideRicochet.MaxDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SideRicochet.MaxDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SideRicochetMaxDist")
-        
-        uiElements.SideRicochetPower = UI.Sections.Attacks:Slider({ 
-            Name = "Power", 
-            Minimum = 0.5, 
-            Maximum = 100.0, 
-            Default = Attacks.SideRicochet.Power, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SideRicochet.Power = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SideRicochetPower")
-        
-        uiElements.SideRicochetXMult = UI.Sections.Attacks:Slider({ 
-            Name = "X Mult", 
-            Minimum = 0.1, 
-            Maximum = 2.0, 
-            Default = Attacks.SideRicochet.XMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SideRicochet.XMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SideRicochetXMult")
-        
-        uiElements.SideRicochetHeightMult = UI.Sections.Attacks:Slider({ 
-            Name = "Height Mult", 
-            Minimum = 0.1, 
-            Maximum = 3.0, 
-            Default = Attacks.SideRicochet.HeightMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SideRicochet.HeightMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SideRicochetHeightMult")
-        
-        uiElements.SideRicochetBaseMin = UI.Sections.Attacks:Slider({ 
-            Name = "Base Min", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SideRicochet.BaseHeightRange.Min, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SideRicochet.BaseHeightRange.Min = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SideRicochetBaseMin")
-        
-        uiElements.SideRicochetBaseMax = UI.Sections.Attacks:Slider({ 
-            Name = "Base Max", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SideRicochet.BaseHeightRange.Max, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SideRicochet.BaseHeightRange.Max = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SideRicochetBaseMax")
-        
-        uiElements.SideRicochetDerivationMult = UI.Sections.Attacks:Slider({ 
-            Name = "Derivation Mult", 
-            Minimum = 0.0, 
-            Maximum = 10.0, 
-            Default = Attacks.SideRicochet.DerivationMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SideRicochet.DerivationMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SideRicochetDerivationMult")
-        
-        uiElements.SideRicochetYReverse = UI.Sections.Attacks:Toggle({ 
-            Name = "Y Reverse", 
-            Default = Attacks.SideRicochet.YReverse, 
-            Callback = function(v) 
-                Attacks.SideRicochet.YReverse = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SideRicochetYReverse")
-        
-        UI.Sections.Attacks:Divider()
-        
-        -- CloseSpin
-        UI.Sections.Attacks:Header({ Name = "CloseSpin" })
-        
-        uiElements.CloseSpinEnabled = UI.Sections.Attacks:Toggle({ 
-            Name = "Enabled", 
-            Default = Attacks.CloseSpin.Enabled, 
-            Callback = function(v) 
-                Attacks.CloseSpin.Enabled = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinEnabled")
-        
-        uiElements.CloseSpinMinDist = UI.Sections.Attacks:Slider({ 
-            Name = "Min Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.CloseSpin.MinDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.CloseSpin.MinDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinMinDist")
-        
-        uiElements.CloseSpinMaxDist = UI.Sections.Attacks:Slider({ 
-            Name = "Max Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.CloseSpin.MaxDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.CloseSpin.MaxDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinMaxDist")
-        
-        uiElements.CloseSpinPower = UI.Sections.Attacks:Slider({ 
-            Name = "Power", 
-            Minimum = 0.5, 
-            Maximum = 100.0, 
-            Default = Attacks.CloseSpin.Power, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.CloseSpin.Power = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinPower")
-        
-        uiElements.CloseSpinXMult = UI.Sections.Attacks:Slider({ 
-            Name = "X Mult", 
-            Minimum = 0.1, 
-            Maximum = 2.0, 
-            Default = Attacks.CloseSpin.XMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.CloseSpin.XMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinXMult")
-        
-        uiElements.CloseSpinSpin = UI.Sections.Attacks:Toggle({ 
-            Name = "Spin", 
-            Default = Attacks.CloseSpin.Spin, 
-            Callback = function(v) 
-                Attacks.CloseSpin.Spin = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinSpin")
-        
-        uiElements.CloseSpinHeightMult = UI.Sections.Attacks:Slider({ 
-            Name = "Height Mult", 
-            Minimum = 0.1, 
-            Maximum = 3.0, 
-            Default = Attacks.CloseSpin.HeightMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.CloseSpin.HeightMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinHeightMult")
-        
-        uiElements.CloseSpinBaseMin = UI.Sections.Attacks:Slider({ 
-            Name = "Base Min", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.CloseSpin.BaseHeightRange.Min, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.CloseSpin.BaseHeightRange.Min = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinBaseMin")
-        
-        uiElements.CloseSpinBaseMax = UI.Sections.Attacks:Slider({ 
-            Name = "Base Max", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.CloseSpin.BaseHeightRange.Max, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.CloseSpin.BaseHeightRange.Max = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinBaseMax")
-        
-        uiElements.CloseSpinDerivationMult = UI.Sections.Attacks:Slider({ 
-            Name = "Derivation Mult", 
-            Minimum = 0.0, 
-            Maximum = 10.0, 
-            Default = Attacks.CloseSpin.DerivationMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.CloseSpin.DerivationMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinDerivationMult")
-        
-        uiElements.CloseSpinYReverse = UI.Sections.Attacks:Toggle({ 
-            Name = "Y Reverse", 
-            Default = Attacks.CloseSpin.YReverse, 
-            Callback = function(v) 
-                Attacks.CloseSpin.YReverse = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "CloseSpinYReverse")
-        
-        UI.Sections.Attacks:Divider()
-        
-        -- SmartCorner
-        UI.Sections.Attacks:Header({ Name = "SmartCorner" })
-        
-        uiElements.SmartCornerEnabled = UI.Sections.Attacks:Toggle({ 
-            Name = "Enabled", 
-            Default = Attacks.SmartCorner.Enabled, 
-            Callback = function(v) 
-                Attacks.SmartCorner.Enabled = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCornerEnabled")
-        
-        uiElements.SmartCornerMinDist = UI.Sections.Attacks:Slider({ 
-            Name = "Min Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SmartCorner.MinDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SmartCorner.MinDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCornerMinDist")
-        
-        uiElements.SmartCornerMaxDist = UI.Sections.Attacks:Slider({ 
-            Name = "Max Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SmartCorner.MaxDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SmartCorner.MaxDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCornerMaxDist")
-        
-        uiElements.SmartCornerPowerMin = UI.Sections.Attacks:Slider({ 
-            Name = "Power Min", 
-            Minimum = 0.5, 
-            Maximum = 10.0, 
-            Default = Attacks.SmartCorner.PowerMin, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCorner.PowerMin = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCornerPowerMin")
-        
-        uiElements.SmartCornerXMult = UI.Sections.Attacks:Slider({ 
-            Name = "X Mult", 
-            Minimum = 0.1, 
-            Maximum = 2.0, 
-            Default = Attacks.SmartCorner.XMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCorner.XMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCornerXMult")
-        
-        uiElements.SmartCornerHeightMult = UI.Sections.Attacks:Slider({ 
-            Name = "Height Mult", 
-            Minimum = 0.1, 
-            Maximum = 3.0, 
-            Default = Attacks.SmartCorner.HeightMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCorner.HeightMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCornerHeightMult")
-        
-        uiElements.SmartCornerBaseMin = UI.Sections.Attacks:Slider({ 
-            Name = "Base Min", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartCorner.BaseHeightRange.Min, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCorner.BaseHeightRange.Min = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCornerBaseMin")
-        
-        uiElements.SmartCornerBaseMax = UI.Sections.Attacks:Slider({ 
-            Name = "Base Max", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartCorner.BaseHeightRange.Max, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCorner.BaseHeightRange.Max = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCornerBaseMax")
-        
-        uiElements.SmartCornerDerivationMult = UI.Sections.Attacks:Slider({ 
-            Name = "Derivation Mult", 
-            Minimum = 0.0, 
-            Maximum = 10.0, 
-            Default = Attacks.SmartCorner.DerivationMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCorner.DerivationMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCornerDerivationMult")
-        
-        uiElements.SmartCornerYReverse = UI.Sections.Attacks:Toggle({ 
-            Name = "Y Reverse", 
-            Default = Attacks.SmartCorner.YReverse, 
-            Callback = function(v) 
-                Attacks.SmartCorner.YReverse = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCornerYReverse")
-        
-        UI.Sections.Attacks:Divider()
-        
-        -- SmartCandle
-        UI.Sections.Attacks:Header({ Name = "SmartCandle" })
-        
-        uiElements.SmartCandleEnabled = UI.Sections.Attacks:Toggle({ 
-            Name = "Enabled", 
-            Default = Attacks.SmartCandle.Enabled, 
-            Callback = function(v) 
-                Attacks.SmartCandle.Enabled = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleEnabled")
-        
-        uiElements.SmartCandleMinDist = UI.Sections.Attacks:Slider({ 
-            Name = "Min Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SmartCandle.MinDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SmartCandle.MinDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMinDist")
-        
-        uiElements.SmartCandleMaxDist = UI.Sections.Attacks:Slider({ 
-            Name = "Max Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SmartCandle.MaxDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SmartCandle.MaxDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMaxDist")
-        
-        uiElements.SmartCandlePower = UI.Sections.Attacks:Slider({ 
-            Name = "Power", 
-            Minimum = 0.5, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartCandle.Power, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandle.Power = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandlePower")
-        
-        uiElements.SmartCandleXMult = UI.Sections.Attacks:Slider({ 
-            Name = "X Mult", 
-            Minimum = 0.1, 
-            Maximum = 2.0, 
-            Default = Attacks.SmartCandle.XMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandle.XMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleXMult")
-        
-        uiElements.SmartCandleSpin = UI.Sections.Attacks:Toggle({ 
-            Name = "Spin", 
-            Default = Attacks.SmartCandle.Spin, 
-            Callback = function(v) 
-                Attacks.SmartCandle.Spin = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleSpin")
-        
-        uiElements.SmartCandleHeightMult = UI.Sections.Attacks:Slider({ 
-            Name = "Height Mult", 
-            Minimum = 0.1, 
-            Maximum = 3.0, 
-            Default = Attacks.SmartCandle.HeightMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandle.HeightMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleHeightMult")
-        
-        uiElements.SmartCandleBaseMin = UI.Sections.Attacks:Slider({ 
-            Name = "Base Min", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartCandle.BaseHeightRange.Min, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandle.BaseHeightRange.Min = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleBaseMin")
-        
-        uiElements.SmartCandleBaseMax = UI.Sections.Attacks:Slider({ 
-            Name = "Base Max", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartCandle.BaseHeightRange.Max, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandle.BaseHeightRange.Max = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleBaseMax")
-        
-        uiElements.SmartCandleDerivationMult = UI.Sections.Attacks:Slider({ 
-            Name = "Derivation Mult", 
-            Minimum = 0.0, 
-            Maximum = 10.0, 
-            Default = Attacks.SmartCandle.DerivationMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandle.DerivationMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleDerivationMult")
-        
-        uiElements.SmartCandleYReverse = UI.Sections.Attacks:Toggle({ 
-            Name = "Y Reverse", 
-            Default = Attacks.SmartCandle.YReverse, 
-            Callback = function(v) 
-                Attacks.SmartCandle.YReverse = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleYReverse")
-        
-        UI.Sections.Attacks:Divider()
-        
-        -- SmartRicochet
-        UI.Sections.Attacks:Header({ Name = "SmartRicochet" })
-        
-        uiElements.SmartRicochetEnabled = UI.Sections.Attacks:Toggle({ 
-            Name = "Enabled", 
-            Default = Attacks.SmartRicochet.Enabled, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.Enabled = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetEnabled")
-        
-        uiElements.SmartRicochetMinDist = UI.Sections.Attacks:Slider({ 
-            Name = "Min Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SmartRicochet.MinDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.MinDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetMinDist")
-        
-        uiElements.SmartRicochetMaxDist = UI.Sections.Attacks:Slider({ 
-            Name = "Max Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SmartRicochet.MaxDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.MaxDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetMaxDist")
-        
-        uiElements.SmartRicochetPower = UI.Sections.Attacks:Slider({ 
-            Name = "Power", 
-            Minimum = 0.5, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartRicochet.Power, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.Power = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetPower")
-        
-        uiElements.SmartRicochetXMult = UI.Sections.Attacks:Slider({ 
-            Name = "X Mult", 
-            Minimum = 0.1, 
-            Maximum = 2.0, 
-            Default = Attacks.SmartRicochet.XMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.XMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetXMult")
-        
-        uiElements.SmartRicochetSpin = UI.Sections.Attacks:Toggle({ 
-            Name = "Spin", 
-            Default = Attacks.SmartRicochet.Spin, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.Spin = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetSpin")
-        
-        uiElements.SmartRicochetHeightMult = UI.Sections.Attacks:Slider({ 
-            Name = "Height Mult", 
-            Minimum = 0.1, 
-            Maximum = 3.0, 
-            Default = Attacks.SmartRicochet.HeightMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.HeightMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetHeightMult")
-        
-        uiElements.SmartRicochetBaseMin = UI.Sections.Attacks:Slider({ 
-            Name = "Base Min", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartRicochet.BaseHeightRange.Min, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.BaseHeightRange.Min = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetBaseMin")
-        
-        uiElements.SmartRicochetBaseMax = UI.Sections.Attacks:Slider({ 
-            Name = "Base Max", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartRicochet.BaseHeightRange.Max, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.BaseHeightRange.Max = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetBaseMax")
-        
-        uiElements.SmartRicochetDerivationMult = UI.Sections.Attacks:Slider({ 
-            Name = "Derivation Mult", 
-            Minimum = 0.0, 
-            Maximum = 10.0, 
-            Default = Attacks.SmartRicochet.DerivationMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.DerivationMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetDerivationMult")
-        
-        uiElements.SmartRicochetYReverse = UI.Sections.Attacks:Toggle({ 
-            Name = "Y Reverse", 
-            Default = Attacks.SmartRicochet.YReverse, 
-            Callback = function(v) 
-                Attacks.SmartRicochet.YReverse = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartRicochetYReverse")
-        
-        UI.Sections.Attacks:Divider()
-        
-        -- SmartSpin
-        UI.Sections.Attacks:Header({ Name = "SmartSpin" })
-        
-        uiElements.SmartSpinEnabled = UI.Sections.Attacks:Toggle({ 
-            Name = "Enabled", 
-            Default = Attacks.SmartSpin.Enabled, 
-            Callback = function(v) 
-                Attacks.SmartSpin.Enabled = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinEnabled")
-        
-        uiElements.SmartSpinMinDist = UI.Sections.Attacks:Slider({ 
-            Name = "Min Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SmartSpin.MinDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SmartSpin.MinDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinMinDist")
-        
-        uiElements.SmartSpinMaxDist = UI.Sections.Attacks:Slider({ 
-            Name = "Max Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SmartSpin.MaxDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SmartSpin.MaxDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinMaxDist")
-        
-        uiElements.SmartSpinPowerAdd = UI.Sections.Attacks:Slider({ 
-            Name = "Power Add", 
-            Minimum = -5.0, 
-            Maximum = 5.0, 
-            Default = Attacks.SmartSpin.PowerAdd, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartSpin.PowerAdd = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinPowerAdd")
-        
-        uiElements.SmartSpinXMult = UI.Sections.Attacks:Slider({ 
-            Name = "X Mult", 
-            Minimum = 0.1, 
-            Maximum = 2.0, 
-            Default = Attacks.SmartSpin.XMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartSpin.XMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinXMult")
-        
-        uiElements.SmartSpinSpin = UI.Sections.Attacks:Toggle({ 
-            Name = "Spin", 
-            Default = Attacks.SmartSpin.Spin, 
-            Callback = function(v) 
-                Attacks.SmartSpin.Spin = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinSpin")
-        
-        uiElements.SmartSpinHeightMult = UI.Sections.Attacks:Slider({ 
-            Name = "Height Mult", 
-            Minimum = 0.1, 
-            Maximum = 3.0, 
-            Default = Attacks.SmartSpin.HeightMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartSpin.HeightMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinHeightMult")
-        
-        uiElements.SmartSpinBaseMin = UI.Sections.Attacks:Slider({ 
-            Name = "Base Min", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartSpin.BaseHeightRange.Min, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartSpin.BaseHeightRange.Min = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinBaseMin")
-        
-        uiElements.SmartSpinBaseMax = UI.Sections.Attacks:Slider({ 
-            Name = "Base Max", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartSpin.BaseHeightRange.Max, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartSpin.BaseHeightRange.Max = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinBaseMax")
-        
-        uiElements.SmartSpinDerivationMult = UI.Sections.Attacks:Slider({ 
-            Name = "Derivation Mult", 
-            Minimum = 0.0, 
-            Maximum = 10.0, 
-            Default = Attacks.SmartSpin.DerivationMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartSpin.DerivationMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinDerivationMult")
-        
-        uiElements.SmartSpinYReverse = UI.Sections.Attacks:Toggle({ 
-            Name = "Y Reverse", 
-            Default = Attacks.SmartSpin.YReverse, 
-            Callback = function(v) 
-                Attacks.SmartSpin.YReverse = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartSpinYReverse")
-        
-        UI.Sections.Attacks:Divider()
-        
-        -- SmartCandleMid
-        UI.Sections.Attacks:Header({ Name = "SmartCandleMid" })
-        
-        uiElements.SmartCandleMidEnabled = UI.Sections.Attacks:Toggle({ 
-            Name = "Enabled", 
-            Default = Attacks.SmartCandleMid.Enabled, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.Enabled = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidEnabled")
-        
-        uiElements.SmartCandleMidMinDist = UI.Sections.Attacks:Slider({ 
-            Name = "Min Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SmartCandleMid.MinDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.MinDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidMinDist")
-        
-        uiElements.SmartCandleMidMaxDist = UI.Sections.Attacks:Slider({ 
-            Name = "Max Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.SmartCandleMid.MaxDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.MaxDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidMaxDist")
-        
-        uiElements.SmartCandleMidPowerAdd = UI.Sections.Attacks:Slider({ 
-            Name = "Power Add", 
-            Minimum = -5.0, 
-            Maximum = 5.0, 
-            Default = Attacks.SmartCandleMid.PowerAdd, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.PowerAdd = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidPowerAdd")
-        
-        uiElements.SmartCandleMidXMult = UI.Sections.Attacks:Slider({ 
-            Name = "X Mult", 
-            Minimum = 0.1, 
-            Maximum = 2.0, 
-            Default = Attacks.SmartCandleMid.XMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.XMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidXMult")
-        
-        uiElements.SmartCandleMidSpin = UI.Sections.Attacks:Toggle({ 
-            Name = "Spin", 
-            Default = Attacks.SmartCandleMid.Spin, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.Spin = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidSpin")
-        
-        uiElements.SmartCandleMidHeightMult = UI.Sections.Attacks:Slider({ 
-            Name = "Height Mult", 
-            Minimum = 0.1, 
-            Maximum = 3.0, 
-            Default = Attacks.SmartCandleMid.HeightMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.HeightMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidHeightMult")
-        
-        uiElements.SmartCandleMidBaseMin = UI.Sections.Attacks:Slider({ 
-            Name = "Base Min", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartCandleMid.BaseHeightRange.Min, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.BaseHeightRange.Min = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidBaseMin")
-        
-        uiElements.SmartCandleMidBaseMax = UI.Sections.Attacks:Slider({ 
-            Name = "Base Max", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.SmartCandleMid.BaseHeightRange.Max, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.BaseHeightRange.Max = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidBaseMax")
-        
-        uiElements.SmartCandleMidDerivationMult = UI.Sections.Attacks:Slider({ 
-            Name = "Derivation Mult", 
-            Minimum = 0.0, 
-            Maximum = 10.0, 
-            Default = Attacks.SmartCandleMid.DerivationMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.DerivationMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidDerivationMult")
-        
-        uiElements.SmartCandleMidYReverse = UI.Sections.Attacks:Toggle({ 
-            Name = "Y Reverse", 
-            Default = Attacks.SmartCandleMid.YReverse, 
-            Callback = function(v) 
-                Attacks.SmartCandleMid.YReverse = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "SmartCandleMidYReverse")
-        
-        UI.Sections.Attacks:Divider()
-        
-        -- FarSmartCandle
-        UI.Sections.Attacks:Header({ Name = "FarSmartCandle" })
-        
-        uiElements.FarSmartCandleEnabled = UI.Sections.Attacks:Toggle({ 
-            Name = "Enabled", 
-            Default = Attacks.FarSmartCandle.Enabled, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.Enabled = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandleEnabled")
-        
-        uiElements.FarSmartCandleMinDist = UI.Sections.Attacks:Slider({ 
-            Name = "Min Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.FarSmartCandle.MinDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.MinDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandleMinDist")
-        
-        uiElements.FarSmartCandleMaxDist = UI.Sections.Attacks:Slider({ 
-            Name = "Max Dist", 
-            Minimum = 0, 
-            Maximum = 300, 
-            Default = Attacks.FarSmartCandle.MaxDist, 
-            Precision = 1, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.MaxDist = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandleMaxDist")
-        
-        uiElements.FarSmartCandlePower = UI.Sections.Attacks:Slider({ 
-            Name = "Power", 
-            Minimum = 0.5, 
-            Maximum = 100.0, 
-            Default = Attacks.FarSmartCandle.Power, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.Power = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandlePower")
-        
-        uiElements.FarSmartCandleXMult = UI.Sections.Attacks:Slider({ 
-            Name = "X Mult", 
-            Minimum = 0.1, 
-            Maximum = 2.0, 
-            Default = Attacks.FarSmartCandle.XMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.XMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandleXMult")
-        
-        uiElements.FarSmartCandleSpin = UI.Sections.Attacks:Toggle({ 
-            Name = "Spin", 
-            Default = Attacks.FarSmartCandle.Spin, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.Spin = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandleSpin")
-        
-        uiElements.FarSmartCandleHeightMult = UI.Sections.Attacks:Slider({ 
-            Name = "Height Mult", 
-            Minimum = 0.1, 
-            Maximum = 3.0, 
-            Default = Attacks.FarSmartCandle.HeightMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.HeightMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandleHeightMult")
-        
-        uiElements.FarSmartCandleBaseMin = UI.Sections.Attacks:Slider({ 
-            Name = "Base Min", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.FarSmartCandle.BaseHeightRange.Min, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.BaseHeightRange.Min = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandleBaseMin")
-        
-        uiElements.FarSmartCandleBaseMax = UI.Sections.Attacks:Slider({ 
-            Name = "Base Max", 
-            Minimum = 0.0, 
-            Maximum = 100.0, 
-            Default = Attacks.FarSmartCandle.BaseHeightRange.Max, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.BaseHeightRange.Max = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandleBaseMax")
-        
-        uiElements.FarSmartCandleDerivationMult = UI.Sections.Attacks:Slider({ 
-            Name = "Derivation Mult", 
-            Minimum = 0.0, 
-            Maximum = 10.0, 
-            Default = Attacks.FarSmartCandle.DerivationMult, 
-            Precision = 2, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.DerivationMult = v
-                -- Обновляем значение для скрипта при изменении слайдера
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandleDerivationMult")
-        
-        uiElements.FarSmartCandleYReverse = UI.Sections.Attacks:Toggle({ 
-            Name = "Y Reverse", 
-            Default = Attacks.FarSmartCandle.YReverse, 
-            Callback = function(v) 
-                Attacks.FarSmartCandle.YReverse = v
-                -- Обновляем значение для скрипта при изменении переключателя
-                if AutoShootEnabled then
-                    CalculateTarget()
-                end
-            end
-        }, "FarSmartCandleYReverse")
+        -- Создаем таблицу для хранения всех элементов атак
+        local attackElements = {}
+        
+        -- Функция для создания элементов атаки
+        local function CreateAttackElements(attackName, attackConfig)
+            attackElements[attackName] = {}
+            
+            -- Enabled Toggle
+            attackElements[attackName].Enabled = UI.Sections.Attacks:Toggle({ 
+                Name = "Enabled", 
+                Default = attackConfig.Enabled, 
+                Callback = function(v) 
+                    Attacks[attackName].Enabled = v
+                    if AutoShootEnabled then CalculateTarget() end
+                end
+            }, attackName .. "Enabled")
+            
+            -- Min Dist Slider
+            attackElements[attackName].MinDist = UI.Sections.Attacks:Slider({ 
+                Name = "Min Dist", 
+                Minimum = 0, 
+                Maximum = 300, 
+                Default = attackConfig.MinDist, 
+                Precision = 1, 
+                Callback = function(v) 
+                    Attacks[attackName].MinDist = v
+                    if AutoShootEnabled then CalculateTarget() end
+                end
+            }, attackName .. "MinDist")
+            
+            -- Max Dist Slider
+            attackElements[attackName].MaxDist = UI.Sections.Attacks:Slider({ 
+                Name = "Max Dist", 
+                Minimum = 0, 
+                Maximum = 300, 
+                Default = attackConfig.MaxDist, 
+                Precision = 1, 
+                Callback = function(v) 
+                    Attacks[attackName].MaxDist = v
+                    if AutoShootEnabled then CalculateTarget() end
+                end
+            }, attackName .. "MaxDist")
+            
+            -- Power/PowerMin Slider
+            if attackConfig.Power then
+                attackElements[attackName].Power = UI.Sections.Attacks:Slider({ 
+                    Name = "Power", 
+                    Minimum = 0.5, 
+                    Maximum = 100.0, 
+                    Default = attackConfig.Power, 
+                    Precision = 2, 
+                    Callback = function(v) 
+                        Attacks[attackName].Power = v
+                        if AutoShootEnabled then CalculateTarget() end
+                    end
+                }, attackName .. "Power")
+            elseif attackConfig.PowerMin then
+                attackElements[attackName].PowerMin = UI.Sections.Attacks:Slider({ 
+                    Name = "Power Min", 
+                    Minimum = 0.5, 
+                    Maximum = 10.0, 
+                    Default = attackConfig.PowerMin, 
+                    Precision = 2, 
+                    Callback = function(v) 
+                        Attacks[attackName].PowerMin = v
+                        if AutoShootEnabled then CalculateTarget() end
+                    end
+                }, attackName .. "PowerMin")
+            end
+            
+            -- PowerAdd Slider (если есть)
+            if attackConfig.PowerAdd then
+                attackElements[attackName].PowerAdd = UI.Sections.Attacks:Slider({ 
+                    Name = "Power Add", 
+                    Minimum = -5.0, 
+                    Maximum = 5.0, 
+                    Default = attackConfig.PowerAdd, 
+                    Precision = 2, 
+                    Callback = function(v) 
+                        Attacks[attackName].PowerAdd = v
+                        if AutoShootEnabled then CalculateTarget() end
+                    end
+                }, attackName .. "PowerAdd")
+            end
+            
+            -- X Mult Slider
+            attackElements[attackName].XMult = UI.Sections.Attacks:Slider({ 
+                Name = "X Mult", 
+                Minimum = 0.1, 
+                Maximum = 2.0, 
+                Default = attackConfig.XMult, 
+                Precision = 2, 
+                Callback = function(v) 
+                    Attacks[attackName].XMult = v
+                    if AutoShootEnabled then CalculateTarget() end
+                end
+            }, attackName .. "XMult")
+            
+            -- Spin Toggle
+            if attackConfig.Spin ~= nil and attackConfig.Spin ~= "None" then
+                attackElements[attackName].Spin = UI.Sections.Attacks:Toggle({ 
+                    Name = "Spin", 
+                    Default = attackConfig.Spin == true, 
+                    Callback = function(v) 
+                        Attacks[attackName].Spin = v
+                        if AutoShootEnabled then CalculateTarget() end
+                    end
+                }, attackName .. "Spin")
+            end
+            
+            -- Height Mult Slider
+            attackElements[attackName].HeightMult = UI.Sections.Attacks:Slider({ 
+                Name = "Height Mult", 
+                Minimum = 0.1, 
+                Maximum = 3.0, 
+                Default = attackConfig.HeightMult, 
+                Precision = 2, 
+                Callback = function(v) 
+                    Attacks[attackName].HeightMult = v
+                    if AutoShootEnabled then CalculateTarget() end
+                end
+            }, attackName .. "HeightMult")
+            
+            -- Base Min Slider
+            attackElements[attackName].BaseMin = UI.Sections.Attacks:Slider({ 
+                Name = "Base Min", 
+                Minimum = 0.0, 
+                Maximum = 100.0, 
+                Default = attackConfig.BaseHeightRange.Min, 
+                Precision = 2, 
+                Callback = function(v) 
+                    Attacks[attackName].BaseHeightRange.Min = v
+                    if AutoShootEnabled then CalculateTarget() end
+                end
+            }, attackName .. "BaseMin")
+            
+            -- Base Max Slider
+            attackElements[attackName].BaseMax = UI.Sections.Attacks:Slider({ 
+                Name = "Base Max", 
+                Minimum = 0.0, 
+                Maximum = 100.0, 
+                Default = attackConfig.BaseHeightRange.Max, 
+                Precision = 2, 
+                Callback = function(v) 
+                    Attacks[attackName].BaseHeightRange.Max = v
+                    if AutoShootEnabled then CalculateTarget() end
+                end
+            }, attackName .. "BaseMax")
+            
+            -- Derivation Mult Slider
+            attackElements[attackName].DerivationMult = UI.Sections.Attacks:Slider({ 
+                Name = "Derivation Mult", 
+                Minimum = 0.0, 
+                Maximum = 10.0, 
+                Default = attackConfig.DerivationMult, 
+                Precision = 2, 
+                Callback = function(v) 
+                    Attacks[attackName].DerivationMult = v
+                    if AutoShootEnabled then CalculateTarget() end
+                end
+            }, attackName .. "DerivationMult")
+            
+            -- Y Reverse Toggle
+            attackElements[attackName].YReverse = UI.Sections.Attacks:Toggle({ 
+                Name = "Y Reverse", 
+                Default = attackConfig.YReverse, 
+                Callback = function(v) 
+                    Attacks[attackName].YReverse = v
+                    if AutoShootEnabled then CalculateTarget() end
+                end
+            }, attackName .. "YReverse")
+        end
+        
+        -- Создаем элементы для всех атак
+        for attackName, attackConfig in pairs(Attacks) do
+            UI.Sections.Attacks:Header({ Name = attackName })
+            CreateAttackElements(attackName, attackConfig)
+            UI.Sections.Attacks:Divider()
+        end
     end
 end
 
 -- === ФУНКЦИИ ДЛЯ ЗАГРУЗКИ/СОХРАНЕНИЯ КОНФИГА ===
 local function ApplyConfigToUI(config)
-    -- Обновляем основные переменные
+    -- Обновляем основные переменные напрямую
     AutoShootEnabled = config.AutoShootEnabled or AutoShootEnabled
     AutoShootLegit = config.AutoShootLegit or AutoShootLegit
     AutoShootManualShot = config.AutoShootManualShot or AutoShootManualShot
@@ -2469,7 +1381,7 @@ local function ApplyConfigToUI(config)
     AutoPickupDist = config.AutoPickupDist or AutoPickupDist
     AutoPickupSpoofValue = config.AutoPickupSpoofValue or AutoPickupSpoofValue
     
-    -- Обновляем атаки
+    -- Обновляем атаки напрямую
     if config.Attacks then
         for attackName, attackConfig in pairs(config.Attacks) do
             if Attacks[attackName] then
@@ -2487,20 +1399,28 @@ local function ApplyConfigToUI(config)
         end
     end
     
-    -- Обновляем UI элементы
+    -- Обновляем UI элементы через их методы
     for elementName, element in pairs(uiElements) do
         if config[elementName] ~= nil then
             if element.Set then
                 element:Set(config[elementName])
             elseif element.SetValue then
                 element:SetValue(config[elementName])
+            elseif element.UpdateValue then
+                element:UpdateValue(config[elementName])
+            elseif element.UpdateSelection then
+                element:UpdateSelection(config[elementName])
             end
         end
     end
     
-    -- Применяем изменения к скрипту
+    -- После обновления всех значений - вручную обновляем цель
     if AutoShootEnabled then
         AutoShoot.Start()
+        -- Явно вызываем обновление цели после загрузки всех значений
+        task.defer(function()
+            CalculateTarget()
+        end)
     else
         AutoShoot.Stop()
     end
@@ -2519,11 +1439,6 @@ local function ApplyConfigToUI(config)
     
     -- Обновляем текст режима
     UpdateModeText()
-    
-    -- Пересчитываем цель
-    if AutoShootEnabled then
-        CalculateTarget()
-    end
     
     notify("Config", "Configuration loaded successfully", true)
 end
@@ -2613,4 +1528,3 @@ function AutoShootModule:Destroy()
 end
 
 return AutoShootModule
-
