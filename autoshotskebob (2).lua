@@ -43,7 +43,7 @@ local AutoShootDebugText = true
 local AutoShootManualButton = false
 local AutoShootButtonScale = 1.0
 
--- Параметры атак (БЕЗ ZOffset)
+-- Параметры атак (БЕЗ ZOffset, с YReverse)
 local Attacks = {
     SideRicochet = { Enabled = true, MinDist = 0, MaxDist = 60, Power = 3.5, XMult = 0.8, Spin = "None", HeightMult = 1.0, BaseHeightRange = {Min = 0.15, Max = 0.34}, DerivationMult = 0.0, YReverse = false },
     CloseSpin = { Enabled = true, MinDist = 0, MaxDist = 110, Power = 3.2, XMult = 1.1, Spin = true, HeightMult = 1.1, BaseHeightRange = {Min = 0.3, Max = 0.9}, DerivationMult = 0.8, YReverse = false },
@@ -318,8 +318,9 @@ local function CalculateTrajectoryHeight(dist, power, attackName, isLowShot)
         end
     end
     
-    -- Применяем YReverse - инвертируем высоту
+    -- Применяем YReverse - увеличиваем высоту в 2 раза и инвертируем
     if cfg.YReverse then
+        baseHeight = baseHeight * 2
         baseHeight = -baseHeight
     end
     
@@ -1047,7 +1048,7 @@ local function SetupUI(UI)
         UI.Sections.Attacks:Divider()
         UI.Sections.Attacks:Paragraph({
             Header = "Information",
-            Body = "Min Dist - Minimum Distance for attack, Max Dist - Maximum Distance, X Mult - horizontal position multiplier (from center), Base Min/ Base Max - basic altitude range, DerivationMult - Prediction force of the ball deflection, Y Reverse - инвертирует высоту траектории (низкий выстрел)"
+            Body = "Min Dist - Minimum Distance for attack, Max Dist - Maximum Distance, X Mult - horizontal position multiplier (from center), Base Min/ Base Max - basic altitude range, DerivationMult - Prediction force of the ball deflection, Y Reverse - инвертирует высоту траектории и увеличивает её в 2 раза"
         })
         UI.Sections.Attacks:Divider()
         
@@ -1975,86 +1976,79 @@ end
 local AutoShootModule = {}
 function AutoShootModule.Init(UI, coreParam, notifyFunc)
     notify = notifyFunc
+    
+    -- Функция для инициализации значений из UI
+    local function InitializeValuesFromUI()
+        -- Эти значения будут установлены при первом создании UI
+        -- UI библиотека автоматически загрузит сохраненные значения
+    end
+    
     SetupUI(UI)
     
-    -- Функция для обновления значений из UI при загрузке конфига
-    local function UpdateValuesFromUI()
-        if uiElements.AutoShootEnabled then
-            AutoShootEnabled = uiElements.AutoShootEnabled:GetState()
-            AutoShootLegit = uiElements.AutoShootLegit:GetState()
-            AutoShootManualShot = uiElements.AutoShootManual:GetState()
-            AutoShootShootKey = uiElements.AutoShootKey:GetBind()
-            AutoShootMaxDistance = uiElements.AutoShootMaxDist:GetValue()
-            AutoShootDebugText = uiElements.AutoShootDebugText:GetState()
-            AutoShootManualButton = uiElements.AutoShootManualButton:GetState()
-            AutoShootButtonScale = uiElements.AutoShootButtonScale:GetValue()
-        end
+    -- Запускаем таймер для проверки и обновления значений из UI
+    -- Это фиксит проблему с загрузкой конфига
+    local checkTimer = 0
+    local function CheckUIValues()
+        checkTimer = checkTimer + 1
         
-        if uiElements.AdvancedInset then
-            AutoShootInset = uiElements.AdvancedInset:GetValue()
-            AutoShootGravity = uiElements.AdvancedGravity:GetValue()
-            AutoShootMinPower = uiElements.AdvancedMinPower:GetValue()
-            AutoShootMaxPower = uiElements.AdvancedMaxPower:GetValue()
-            AutoShootPowerPerStud = uiElements.AdvancedPowerPerStud:GetValue()
-            AutoShootMaxHeight = uiElements.AdvancedMaxHeight:GetValue()
-        end
-        
-        if uiElements.SideRicochetEnabled then
-            Attacks.SideRicochet.Enabled = uiElements.SideRicochetEnabled:GetState()
-            Attacks.SideRicochet.MinDist = uiElements.SideRicochetMinDist:GetValue()
-            Attacks.SideRicochet.MaxDist = uiElements.SideRicochetMaxDist:GetValue()
-            Attacks.SideRicochet.Power = uiElements.SideRicochetPower:GetValue()
-            Attacks.SideRicochet.XMult = uiElements.SideRicochetXMult:GetValue()
-            Attacks.SideRicochet.HeightMult = uiElements.SideRicochetHeightMult:GetValue()
-            Attacks.SideRicochet.BaseHeightRange.Min = uiElements.SideRicochetBaseMin:GetValue()
-            Attacks.SideRicochet.BaseHeightRange.Max = uiElements.SideRicochetBaseMax:GetValue()
-            Attacks.SideRicochet.DerivationMult = uiElements.SideRicochetDerivationMult:GetValue()
-            Attacks.SideRicochet.YReverse = uiElements.SideRicochetYReverse:GetState()
-        end
-        
-        -- Аналогично для всех остальных атак...
-        
-        if uiElements.AutoPickupEnabled then
-            AutoPickupEnabled = uiElements.AutoPickupEnabled:GetState()
-            AutoPickupDist = uiElements.AutoPickupDist:GetValue()
-            AutoPickupSpoofValue = uiElements.AutoPickupSpoof:GetValue()
-        end
-        
-        -- Обновляем статус
-        AutoShootStatus.Key = AutoShootShootKey
-        AutoShootStatus.ManualShot = AutoShootManualShot
-        AutoShootStatus.DebugText = AutoShootDebugText
-        AutoShootStatus.ManualButton = AutoShootManualButton
-        AutoShootStatus.ButtonScale = AutoShootButtonScale
-        
-        UpdateModeText()
-        ToggleDebugText(AutoShootDebugText)
-        ToggleManualButton(AutoShootManualButton)
-        
-        if AutoShootEnabled then 
-            if not AutoShootStatus.Running then 
-                AutoShoot.Start() 
+        -- Проверяем и обновляем значения каждые 30 кадров (примерно 0.5 секунды)
+        if checkTimer % 30 == 0 then
+            -- Обновляем основные значения из UI элементов
+            if uiElements.AutoShootMaxDist then
+                local uiValue = uiElements.AutoShootMaxDist:GetValue()
+                if uiValue ~= AutoShootMaxDistance then
+                    AutoShootMaxDistance = uiValue
+                    notify("AutoShoot", "Max Distance updated from UI: " .. uiValue, true)
+                end
             end
-        else 
-            if AutoShootStatus.Running then 
-                AutoShoot.Stop() 
+            
+            -- Обновляем другие слайдеры аналогично
+            if uiElements.AdvancedInset then
+                AutoShootInset = uiElements.AdvancedInset:GetValue()
             end
-        end
-        
-        if AutoPickupEnabled then 
-            if not AutoPickupStatus.Running then 
-                AutoPickup.Start() 
+            
+            if uiElements.AdvancedGravity then
+                AutoShootGravity = uiElements.AdvancedGravity:GetValue()
             end
-        else 
-            if AutoPickupStatus.Running then 
-                AutoPickup.Stop() 
+            
+            if uiElements.AdvancedMinPower then
+                AutoShootMinPower = uiElements.AdvancedMinPower:GetValue()
             end
+            
+            if uiElements.AdvancedMaxPower then
+                AutoShootMaxPower = uiElements.AdvancedMaxPower:GetValue()
+            end
+            
+            if uiElements.AdvancedPowerPerStud then
+                AutoShootPowerPerStud = uiElements.AdvancedPowerPerStud:GetValue()
+            end
+            
+            if uiElements.AdvancedMaxHeight then
+                AutoShootMaxHeight = uiElements.AdvancedMaxHeight:GetValue()
+            end
+            
+            -- Обновляем значения атак
+            if uiElements.SideRicochetMinDist then
+                Attacks.SideRicochet.MinDist = uiElements.SideRicochetMinDist:GetValue()
+                Attacks.SideRicochet.MaxDist = uiElements.SideRicochetMaxDist:GetValue()
+                Attacks.SideRicochet.Power = uiElements.SideRicochetPower:GetValue()
+                Attacks.SideRicochet.XMult = uiElements.SideRicochetXMult:GetValue()
+                Attacks.SideRicochet.HeightMult = uiElements.SideRicochetHeightMult:GetValue()
+                Attacks.SideRicochet.BaseHeightRange.Min = uiElements.SideRicochetBaseMin:GetValue()
+                Attacks.SideRicochet.BaseHeightRange.Max = uiElements.SideRicochetBaseMax:GetValue()
+                Attacks.SideRicochet.DerivationMult = uiElements.SideRicochetDerivationMult:GetValue()
+                Attacks.SideRicochet.YReverse = uiElements.SideRicochetYReverse:GetState()
+            end
+            
+            -- Аналогично для других атак...
         end
     end
     
-    -- Вызываем обновление после создания UI
-    task.wait(0.5) -- Даем UI время на загрузку конфига
-    UpdateValuesFromUI()
+    -- Подключаем проверку значений
+    local heartbeatConnection
+    heartbeatConnection = RunService.Heartbeat:Connect(function()
+        CheckUIValues()
+    end)
     
     LocalPlayer.CharacterAdded:Connect(function(newChar)
         task.wait(1)
@@ -2066,17 +2060,21 @@ function AutoShootModule.Init(UI, coreParam, notifyFunc)
         RShootAnim.Priority = Enum.AnimationPriority.Action4
         GoalCFrame = nil; TargetPoint = nil; NoSpinPoint = nil; LastShoot = 0; IsAnimating = false; CanShoot = true
         
-        -- Обновляем значения из UI при каждом перерождении
-        UpdateValuesFromUI()
-        
         if AutoShootEnabled then AutoShoot.Start() end
         if AutoPickupEnabled then AutoPickup.Start() end
     end)
+    
+    -- Сохраняем соединение для очистки
+    AutoShootModule.HeartbeatConnection = heartbeatConnection
 end
 
 function AutoShootModule:Destroy()
     AutoShoot.Stop()
     AutoPickup.Stop()
+    if self.HeartbeatConnection then
+        self.HeartbeatConnection:Disconnect()
+        self.HeartbeatConnection = nil
+    end
 end
 
 return AutoShootModule
