@@ -52,74 +52,8 @@ function ChinaHat.Init(UI, Core, notify)
     local humanoidConnection
     local uiElements = {}
     
-    -- Детектор ShiftLock с немедленной реакцией
     local isShiftLockEnabled = false
     local lastCameraCFrame = CFrame.new()
-    local lastHumanoidRootPart = nil
-    
-    -- Оптимизированный детектор ShiftLock
-    local function updateShiftLockState()
-        if not camera then
-            isShiftLockEnabled = false
-            return
-        end
-        
-        -- Получаем текущего персонажа
-        local character = LocalPlayer.Character
-        if not character then
-            isShiftLockEnabled = false
-            return
-        end
-        
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        if not humanoidRootPart then
-            isShiftLockEnabled = false
-            return
-        end
-        
-        -- Проверяем CameraSubject
-        local cameraSubject = camera.CameraSubject
-        local isSubjectValid = false
-        
-        if cameraSubject then
-            if cameraSubject:IsA("Humanoid") then
-                isSubjectValid = cameraSubject.Parent == character
-            elseif cameraSubject:IsA("BasePart") then
-                isSubjectValid = cameraSubject.Parent == character
-            end
-        end
-        
-        if not isSubjectValid then
-            isShiftLockEnabled = false
-            return
-        end
-        
-        -- Вычисляем расстояние между камерой и персонажем
-        local cameraPos = camera.CFrame.Position
-        local characterPos = humanoidRootPart.Position
-        local distance = (cameraPos - characterPos).Magnitude
-        
-        -- Проверяем вектор взгляда камеры
-        local lookVector = camera.CFrame.LookVector
-        local toCharacter = (characterPos - cameraPos).Unit
-        
-        local dotProduct = lookVector:Dot(toCharacter)
-        
-        -- Определяем ShiftLock по нескольким критериям
-        local isThirdPerson = distance > 8 and distance < 50
-        local isLookingAtCharacter = dotProduct > 0.7
-        
-        -- Проверяем, изменилась ли ориентация камеры относительно персонажа
-        local cameraCFrame = camera.CFrame
-        local delta = (cameraCFrame.Position - lastCameraCFrame.Position).Magnitude
-        
-        -- Обновляем состояние ShiftLock
-        isShiftLockEnabled = isThirdPerson and isLookingAtCharacter
-        
-        -- Обновляем последние значения
-        lastCameraCFrame = cameraCFrame
-        lastHumanoidRootPart = humanoidRootPart
-    end
 
     local function destroyParts(parts)
         for _, part in ipairs(parts) do
@@ -136,6 +70,56 @@ function ChinaHat.Init(UI, Core, notify)
             color1.G + (color2.G - color1.G) * factor,
             color1.B + (color2.B - color1.B) * factor
         )
+    end
+
+    local function updateShiftLockState()
+        if not camera then
+            isShiftLockEnabled = false
+            return
+        end
+        
+        local character = LocalPlayer.Character
+        if not character then
+            isShiftLockEnabled = false
+            return
+        end
+        
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then
+            isShiftLockEnabled = false
+            return
+        end
+        
+        local cameraSubject = camera.CameraSubject
+        local isSubjectValid = false
+        
+        if cameraSubject then
+            if cameraSubject:IsA("Humanoid") then
+                isSubjectValid = cameraSubject.Parent == character
+            elseif cameraSubject:IsA("BasePart") then
+                isSubjectValid = cameraSubject.Parent == character
+            end
+        end
+        
+        if not isSubjectValid then
+            isShiftLockEnabled = false
+            return
+        end
+        
+        local cameraPos = camera.CFrame.Position
+        local characterPos = humanoidRootPart.Position
+        local distance = (cameraPos - characterPos).Magnitude
+        
+        local lookVector = camera.CFrame.LookVector
+        local toCharacter = (characterPos - cameraPos).Unit
+        
+        local dotProduct = lookVector:Dot(toCharacter)
+        
+        local isThirdPerson = distance > 8 and distance < 50
+        local isLookingAtCharacter = dotProduct > 0.7
+        
+        isShiftLockEnabled = isThirdPerson and isLookingAtCharacter
+        lastCameraCFrame = camera.CFrame
     end
 
     local function createHat()
@@ -307,22 +291,22 @@ function ChinaHat.Init(UI, Core, notify)
         
         local rootPart = localCharacter.HumanoidRootPart
         
-        -- Автоматическое определение позиции Circle
+        -- Circle еще ниже, на уровне земли
         local circleHeight
         
         if isShiftLockEnabled then
-            -- В режиме ShiftLock: располагаем у ног с учетом Humanoid.HipHeight
+            -- В режиме ShiftLock: на самом низу, у самой земли
             if localCharacter:FindFirstChild("Humanoid") then
                 local humanoid = localCharacter.Humanoid
-                -- Более точный расчет позиции у ног
-                circleHeight = rootPart.Position.Y - humanoid.HipHeight * 0.8
+                -- Используем больший коэффициент для более низкого расположения
+                circleHeight = rootPart.Position.Y - humanoid.HipHeight * 1.2
             else
-                -- Fallback значение
-                circleHeight = rootPart.Position.Y - 3.0
+                -- Очень низкое значение
+                circleHeight = rootPart.Position.Y - 3.5
             end
         else
-            -- В обычном режиме: используем настройку пользователя
-            circleHeight = rootPart.Position.Y + State.Circle.CircleYOffset.Value
+            -- В обычном режиме: еще ниже чем было
+            circleHeight = rootPart.Position.Y + State.Circle.CircleYOffset.Value - 0.8
         end
         
         local t = tick()
@@ -366,31 +350,27 @@ function ChinaHat.Init(UI, Core, notify)
     end
 
     local function updateNimb()
-        if not State.Nimb.NimbActive.Value or not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
+        if not State.Nimb.NimbActive.Value or not localCharacter then
             for _, quad in ipairs(nimbQuads) do
                 quad.Visible = false
             end
             return
         end
         
-        local rootPart = localCharacter.HumanoidRootPart
-        
-        local nimbHeight
-        
-        if isShiftLockEnabled then
-            -- В режиме ShiftLock: располагаем над головой
-            if localCharacter:FindFirstChild("Head") then
-                local head = localCharacter.Head
-                nimbHeight = head.Position.Y + 0.8
-            else
-                nimbHeight = rootPart.Position.Y + 3.5
+        -- Привязка Nimb к голове
+        local head = localCharacter:FindFirstChild("Head")
+        if not head then
+            for _, quad in ipairs(nimbQuads) do
+                quad.Visible = false
             end
-        else
-            nimbHeight = rootPart.Position.Y + State.Nimb.NimbYOffset.Value
+            return
         end
         
+        -- Всегда используем позицию головы с небольшим смещением вверх
+        local nimbHeight = head.Position.Y + 0.3
+        
         local t = tick()
-        local center = Vector3.new(rootPart.Position.X, nimbHeight, rootPart.Position.Z)
+        local center = Vector3.new(head.Position.X, nimbHeight, head.Position.Z)
         local screenCenter, onScreenCenter = camera:WorldToViewportPoint(center)
         
         if not (onScreenCenter and screenCenter.Z > 0) then
@@ -497,7 +477,6 @@ function ChinaHat.Init(UI, Core, notify)
             localHumanoid = humanoid
             humanoidConnection = humanoid.StateChanged:Connect(onStateChanged)
         end
-        -- Воссоздаем элементы, если они активны
         if State.ChinaHat.HatActive.Value then
             createHat()
         end
@@ -509,9 +488,74 @@ function ChinaHat.Init(UI, Core, notify)
         end
     end
 
-    -- Основной цикл рендера
+    -- Новая функция синхронизации конфигов
+    local function SynchronizeConfigValues()
+        if not uiElements then return end
+        
+        -- Синхронизация ChinaHat слайдеров
+        if uiElements.HatScale and uiElements.HatScale.GetValue then
+            State.ChinaHat.HatScale.Value = uiElements.HatScale:GetValue()
+        end
+        
+        if uiElements.HatParts and uiElements.HatParts.GetValue then
+            State.ChinaHat.HatParts.Value = uiElements.HatParts:GetValue()
+        end
+        
+        if uiElements.HatGradientSpeed and uiElements.HatGradientSpeed.GetValue then
+            State.ChinaHat.HatGradientSpeed.Value = uiElements.HatGradientSpeed:GetValue()
+        end
+        
+        if uiElements.HatYOffset and uiElements.HatYOffset.GetValue then
+            State.ChinaHat.HatYOffset.Value = uiElements.HatYOffset:GetValue()
+        end
+        
+        -- Синхронизация Circle слайдеров
+        if uiElements.CircleRadius and uiElements.CircleRadius.GetValue then
+            State.Circle.CircleRadius.Value = uiElements.CircleRadius:GetValue()
+        end
+        
+        if uiElements.CircleParts and uiElements.CircleParts.GetValue then
+            State.Circle.CircleParts.Value = uiElements.CircleParts:GetValue()
+        end
+        
+        if uiElements.CircleGradientSpeed and uiElements.CircleGradientSpeed.GetValue then
+            State.Circle.CircleGradientSpeed.Value = uiElements.CircleGradientSpeed:GetValue()
+        end
+        
+        if uiElements.CircleYOffset and uiElements.CircleYOffset.GetValue then
+            State.Circle.CircleYOffset.Value = uiElements.CircleYOffset:GetValue()
+        end
+        
+        -- Синхронизация Nimb слайдеров
+        if uiElements.NimbRadius and uiElements.NimbRadius.GetValue then
+            State.Nimb.NimbRadius.Value = uiElements.NimbRadius:GetValue()
+        end
+        
+        if uiElements.NimbParts and uiElements.NimbParts.GetValue then
+            State.Nimb.NimbParts.Value = uiElements.NimbParts:GetValue()
+        end
+        
+        if uiElements.NimbGradientSpeed and uiElements.NimbGradientSpeed.GetValue then
+            State.Nimb.NimbGradientSpeed.Value = uiElements.NimbGradientSpeed:GetValue()
+        end
+        
+        if uiElements.NimbYOffset and uiElements.NimbYOffset.GetValue then
+            State.Nimb.NimbYOffset.Value = uiElements.NimbYOffset:GetValue()
+        end
+        
+        -- Пересоздание визуальных элементов если они активны
+        if State.ChinaHat.HatActive.Value then
+            createHat()
+        end
+        if State.Circle.CircleActive.Value then
+            createCircle()
+        end
+        if State.Nimb.NimbActive.Value then
+            createNimb()
+        end
+    end
+
     renderConnection = RunService.RenderStepped:Connect(function()
-        -- Обновляем состояние ShiftLock каждый кадр
         updateShiftLockState()
         
         if localCharacter then
@@ -534,7 +578,6 @@ function ChinaHat.Init(UI, Core, notify)
         end
     end)
 
-    -- Слушаем изменения камеры для мгновенного определения ShiftLock
     camera:GetPropertyChangedSignal("CFrame"):Connect(updateShiftLockState)
     camera:GetPropertyChangedSignal("CameraSubject"):Connect(updateShiftLockState)
 
@@ -740,7 +783,7 @@ function ChinaHat.Init(UI, Core, notify)
         local nimbSection = UI.Sections.Nimb or UI.Tabs.Visuals:Section({ Name = "Nimb", Side = "Right" })
         UI.Sections.Nimb = nimbSection
         nimbSection:Header({ Name = "Nimb" })
-        nimbSection:SubLabel({ Text = "Displays a circle above the player head (Auto-adjusts for ShiftLock)" })
+        nimbSection:SubLabel({ Text = "Displays a circle above the player head (Attached to head)" })
         uiElements.NimbEnabled = nimbSection:Toggle({
             Name = "Nimb Enabled",
             Default = State.Nimb.NimbActive.Default,
@@ -814,9 +857,9 @@ function ChinaHat.Init(UI, Core, notify)
         nimbSection:Divider()
         uiElements.NimbYOffset = nimbSection:Slider({
             Name = "Y Offset",
-            Minimum = 1,
-            Maximum = 3,
-            Default = State.Nimb.NimbYOffset.Default,
+            Minimum = 0,
+            Maximum = 2,
+            Default = 0.3,
             Precision = 2,
             Callback = function(value)
                 State.Nimb.NimbYOffset.Value = value
@@ -829,34 +872,22 @@ function ChinaHat.Init(UI, Core, notify)
         configSection:Button({
             Name = "Sync Config",
             Callback = function()
-                State.ChinaHat.HatScale.Value = uiElements.HatScale:GetValue()
-                State.ChinaHat.HatParts.Value = uiElements.HatParts:GetValue()
-                State.ChinaHat.HatGradientSpeed.Value = uiElements.HatGradientSpeed:GetValue()
-                State.ChinaHat.HatYOffset.Value = uiElements.HatYOffset:GetValue()
-                if State.ChinaHat.HatActive.Value then
-                    createHat()
-                end
-
-                State.Circle.CircleRadius.Value = uiElements.CircleRadius:GetValue()
-                State.Circle.CircleParts.Value = uiElements.CircleParts:GetValue()
-                State.Circle.CircleGradientSpeed.Value = uiElements.CircleGradientSpeed:GetValue()
-                State.Circle.CircleYOffset.Value = uiElements.CircleYOffset:GetValue()
-                if State.Circle.CircleActive.Value then
-                    createCircle()
-                end
-
-                State.Nimb.NimbRadius.Value = uiElements.NimbRadius:GetValue()
-                State.Nimb.NimbParts.Value = uiElements.NimbParts:GetValue()
-                State.Nimb.NimbGradientSpeed.Value = uiElements.NimbGradientSpeed:GetValue()
-                State.Nimb.NimbYOffset.Value = uiElements.NimbYOffset:GetValue()
-                if State.Nimb.NimbActive.Value then
-                    createNimb()
-                end
-
+                SynchronizeConfigValues()
                 notify("ChinaHat", "Config synchronized!", true)
             end
         })
     end
+    
+    -- Таймер для периодической синхронизации конфигов
+    local synchronizationTimer = 0
+    RunService.Heartbeat:Connect(function(deltaTime)
+        synchronizationTimer = synchronizationTimer + deltaTime
+        
+        if synchronizationTimer >= 1.0 then
+            synchronizationTimer = 0
+            SynchronizeConfigValues()
+        end
+    end)
 
     function ChinaHat:Destroy()
         destroyParts(hatLines)
