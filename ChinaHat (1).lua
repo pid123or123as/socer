@@ -52,15 +52,74 @@ function ChinaHat.Init(UI, Core, notify)
     local humanoidConnection
     local uiElements = {}
     
-    -- skibidi
+    -- Детектор ShiftLock с немедленной реакцией
     local isShiftLockEnabled = false
-    local shiftLockConnection
     local lastCameraCFrame = CFrame.new()
-    local lastCameraSubject = nil
+    local lastHumanoidRootPart = nil
     
-    -- super mega shiftlock detector vibrator
-    local SHIFT_LOCK_THRESHOLD = 0.8
-    local lastCameraOffset = Vector3.new()
+    -- Оптимизированный детектор ShiftLock
+    local function updateShiftLockState()
+        if not camera then
+            isShiftLockEnabled = false
+            return
+        end
+        
+        -- Получаем текущего персонажа
+        local character = LocalPlayer.Character
+        if not character then
+            isShiftLockEnabled = false
+            return
+        end
+        
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then
+            isShiftLockEnabled = false
+            return
+        end
+        
+        -- Проверяем CameraSubject
+        local cameraSubject = camera.CameraSubject
+        local isSubjectValid = false
+        
+        if cameraSubject then
+            if cameraSubject:IsA("Humanoid") then
+                isSubjectValid = cameraSubject.Parent == character
+            elseif cameraSubject:IsA("BasePart") then
+                isSubjectValid = cameraSubject.Parent == character
+            end
+        end
+        
+        if not isSubjectValid then
+            isShiftLockEnabled = false
+            return
+        end
+        
+        -- Вычисляем расстояние между камерой и персонажем
+        local cameraPos = camera.CFrame.Position
+        local characterPos = humanoidRootPart.Position
+        local distance = (cameraPos - characterPos).Magnitude
+        
+        -- Проверяем вектор взгляда камеры
+        local lookVector = camera.CFrame.LookVector
+        local toCharacter = (characterPos - cameraPos).Unit
+        
+        local dotProduct = lookVector:Dot(toCharacter)
+        
+        -- Определяем ShiftLock по нескольким критериям
+        local isThirdPerson = distance > 8 and distance < 50
+        local isLookingAtCharacter = dotProduct > 0.7
+        
+        -- Проверяем, изменилась ли ориентация камеры относительно персонажа
+        local cameraCFrame = camera.CFrame
+        local delta = (cameraCFrame.Position - lastCameraCFrame.Position).Magnitude
+        
+        -- Обновляем состояние ShiftLock
+        isShiftLockEnabled = isThirdPerson and isLookingAtCharacter
+        
+        -- Обновляем последние значения
+        lastCameraCFrame = cameraCFrame
+        lastHumanoidRootPart = humanoidRootPart
+    end
 
     local function destroyParts(parts)
         for _, part in ipairs(parts) do
@@ -77,53 +136,6 @@ function ChinaHat.Init(UI, Core, notify)
             color1.G + (color2.G - color1.G) * factor,
             color1.B + (color2.B - color1.B) * factor
         )
-    end
-
-    -- Функция для определения, включен ли ShiftLock
-    local function updateShiftLockState()
-        if not camera or not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
-            isShiftLockEnabled = false
-            return
-        end
-        
-        local rootPart = localCharacter.HumanoidRootPart
-        local cameraPos = camera.CFrame.Position
-        local characterPos = rootPart.Position
-        
-        -- vector obama
-        local cameraOffset = cameraPos - characterPos
-        cameraOffset = Vector3.new(cameraOffset.X, 0, cameraOffset.Z) -- Игнорируем высоту
-        
-        local horizontalDistance = cameraOffset.Magnitude
-        
-        
-        local lookVector = camera.CFrame.LookVector
-        local toCharacter = (characterPos - cameraPos).Unit
-        
-        local dotProduct = lookVector:Dot(toCharacter)
-        
-        
-        local isThirdPerson = horizontalDistance > 5 and horizontalDistance < 20
-        local isLookingAtCharacter = dotProduct > 0.5
-        
-        -- Также проверяем CameraSubject
-        local cameraSubject = camera.CameraSubject
-        local isFollowingCharacter = false
-        
-        if cameraSubject then
-            if cameraSubject:IsA("Humanoid") then
-                isFollowingCharacter = cameraSubject.Parent == localCharacter
-            elseif cameraSubject:IsA("BasePart") then
-                isFollowingCharacter = cameraSubject.Parent == localCharacter
-            end
-        end
-        
-        -- Определяем ShiftLock/режим от 3-го лица
-        isShiftLockEnabled = isThirdPerson and isLookingAtCharacter and isFollowingCharacter
-        
-        lastCameraCFrame = camera.CFrame
-        lastCameraSubject = cameraSubject
-        lastCameraOffset = cameraOffset
     end
 
     local function createHat()
@@ -295,19 +307,21 @@ function ChinaHat.Init(UI, Core, notify)
         
         local rootPart = localCharacter.HumanoidRootPart
         
+        -- Автоматическое определение позиции Circle
         local circleHeight
         
         if isShiftLockEnabled then
-            -- В режиме ShiftLock/3-го лица располагаем Circle значительно ниже (уровень земли)
+            -- В режиме ShiftLock: располагаем у ног с учетом Humanoid.HipHeight
             if localCharacter:FindFirstChild("Humanoid") then
                 local humanoid = localCharacter.Humanoid
-                -- Используем коэффициент 1.4 для большего смещения вниз
-                circleHeight = rootPart.Position.Y - (humanoid.HipHeight * 1.4)
+                -- Более точный расчет позиции у ног
+                circleHeight = rootPart.Position.Y - humanoid.HipHeight * 0.8
             else
-                circleHeight = rootPart.Position.Y - 3.5
+                -- Fallback значение
+                circleHeight = rootPart.Position.Y - 3.0
             end
         else
-            -- В обычном режиме используем настроенное смещение
+            -- В обычном режиме: используем настройку пользователя
             circleHeight = rootPart.Position.Y + State.Circle.CircleYOffset.Value
         end
         
@@ -364,18 +378,12 @@ function ChinaHat.Init(UI, Core, notify)
         local nimbHeight
         
         if isShiftLockEnabled then
-            -- В режиме ShiftLock/3-го лица располагаем Nimb над головой
+            -- В режиме ShiftLock: располагаем над головой
             if localCharacter:FindFirstChild("Head") then
                 local head = localCharacter.Head
-                nimbHeight = head.Position.Y + 0.8 -- Над головой
+                nimbHeight = head.Position.Y + 0.8
             else
-                -- Если голова недоступна, используем расчетную высоту
-                if localCharacter:FindFirstChild("Humanoid") then
-                    local humanoid = localCharacter.Humanoid
-                    nimbHeight = rootPart.Position.Y + humanoid.HipHeight + 1.5
-                else
-                    nimbHeight = rootPart.Position.Y + 3.5
-                end
+                nimbHeight = rootPart.Position.Y + 3.5
             end
         else
             nimbHeight = rootPart.Position.Y + State.Nimb.NimbYOffset.Value
@@ -501,16 +509,12 @@ function ChinaHat.Init(UI, Core, notify)
         end
     end
 
-    -- Функция для обработки изменения камеры
-    local function onCameraChanged()
-        updateShiftLockState()
-    end
-
+    -- Основной цикл рендера
     renderConnection = RunService.RenderStepped:Connect(function()
+        -- Обновляем состояние ShiftLock каждый кадр
+        updateShiftLockState()
+        
         if localCharacter then
-            -- Обновляем состояние ShiftLock каждый кадр
-            updateShiftLockState()
-            
             updateHat()
             updateCircle()
             updateNimb()
@@ -530,9 +534,9 @@ function ChinaHat.Init(UI, Core, notify)
         end
     end)
 
-    shiftLockConnection = camera:GetPropertyChangedSignal("CFrame"):Connect(onCameraChanged)
-    
-    camera:GetPropertyChangedSignal("CameraSubject"):Connect(onCameraChanged)
+    -- Слушаем изменения камеры для мгновенного определения ShiftLock
+    camera:GetPropertyChangedSignal("CFrame"):Connect(updateShiftLockState)
+    camera:GetPropertyChangedSignal("CameraSubject"):Connect(updateShiftLockState)
 
     LocalPlayer.CharacterAdded:Connect(connectHumanoid)
     if localCharacter then
@@ -865,14 +869,9 @@ function ChinaHat.Init(UI, Core, notify)
         if humanoidConnection then
             humanoidConnection:Disconnect()
         end
-        if shiftLockConnection then
-            shiftLockConnection:Disconnect()
-        end
     end
 
     return ChinaHat
 end
 
 return ChinaHat
-
-
