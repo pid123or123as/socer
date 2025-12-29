@@ -19,7 +19,7 @@ function ChinaHat.Init(UI, Core, notify)
             HatGradientSpeed = { Value = 4, Default = 4 },
             HatGradient = { Value = true, Default = true },
             HatColor = { Value = Color3.fromRGB(0, 0, 255), Default = Color3.fromRGB(0, 0, 255) },
-            HatYOffset = { Value = 1.6, Default = 1.6 },
+            HatYOffset = { Value = 1.4, Default = 1.4 },
             OutlineCircle = { Value = false, Default = false }
         },
         Circle = {
@@ -30,7 +30,7 @@ function ChinaHat.Init(UI, Core, notify)
             CircleGradient = { Value = true, Default = true },
             CircleColor = { Value = Color3.fromRGB(0, 0, 255), Default = Color3.fromRGB(0, 0, 255) },
             JumpAnimate = { Value = false, Default = false },
-            CircleYOffset = { Value = -4.5, Default = -4.5 }
+            CircleYOffset = { Value = -3.2, Default = -3.2 }
         },
         Nimb = {
             NimbActive = { Value = false, Default = false },
@@ -920,3 +920,4 @@ function ChinaHat.Init(UI, Core, notify)
 end
 
 return ChinaHat
+
