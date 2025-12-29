@@ -987,7 +987,7 @@ local function PerformDribble()
     end
 end
 
--- === ФУНКЦИИ ДЛЯ AUTOTACKLE ===
+-- === ОБЩИЕ ФУНКЦИИ ДЛЯ ПРЕДВАРИТЕЛЬНЫХ ВЫЧИСЛЕНИЙ ===
 local function PrecomputePlayers()
     PrecomputedPlayers = {}
     HasBall = false
@@ -1165,7 +1165,7 @@ local function ManualTackleAction()
     end
 end
 
--- === AUTOTACKLE МОДУЛЬ ===
+-- === ИСПРАВЛЕННЫЙ AUTOTACKLE МОДУЛЬ ===
 local AutoTackle = {}
 AutoTackle.Start = function()
     if AutoTackleStatus.Running then return end
@@ -1345,11 +1345,27 @@ AutoTackle.Stop = function()
     end
 end
 
--- === AUTODRIBBLE МОДУЛЬ ===
+-- === ИСПРАВЛЕННЫЙ AUTODRIBBLE МОДУЛЬ (РАБОТАЕТ НЕЗАВИСИМО) ===
 local AutoDribble = {}
 AutoDribble.Start = function()
     if AutoDribbleStatus.Running then return end
     AutoDribbleStatus.Running = true
+    
+    -- Запускаем собственный HeartbeatConnection для AutoDribble
+    AutoDribbleStatus.HeartbeatConnection = RunService.Heartbeat:Connect(function()
+        if not AutoDribbleConfig.Enabled then return end
+        
+        pcall(function()
+            UpdatePing()
+            UpdateServerPosition()
+            UpdateDribbleStates()
+            PrecomputePlayers()  -- AutoDribble теперь имеет свою собственную копию PrecomputePlayers
+            UpdateTargetCircles()
+            IsTypingInChat = CheckIfTypingInChat()
+        end)
+    end)
+    
+    if not Gui then SetupGUI() end
     
     AutoDribbleStatus.Connection = RunService.RenderStepped:Connect(function()
         if not AutoDribbleConfig.Enabled then
@@ -1406,6 +1422,7 @@ end
 
 AutoDribble.Stop = function()
     if AutoDribbleStatus.Connection then AutoDribbleStatus.Connection:Disconnect(); AutoDribbleStatus.Connection = nil end
+    if AutoDribbleStatus.HeartbeatConnection then AutoDribbleStatus.HeartbeatConnection:Disconnect(); AutoDribbleStatus.HeartbeatConnection = nil end
     AutoDribbleStatus.Running = false
     
     CleanupDebugText()
@@ -1846,4 +1863,3 @@ function AutoDribbleTackleModule:Destroy()
 end
 
 return AutoDribbleTackleModule
-
