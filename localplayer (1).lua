@@ -340,14 +340,12 @@ local function activateTackleBoost()
         
         SpeedStatus.Speed = SpeedStatus.BaseSpeed * SpeedStatus.TackleBoost.Multiplier
         
-        notify("Speed", "Tackle Boost activated! Speed: " .. SpeedStatus.Speed, false)
         
         task.spawn(function()
             task.wait(SpeedStatus.TackleBoost.Duration)
             if SpeedStatus.TackleBoost.Active then
                 SpeedStatus.TackleBoost.Active = false
                 SpeedStatus.Speed = SpeedStatus.BaseSpeed
-                notify("Speed", "Tackle Boost ended", false)
             end
         end)
     end
