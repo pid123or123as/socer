@@ -56,7 +56,7 @@ local AutoTackleConfig = {
     RotationMethod = "Snap",
     RotationType = "CFrame",
     MaxAngle = 360,
-    DribbleDelayTime = 0.3,
+    DribbleDelayTime = 0,
     EagleEyeMinDelay = 0.1,
     EagleEyeMaxDelay = 0.6,
     ManualTackleEnabled = true,
@@ -1846,3 +1846,4 @@ function AutoDribbleTackleModule:Destroy()
 end
 
 return AutoDribbleTackleModule
+
