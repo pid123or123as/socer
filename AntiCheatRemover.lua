@@ -5,7 +5,8 @@ print('2')
 AntiCheatRemover.Config = {
     DevConsoleBypass = {
         Enabled = false,
-        ToggleKey = nil
+        ToggleKey = nil,
+        UseAlternativeMethod = false -- Флаг для альтернативного метода
     },
     BaseACBypass = {
         Enabled = false,
@@ -13,7 +14,8 @@ AntiCheatRemover.Config = {
     },
     MobileCameraACBypass = {
         Enabled = false,
-        ToggleKey = nil
+        ToggleKey = nil,
+        UseAlternativeMethod = false -- Флаг для альтернативного метода
     }
 }
 
@@ -25,7 +27,8 @@ local DevConsoleBypassStatus = {
     ScriptName = "None",
     FoundScript = nil,
     label = nil,
-    Connection = nil  -- Добавлено для отслеживания респавна
+    Connection = nil,
+    MethodUsed = nil -- Запоминаем какой метод сработал
 }
 
 local BaseACBypassStatus = {
@@ -43,7 +46,8 @@ local MobileCameraACStatus = {
     Status = "Disabled",
     ScriptName = "None",
     FoundScript = nil,
-    label = nil
+    label = nil,
+    MethodUsed = nil -- Запоминаем какой метод сработал
 }
 
 -- ====================== SERVICES & HELPERS ======================
@@ -51,10 +55,12 @@ local Services = nil
 local notify = nil
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
+-- ====================== ОБНОВЛЕНИЕ ЛЕЙБЛОВ ======================
 local function updateDevConsoleLabel()
     if DevConsoleBypassStatus.label then
-        DevConsoleBypassStatus.label:UpdateName("Status: " .. DevConsoleBypassStatus.Status .. " | Pointer: " .. DevConsoleBypassStatus.ScriptName)
+        DevConsoleBypassStatus.label:UpdateName("Status: " .. DevConsoleBypassStatus.Status .. " | Pointer: " .. DevConsoleBypassStatus.ScriptName .. (DevConsoleBypassStatus.MethodUsed and " (" .. DevConsoleBypassStatus.MethodUsed .. ")" or ""))
     end
 end
 
@@ -66,60 +72,66 @@ end
 
 local function updateMobileCameraLabel()
     if MobileCameraACStatus.label then
-        MobileCameraACStatus.label:UpdateName("Status: " .. MobileCameraACStatus.Status .. " | Pointer: " .. MobileCameraACStatus.ScriptName)
+        MobileCameraACStatus.label:UpdateName("Status: " .. MobileCameraACStatus.Status .. " | Pointer: " .. MobileCameraACStatus.ScriptName .. (MobileCameraACStatus.MethodUsed and " (" .. MobileCameraACStatus.MethodUsed .. ")" or ""))
     end
 end
 
--- ====================== НОВАЯ ФУНКЦИЯ: ПОВТОРНАЯ АКТИВАЦИЯ ======================
-local function reactivateDevConsoleBypass()
-    if not DevConsoleBypassStatus.Enabled or not DevConsoleBypassStatus.Running then return end
+-- ====================== ОБЩИЕ ФУНКЦИИ НЕЙТРАЛИЗАЦИИ ======================
+local function neutralizeScriptAdvanced(scriptObj, mainClosure)
+    if not scriptObj or not mainClosure then return false end
     
-    -- Сбрасываем статус при респавне
-    if DevConsoleBypassStatus.FoundScript then
-        DevConsoleBypassStatus.FoundScript = nil
-        DevConsoleBypassStatus.ScriptName = "None"
-        DevConsoleBypassStatus.Status = "Scanning..."
-        updateDevConsoleLabel()
-    end
-    
-    -- Запускаем сканирование с задержкой
-    task.wait(1.5)  -- Даем время скрипту античита загрузиться
-    scanCoreGuiSetter()
-    
-    -- Дополнительная проверка через 3 секунды
-    task.delay(3, function()
-        if DevConsoleBypassStatus.Status ~= "Neutralized" then
-            scanCoreGuiSetter()
-        end
-    end)
-end
-
--- ====================== NEUTRALIZE FUNCTIONS ======================
-local function neutralizeCoreGuiSetter(scriptObj, mainClosure)
-    if not scriptObj or not mainClosure or not scriptObj.Parent then return false end
-
-    DevConsoleBypassStatus.FoundScript = scriptObj
-    DevConsoleBypassStatus.ScriptName = scriptObj.Name
-    DevConsoleBypassStatus.Status = "Neutralized"
-    updateDevConsoleLabel()
-
-    -- Полная деактивация скрипта
+    -- 1. Отключаем и уничтожаем скрипт
     pcall(function()
         scriptObj.Disabled = true
-        scriptObj:Destroy()  -- Уничтожаем скрипт полностью
+        scriptObj:Destroy()
     end)
-
-    -- Порча констант
-    local constants = debug.getconstants(mainClosure)
-    if constants and #constants == 28 then
-        for i = 1, 28 do
-            pcall(debug.setconstant, mainClosure, i, "broken_" .. math.random(1000, 9999))
+    
+    -- 2. Портим все константы
+    if debug.getconstants then
+        local constants = debug.getconstants(mainClosure)
+        if constants then
+            for i = 1, #constants do
+                pcall(debug.setconstant, mainClosure, i, "CORRUPTED_" .. math.random(10000, 99999))
+            end
         end
     end
-
-    -- Отключение всех соединений
-    if getconnections and Services.RunService then
-        local events = {Services.RunService.Heartbeat, Services.RunService.RenderStepped, Services.RunService.Stepped}
+    
+    -- 3. Портим все protos
+    if debug.getproto then
+        for protoIndex = 1, 50 do
+            local success, proto = pcall(debug.getproto, mainClosure, protoIndex)
+            if not success or not proto then break end
+            
+            -- Портим константы proto
+            if debug.getconstants then
+                local protoConstants = debug.getconstants(proto)
+                if protoConstants then
+                    for i = 1, #protoConstants do
+                        pcall(debug.setconstant, proto, i, "BROKEN_" .. math.random(1000, 9999))
+                    end
+                end
+            end
+            
+            -- Портим upvalues proto
+            if debug.setupvalue then
+                for i = 1, 20 do
+                    pcall(debug.setupvalue, proto, i, function() end)
+                end
+            end
+        end
+    end
+    
+    -- 4. Отключаем все connections
+    if getconnections then
+        -- Стандартные события
+        local events = {
+            Services.RunService.Heartbeat,
+            Services.RunService.RenderStepped,
+            Services.RunService.Stepped,
+            scriptObj.AncestryChanged,
+            scriptObj.Changed
+        }
+        
         for _, event in ipairs(events) do
             for _, conn in ipairs(getconnections(event)) do
                 if conn.Function == mainClosure then
@@ -129,98 +141,8 @@ local function neutralizeCoreGuiSetter(scriptObj, mainClosure)
             end
         end
     end
-
-    notify("AntiCheatRemover", "DevConsole unlocked (Permanent)", false)
-    return true
-end
-
-local function neutralizeAdvertisementHandler(scriptObj, mainClosure)
-    if not scriptObj or not mainClosure or not scriptObj.Parent then return false end
-
-    BaseACBypassStatus.FoundScript = scriptObj
-    BaseACBypassStatus.ScriptName = scriptObj.Name
-    BaseACBypassStatus.Status = "Neutralized"
-    updateBaseACLabel()
-
-    local constants = debug.getconstants(mainClosure)
-    if constants and #constants == 35 then
-        pcall(debug.setconstant, mainClosure, 3, nil)
-        pcall(debug.setconstant, mainClosure, 5, nil)
-        pcall(debug.setconstant, mainClosure, 6, "FakeService")
-        pcall(debug.setconstant, mainClosure, 13, nil)
-        pcall(debug.setconstant, mainClosure, 14, nil)
-        pcall(debug.setconstant, mainClosure, 16, nil)
-        pcall(debug.setconstant, mainClosure, 19, nil)
-        pcall(debug.setconstant, mainClosure, 22, nil)
-        pcall(debug.setconstant, mainClosure, 24, nil)
-        pcall(debug.setconstant, mainClosure, 26, nil)
-        pcall(debug.setconstant, mainClosure, 30, nil)
-        pcall(debug.setconstant, mainClosure, 31, nil)
-        pcall(debug.setconstant, mainClosure, 35, nil)
-
-        for i = 1, 35 do
-            pcall(debug.setconstant, mainClosure, i, string.char(math.random(65, 90)) .. math.random(1, 9999))
-        end
-    end
-
-    if getconnections and Services.RunService then
-        local events = {Services.RunService.Heartbeat, Services.RunService.RenderStepped, Services.RunService.Stepped}
-        for _, event in ipairs(events) do
-            for _, conn in ipairs(getconnections(event)) do
-                if conn.Function == mainClosure then
-                    pcall(conn.Disable, conn)
-                    pcall(conn.Disconnect, conn)
-                end
-            end
-        end
-    end
-
-    if debug.setupvalue then
-        for i = 1, 10 do
-            pcall(debug.setupvalue, mainClosure, i, function() end)
-        end
-    end
-
-    pcall(function()
-        local mt = getrawmetatable(scriptObj)
-        if mt then
-            mt.__index = nil
-            mt.__newindex = function() end
-        end
-    end)
-
-    notify("AntiCheatRemover", "Base AC broken", false)
-    return true
-end
-
-local function neutralizeMobileCameraAC(scriptObj, mainClosure)
-    if not scriptObj or not mainClosure then return false end
-
-    MobileCameraACStatus.FoundScript = scriptObj
-    MobileCameraACStatus.ScriptName = scriptObj.Name
-    MobileCameraACStatus.Status = "Neutralized"
-    updateMobileCameraLabel()
-
-    local constants = debug.getconstants(mainClosure)
-    if #constants == 87 then
-        -- Двойная полная порча всех констант
-        for i = 1, 87 do
-            pcall(debug.setconstant, mainClosure, i, string.char(math.random(65, 90)) .. math.random(10000, 99999))
-        end
-        task.wait()
-        for i = 1, 87 do
-            pcall(debug.setconstant, mainClosure, i, math.random(-999999, 999999))
-        end
-    end
-
-    -- setupvalue на пустую
-    if debug.setupvalue then
-        for i = 1, 20 do
-            pcall(debug.setupvalue, mainClosure, i, function() end)
-        end
-    end
-
-    -- Порча метатаблицы
+    
+    -- 5. Портим метатаблицу
     pcall(function()
         local mt = getrawmetatable(scriptObj)
         if mt then
@@ -229,170 +151,225 @@ local function neutralizeMobileCameraAC(scriptObj, mainClosure)
             mt.__namecall = function() end
         end
     end)
-
-    -- Отписка от соединений (оптимизировано)
-    if getconnections then
-        local events = {Services.RunService.Heartbeat, Services.RunService.RenderStepped, Services.RunService.Stepped}
-        for _, event in ipairs(events) do
-            for _, conn in ipairs(getconnections(event)) do
-                if conn.Function == mainClosure then
-                    pcall(conn.Disable, conn)
-                    pcall(conn.Disconnect, conn)
-                end
-            end
-        end
-
-        local character = scriptObj.Parent
-        local hrp = character:FindFirstChild("HumanoidRootPart")
-        local humanoid = character:FindFirstChild("Humanoid")
-        local signals = {}
-        if hrp then
-            table.insert(signals, hrp:GetPropertyChangedSignal("CFrame"))
-            table.insert(signals, hrp:GetPropertyChangedSignal("Velocity"))
-        end
-        if humanoid then
-            table.insert(signals, humanoid:GetPropertyChangedSignal("WalkSpeed"))
-        end
-        for _, sig in ipairs(signals) do
-            for _, conn in ipairs(getconnections(sig)) do
-                if conn.Function == mainClosure then
-                    pcall(conn.Disable, conn)
-                    pcall(conn.Disconnect, conn)
-                end
-            end
+    
+    -- 6. Портим upvalues
+    if debug.setupvalue then
+        for i = 1, 20 do
+            pcall(debug.setupvalue, mainClosure, i, function() end)
         end
     end
+    
+    return true
+end
 
-    notify("AntiCheatRemover", "MobileCamera AC broken", false)
+-- ====================== DevConsole: МЕТОД 1 (оригинальный) ======================
+local function neutralizeDevConsoleMethod1(scriptObj, mainClosure)
+    if not scriptObj or not mainClosure then return false end
+    
+    DevConsoleBypassStatus.FoundScript = scriptObj
+    DevConsoleBypassStatus.ScriptName = scriptObj.Name
+    DevConsoleBypassStatus.Status = "Neutralized"
+    DevConsoleBypassStatus.MethodUsed = "Method1"
+    updateDevConsoleLabel()
+    
+    neutralizeScriptAdvanced(scriptObj, mainClosure)
+    notify("AntiCheatRemover", "DevConsole bypassed (Method1)", false)
+    return true
+end
+
+-- ====================== DevConsole: МЕТОД 2 (альтернативный) ======================
+local function neutralizeDevConsoleMethod2(scriptObj, mainClosure)
+    if not scriptObj or not mainClosure then return false end
+    
+    DevConsoleBypassStatus.FoundScript = scriptObj
+    DevConsoleBypassStatus.ScriptName = scriptObj.Name
+    DevConsoleBypassStatus.Status = "Neutralized"
+    DevConsoleBypassStatus.MethodUsed = "Method2"
+    updateDevConsoleLabel()
+    
+    neutralizeScriptAdvanced(scriptObj, mainClosure)
+    notify("AntiCheatRemover", "DevConsole bypassed (Method2)", false)
+    return true
+end
+
+-- ====================== MobileCamera: МЕТОД 1 (оригинальный - 87 констант) ======================
+local function neutralizeMobileCameraMethod1(scriptObj, mainClosure)
+    if not scriptObj or not mainClosure then return false end
+    
+    MobileCameraACStatus.FoundScript = scriptObj
+    MobileCameraACStatus.ScriptName = scriptObj.Name
+    MobileCameraACStatus.Status = "Neutralized"
+    MobileCameraACStatus.MethodUsed = "Method1"
+    updateMobileCameraLabel()
+    
+    neutralizeScriptAdvanced(scriptObj, mainClosure)
+    notify("AntiCheatRemover", "Character bypassed (Method1)", false)
+    return true
+end
+
+-- ====================== MobileCamera: МЕТОД 2 (72 константы, 20 protos) ======================
+local function neutralizeMobileCameraMethod2(scriptObj, mainClosure)
+    if not scriptObj or not mainClosure then return false end
+    
+    MobileCameraACStatus.FoundScript = scriptObj
+    MobileCameraACStatus.ScriptName = scriptObj.Name
+    MobileCameraACStatus.Status = "Neutralized"
+    MobileCameraACStatus.MethodUsed = "Method2"
+    updateMobileCameraLabel()
+    
+    neutralizeScriptAdvanced(scriptObj, mainClosure)
+    notify("AntiCheatRemover", "Character bypassed (Method2)", false)
     return true
 end
 
 -- ====================== SCAN FUNCTIONS ======================
-local function scanCoreGuiSetter()
-    if not DevConsoleBypassStatus.Enabled or DevConsoleBypassStatus.Status == "Neutralized" then return end
-
+-- DevConsole: Поиск только в PlayerGui
+local function scanDevConsole()
+    if not DevConsoleBypassStatus.Enabled or DevConsoleBypassStatus.Status == "Neutralized" then return false end
+    
     DevConsoleBypassStatus.Status = "Scanning..."
     DevConsoleBypassStatus.ScriptName = "Searching..."
     updateDevConsoleLabel()
-
-    for _, obj in ipairs(game:GetDescendants()) do
-        if not obj:IsA("LocalScript") then continue end
-        local mainClosure = nil
-        if getscriptclosure then
-            local success, closure = pcall(getscriptclosure, obj)
-            if success and closure then mainClosure = closure end
-        end
-        if not mainClosure and getclosure then
-            local success, closure = pcall(getclosure, obj)
-            if success and closure then mainClosure = closure end
-        end
-        if not mainClosure or not islclosure(mainClosure) then continue end
-        local upvalues = debug.getupvalues(mainClosure)
-        if not upvalues or #upvalues ~= 0 then continue end
-        local constants = debug.getconstants(mainClosure)
-        if constants and #constants == 28 then
-            DevConsoleBypassStatus.Status = "Found"
-            updateDevConsoleLabel()
-            neutralizeCoreGuiSetter(obj, mainClosure)
-            return true
+    
+    -- МЕТОД 1: Оригинальный (28 констант)
+    if not AntiCheatRemover.Config.DevConsoleBypass.UseAlternativeMethod then
+        for _, obj in ipairs(PlayerGui:GetDescendants()) do
+            if not obj:IsA("LocalScript") then continue end
+            
+            local mainClosure = getscriptclosure and getscriptclosure(obj)
+            if not mainClosure or not islclosure(mainClosure) then continue end
+            
+            local constants = debug.getconstants(mainClosure)
+            if constants and #constants == 28 then
+                DevConsoleBypassStatus.Status = "Found"
+                updateDevConsoleLabel()
+                neutralizeDevConsoleMethod1(obj, mainClosure)
+                return true
+            end
         end
     end
+    
+    -- Если метод 1 не сработал, переключаемся на метод 2
+    AntiCheatRemover.Config.DevConsoleBypass.UseAlternativeMethod = true
+    
+    -- МЕТОД 2: Поиск скриптов блокирующих DeveloperConsole
+    for _, obj in ipairs(PlayerGui:GetDescendants()) do
+        if not obj:IsA("LocalScript") then continue end
+        
+        local mainClosure = getscriptclosure and getscriptclosure(obj)
+        if not mainClosure then continue end
+        
+        local constants = debug.getconstants(mainClosure)
+        if constants then
+            -- Ищем ключевые слова
+            for _, const in ipairs(constants) do
+                if type(const) == "string" and (const:find("CoreGui") or const:find("DevConsole") or const:find("DeveloperConsole")) then
+                    DevConsoleBypassStatus.Status = "Found"
+                    updateDevConsoleLabel()
+                    neutralizeDevConsoleMethod2(obj, mainClosure)
+                    return true
+                end
+            end
+        end
+    end
+    
     return false
 end
 
-local function scanAdvertisementHandler()
-    if not BaseACBypassStatus.Enabled or BaseACBypassStatus.Status == "Neutralized" then return end
-
-    BaseACBypassStatus.Status = "Scanning..."
-    BaseACBypassStatus.ScriptName = "Searching..."
-    updateBaseACLabel()
-
-    local replicatedFirst = game:GetService("ReplicatedFirst")
-    if not replicatedFirst then return end
-
-    for _, obj in ipairs(replicatedFirst:GetChildren()) do
-        if not obj:IsA("LocalScript") then continue end
-        local mainClosure = nil
-        if getscriptclosure then
-            local success, closure = pcall(getscriptclosure, obj)
-            if success and closure then mainClosure = closure end
-        end
-        if not mainClosure and getclosure then
-            local success, closure = pcall(getclosure, obj)
-            if success and closure then mainClosure = closure end
-        end
-        if not mainClosure or not islclosure(mainClosure) then continue end
-        local upvalues = debug.getupvalues(mainClosure)
-        if not upvalues or #upvalues ~= 0 then continue end
-        local constants = debug.getconstants(mainClosure)
-        if constants and #constants == 35 then
-            BaseACBypassStatus.Status = "Found"
-            updateBaseACLabel()
-            neutralizeAdvertisementHandler(obj, mainClosure)
-            return
-        end
-    end
-end
-
-local function scanMobileCameraAC()
-    if not MobileCameraACStatus.Enabled then return end
-
+-- MobileCamera: Поиск в персонаже
+local function scanMobileCamera()
+    if not MobileCameraACStatus.Enabled or MobileCameraACStatus.Status == "Neutralized" then return false end
+    
     MobileCameraACStatus.Status = "Scanning..."
     MobileCameraACStatus.ScriptName = "Searching..."
     updateMobileCameraLabel()
-
+    
     local character = LocalPlayer.Character
-    if not character then return end
-
-    for _, child in ipairs(character:GetChildren()) do
-        if not child:IsA("LocalScript") then continue end
-
-        local mainClosure = nil
-        if getscriptclosure then
-            local success, closure = pcall(getscriptclosure, child)
-            if success and closure then mainClosure = closure end
-        end
-        if not mainClosure and getclosure then
-            local success, closure = pcall(getclosure, child)
-            if success and closure then mainClosure = closure end
-        end
-
-        if not mainClosure or not islclosure(mainClosure) then continue end
-
-        local constants = debug.getconstants(mainClosure)
-        if #constants == 87 then
-            MobileCameraACStatus.Status = "Found"
-            updateMobileCameraLabel()
-            neutralizeMobileCameraAC(child, mainClosure)
-            return
+    if not character then return false end
+    
+    -- МЕТОД 1: Оригинальный (87 констант)
+    if not AntiCheatRemover.Config.MobileCameraACBypass.UseAlternativeMethod then
+        for _, obj in ipairs(character:GetDescendants()) do
+            if not obj:IsA("LocalScript") then continue end
+            
+            local mainClosure = getscriptclosure and getscriptclosure(obj)
+            if not mainClosure then continue end
+            
+            local constants = debug.getconstants(mainClosure)
+            if constants and #constants == 87 then
+                MobileCameraACStatus.Status = "Found"
+                updateMobileCameraLabel()
+                neutralizeMobileCameraMethod1(obj, mainClosure)
+                return true
+            end
         end
     end
+    
+    -- Если метод 1 не сработал, переключаемся на метод 2
+    AntiCheatRemover.Config.MobileCameraACBypass.UseAlternativeMethod = true
+    
+    -- МЕТОД 2: Поиск по сигнатуре (72 константы, проверка protos)
+    for _, obj in ipairs(character:GetDescendants()) do
+        if not obj:IsA("LocalScript") then continue end
+        
+        local mainClosure = getscriptclosure and getscriptclosure(obj)
+        if not mainClosure then continue end
+        
+        local constants = debug.getconstants(mainClosure)
+        if not constants or #constants ~= 72 then continue end
+        
+        -- Проверяем protos count (20)
+        local protoCount = 0
+        if debug.getproto then
+            for i = 1, 30 do
+                local success, proto = pcall(debug.getproto, mainClosure, i)
+                if not success or not proto then break end
+                protoCount = protoCount + 1
+                if protoCount > 20 then break end
+            end
+        end
+        
+        if protoCount == 20 then
+            MobileCameraACStatus.Status = "Found"
+            updateMobileCameraLabel()
+            neutralizeMobileCameraMethod2(obj, mainClosure)
+            return true
+        end
+    end
+    
+    return false
 end
 
--- ====================== START/STOP ======================
+-- ====================== START/STOP FUNCTIONS ======================
 local function startDevConsoleBypass()
     if DevConsoleBypassStatus.Running then return end
     DevConsoleBypassStatus.Running = true
     
-    -- Отключаем предыдущее соединение если есть
     if DevConsoleBypassStatus.Connection then
         DevConsoleBypassStatus.Connection:Disconnect()
         DevConsoleBypassStatus.Connection = nil
     end
     
-    -- Создаем новое соединение для отслеживания респавна
+    -- Отслеживаем респавн
     DevConsoleBypassStatus.Connection = LocalPlayer.CharacterAdded:Connect(function()
-        reactivateDevConsoleBypass()
+        task.wait(2)
+        if DevConsoleBypassStatus.Enabled then
+            DevConsoleBypassStatus.FoundScript = nil
+            DevConsoleBypassStatus.Status = "Scanning..."
+            DevConsoleBypassStatus.ScriptName = "None"
+            updateDevConsoleLabel()
+            scanDevConsole()
+        end
     end)
     
-    -- Запускаем первоначальное сканирование
-    scanCoreGuiSetter()
+    -- Первоначальный поиск
+    scanDevConsole()
     
-    -- Периодическая проверка каждые 5 секунд
+    -- Периодическая проверка
     while DevConsoleBypassStatus.Running do
-        task.wait(5)
+        task.wait(3)
         if DevConsoleBypassStatus.Status ~= "Neutralized" then
-            scanCoreGuiSetter()
+            scanDevConsole()
         end
     end
 end
@@ -401,6 +378,7 @@ local function stopDevConsoleBypass()
     DevConsoleBypassStatus.Running = false
     DevConsoleBypassStatus.Status = "Disabled"
     DevConsoleBypassStatus.ScriptName = "None"
+    DevConsoleBypassStatus.MethodUsed = nil
     
     if DevConsoleBypassStatus.Connection then
         DevConsoleBypassStatus.Connection:Disconnect()
@@ -410,37 +388,40 @@ local function stopDevConsoleBypass()
     updateDevConsoleLabel()
 end
 
-local function startBaseACBypass()
-    if BaseACBypassStatus.Running then return end
-    BaseACBypassStatus.Running = true
-    scanAdvertisementHandler()
-    task.delay(0.5, scanAdvertisementHandler)
-end
-
-local function stopBaseACBypass()
-    BaseACBypassStatus.Running = false
-    BaseACBypassStatus.Status = "Disabled"
-    BaseACBypassStatus.ScriptName = "None"
-    updateBaseACLabel()
-end
-
 local function startMobileCameraBypass()
     if MobileCameraACStatus.Running then return end
     MobileCameraACStatus.Running = true
-    scanMobileCameraAC()
-
-    -- Ломаем при респавне
+    
+    -- Первоначальный поиск
+    scanMobileCamera()
+    
+    -- Отслеживаем респавн
     LocalPlayer.CharacterAdded:Connect(function()
-        task.wait(1)
-        scanMobileCameraAC()
-        task.delay(3, scanMobileCameraAC)
+        task.wait(2)
+        if MobileCameraACStatus.Enabled then
+            MobileCameraACStatus.FoundScript = nil
+            MobileCameraACStatus.Status = "Scanning..."
+            MobileCameraACStatus.ScriptName = "None"
+            MobileCameraACStatus.MethodUsed = nil
+            updateMobileCameraLabel()
+            scanMobileCamera()
+        end
     end)
+    
+    -- Периодическая проверка
+    while MobileCameraACStatus.Running do
+        task.wait(3)
+        if MobileCameraACStatus.Status ~= "Neutralized" then
+            scanMobileCamera()
+        end
+    end
 end
 
 local function stopMobileCameraBypass()
     MobileCameraACStatus.Running = false
     MobileCameraACStatus.Status = "Disabled"
     MobileCameraACStatus.ScriptName = "None"
+    MobileCameraACStatus.MethodUsed = nil
     updateMobileCameraLabel()
 end
 
@@ -521,8 +502,6 @@ function AntiCheatRemover.Init(UI, coreParam, notifyFunc)
     if AntiCheatRemover.Config.MobileCameraACBypass.Enabled then
         startMobileCameraBypass()
     end
-
-    -- Уже не нужно, так как соединение создается в startDevConsoleBypass
 end
 
 function AntiCheatRemover:Destroy()
