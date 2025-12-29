@@ -1662,7 +1662,8 @@ local function SetupUI(UI)
             Maximum = 90,
             Default = AutoDribbleConfig.MinAngleForDribble,
             Precision = 0,
-            Callback = function(v) AutoDribbleConfig.MinAngleForDribble = v end
+            Callback = function(v) AutoDribbleConfig.MinAngleForDribble = v 
+        end
         }, "AutoDribbleMinAngleForDribble")
         
         uiElements.AutoDribbleHeadOnAngleThreshold = UI.Sections.AutoDribble:Slider({
@@ -1672,33 +1673,35 @@ local function SetupUI(UI)
             Default = AutoDribbleConfig.HeadOnAngleThreshold,
             Precision = 0,
             Callback = function(v) AutoDribbleConfig.HeadOnAngleThreshold = v end
-        }, "AutoDribbleHeadOnAngleThreshold")
+        }, "HeadOnAngleThreshold")
         
         UI.Sections.AutoDribble:Divider()
         
         uiElements.AutoDribbleUseServerPosition = UI.Sections.AutoDribble:Toggle({
             Name = "Use Server Position",
             Default = AutoDribbleConfig.UseServerPosition,
-            Callback = function(v) AutoDribbleConfig.UseServerPosition = v end
-        }, "AutoDribbleUseServerPosition")
+            Callback = function(v) AutoDribbleConfig.UseServerPosition = v 
+        end
+        }, "ServerPoston")
         
         uiElements.AutoDribblePredictiveDribble = UI.Sections.AutoDribble:Toggle({
             Name = "Predictive Dribble",
             Default = AutoDribbleConfig.PredictiveDribble,
-            Callback = function(v) AutoDribbleConfig.PredictiveDribble = v end
-        }, "AutoDribblePredictiveDribble")
+            Callback = function(v) AutoDribbleConfig.PredictiveDribble = v 
+        end
+        }, "AtiveDribble")
         
         uiElements.AutoDribbleSmartAngleCheck = UI.Sections.AutoDribble:Toggle({
             Name = "Smart Angle Check",
             Default = AutoDribbleConfig.SmartAngleCheck,
             Callback = function(v) AutoDribbleConfig.SmartAngleCheck = v end
-        }, "AutoDribbleSmartAngleCheck")
+        }, "SmtAngleCheck")
         
         uiElements.AutoDribbleHeadOnTackleDetection = UI.Sections.AutoDribble:Toggle({
             Name = "Head-On Detection",
             Default = AutoDribbleConfig.HeadOnTackleDetection,
             Callback = function(v) AutoDribbleConfig.HeadOnTackleDetection = v end
-        }, "AutoDribbleHeadOnTackleDetection")
+        }, "HeadOnTack")
         
         UI.Sections.AutoDribble:Divider()
         UI.Sections.AutoDribble:Paragraph({
@@ -1863,3 +1866,4 @@ function AutoDribbleTackleModule:Destroy()
 end
 
 return AutoDribbleTackleModule
+
