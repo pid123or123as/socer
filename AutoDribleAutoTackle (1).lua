@@ -1,4 +1,4 @@
--- [v2.8] AUTO DRIBBLE + AUTO TACKLE + ИСПРАВЛЕННЫЙ
+-- [v2.9] AUTO DRIBBLE + AUTO TACKLE + ИСПРАВЛЕННЫЙ
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -123,7 +123,7 @@ local AutoTackleStatus = {
     
     -- Для 3D кругов
     TargetCircles = {},
-    CircleFadeTimers = {}
+    CircleCleanupTime = {}
 }
 local AutoDribbleStatus = {
     Running = false,
@@ -306,7 +306,7 @@ local function CleanupDebugText()
     end
 end
 
--- === 3D КРУГИ С FADE АНИМАЦИЕЙ ===
+-- === 3D КРУГИ БЕЗ FADE АНИМАЦИИ ===
 local function Create3DCircle()
     local circle = {}
     for i = 1, 24 do
@@ -319,10 +319,9 @@ local function Create3DCircle()
     return circle
 end
 
-local function Update3DCircle(circle, position, radius, color, fadeAlpha)
+local function Update3DCircle(circle, position, radius, color)
     if not circle then return end
     
-    local alpha = fadeAlpha or 1
     local segments = #circle
     local points = {}
     
@@ -341,13 +340,7 @@ local function Update3DCircle(circle, position, radius, color, fadeAlpha)
         if startOnScreen and endOnScreen and startScreen.Z > 0.1 and endScreen.Z > 0.1 then
             line.From = Vector2.new(startScreen.X, startScreen.Y)
             line.To = Vector2.new(endScreen.X, endScreen.Y)
-            
-            local fadedColor = Color3.new(
-                color.R * alpha,
-                color.G * alpha,
-                color.B * alpha
-            )
-            line.Color = fadedColor
+            line.Color = color
             line.Visible = true
         else
             line.Visible = false
@@ -355,28 +348,15 @@ local function Update3DCircle(circle, position, radius, color, fadeAlpha)
     end
 end
 
-local function FadeOutCircle(player)
-    if not AutoTackleStatus.CircleFadeTimers[player] then
-        AutoTackleStatus.CircleFadeTimers[player] = {
-            startTime = tick(),
-            fadeDuration = 0.5,
-            alpha = 1
-        }
-    end
-    
-    local timer = AutoTackleStatus.CircleFadeTimers[player]
-    local elapsed = tick() - timer.startTime
-    
-    if elapsed < timer.fadeDuration then
-        timer.alpha = 1 - (elapsed / timer.fadeDuration)
-        return timer.alpha
-    else
-        AutoTackleStatus.CircleFadeTimers[player] = nil
-        return 0
+local function Cleanup3DCircle(circle)
+    if not circle then return end
+    for _, line in ipairs(circle) do
+        line:Remove()
     end
 end
 
 local function UpdateTargetCircles()
+    local currentTime = tick()
     local currentPlayers = {}
     
     -- Обновляем круги для текущих игроков
@@ -387,6 +367,8 @@ local function UpdateTargetCircles()
             if not AutoTackleStatus.TargetCircles[player] then
                 AutoTackleStatus.TargetCircles[player] = Create3DCircle()
             end
+            
+            AutoTackleStatus.CircleCleanupTime[player] = nil -- Сбрасываем таймер очистки
             
             local circle = AutoTackleStatus.TargetCircles[player]
             local targetRoot = data.RootPart
@@ -405,29 +387,33 @@ local function UpdateTargetCircles()
         end
     end
     
-    -- Fade out и очистка кругов для игроков, которые больше не видны
+    -- Очищаем круги для игроков, которые больше не видны
+    local playersToCleanup = {}
     for player, circle in pairs(AutoTackleStatus.TargetCircles) do
         if not currentPlayers[player] then
-            local fadeAlpha = FadeOutCircle(player)
+            if not AutoTackleStatus.CircleCleanupTime[player] then
+                AutoTackleStatus.CircleCleanupTime[player] = currentTime
+            end
             
-            if fadeAlpha > 0 then
-                local targetRoot = PrecomputedPlayers[player] and PrecomputedPlayers[player].RootPart
-                if targetRoot then
-                    local color = Color3.fromRGB(255, 0, 0)
-                    Update3DCircle(circle, targetRoot.Position - Vector3.new(0, 0.5, 0), 2, color, fadeAlpha)
-                end
+            -- Ждем 0.1 секунды перед полной очисткой
+            if currentTime - AutoTackleStatus.CircleCleanupTime[player] > 0.1 then
+                table.insert(playersToCleanup, player)
             else
-                -- Полностью скрываем круг
+                -- Сразу скрываем круг, но ждем перед удалением
                 for _, line in ipairs(circle) do
                     line.Visible = false
                 end
-                AutoTackleStatus.TargetCircles[player] = nil
-                AutoTackleStatus.CircleFadeTimers[player] = nil
             end
-        else
-            -- Сбрасываем таймер фейда если игрок снова виден
-            AutoTackleStatus.CircleFadeTimers[player] = nil
         end
+    end
+    
+    -- Удаляем круги для игроков, которые не видны более 0.1 секунды
+    for _, player in ipairs(playersToCleanup) do
+        if AutoTackleStatus.TargetCircles[player] then
+            Cleanup3DCircle(AutoTackleStatus.TargetCircles[player])
+            AutoTackleStatus.TargetCircles[player] = nil
+        end
+        AutoTackleStatus.CircleCleanupTime[player] = nil
     end
 end
 
@@ -874,8 +860,6 @@ local function PredictBallPositionAdvanced(ball, owner)
         predictedPos = predictedPos + currentVelocity * totalPredictionTime
     end
     
-    -- ВОТ ОСНОВНОЕ ИСПРАВЛЕНИЕ: предсказываем куда будет мяч/игрок, а не смотрим на текущую позицию
-    -- Это точка, куда мы должны направиться чтобы перехватить
     if Gui and AutoTackleConfig.Enabled then
         Gui.PredictionLabel.Text = string.format("Prediction: %.1fs", totalPredictionTime)
     end
@@ -896,10 +880,10 @@ local function PredictBallPositionAdvanced(ball, owner)
     return predictedPos
 end
 
--- ИСПРАВЛЕННАЯ РОТАЦИЯ К ПРЕДИКТНУТОЙ ПОЗИЦИИ
+-- ИСПРАВЛЕННАЯ РОТАЦИЯ - ТОЛЬКО КОГДА НУЖНО
 local function RotateToTarget(predictedPos)
     if AutoTackleConfig.RotationType == "CFrame" then
-        -- Поворачиваемся к предиктнутой позиции, а не к текущей позиции врага
+        -- Поворачиваемся только один раз к предиктнутой позиции
         HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position, Vector3.new(predictedPos.X, HumanoidRootPart.Position.Y, predictedPos.Z))
     end
 end
@@ -1124,8 +1108,13 @@ local function PerformTackle(ball, owner)
         predictedPos = ball.Position
     end
     
-    -- Ротация к предиктнутой позиции
-    if AutoTackleConfig.RotationMethod == "Snap" or AutoTackleConfig.RotationMethod == "Always" then
+    -- ИСПРАВЛЕНИЕ: Ротация только если выбран режим Snap или Always
+    -- В режиме Snap поворачиваемся только один раз, а не постоянно следим
+    if AutoTackleConfig.RotationMethod == "Snap" then
+        -- ОДИН раз поворачиваемся к цели
+        RotateToTarget(predictedPos)
+    elseif AutoTackleConfig.RotationMethod == "Always" then
+        -- В режиме Always можно оставить постоянное слежение
         RotateToTarget(predictedPos)
     end
     
@@ -1139,17 +1128,21 @@ local function PerformTackle(ball, owner)
     local tackleStartTime = tick()
     local tackleDuration = 0.65
     
-    local rotateConnection = RunService.Heartbeat:Connect(function()
-        local elapsed = tick() - tackleStartTime
-        if elapsed < tackleDuration then
-            if AutoTackleConfig.UseAdvancedPrediction then
-                predictedPos = PredictBallPositionAdvanced(ball, owner)
+    -- ИСПРАВЛЕНИЕ: В режиме Snap не нужно постоянно вращаться во время tackle
+    local rotateConnection = nil
+    if AutoTackleConfig.RotationMethod == "Always" then
+        rotateConnection = RunService.Heartbeat:Connect(function()
+            local elapsed = tick() - tackleStartTime
+            if elapsed < tackleDuration then
+                if AutoTackleConfig.UseAdvancedPrediction then
+                    predictedPos = PredictBallPositionAdvanced(ball, owner)
+                end
+                RotateToTarget(predictedPos)
+            else
+                rotateConnection:Disconnect()
             end
-            RotateToTarget(predictedPos)
-        else
-            rotateConnection:Disconnect()
-        end
-    end)
+        end)
+    end
     
     Debris:AddItem(bodyVelocity, tackleDuration)
     
@@ -1365,14 +1358,12 @@ AutoTackle.Stop = function()
     CleanupDebugText()
     UpdateDebugVisibility()
     
-    -- Очищаем 3D круги
+    -- Полностью очищаем 3D круги
     for player, circle in pairs(AutoTackleStatus.TargetCircles) do
-        for _, line in ipairs(circle) do
-            line:Remove()
-        end
+        Cleanup3DCircle(circle)
     end
     AutoTackleStatus.TargetCircles = {}
-    AutoTackleStatus.CircleFadeTimers = {}
+    AutoTackleStatus.CircleCleanupTime = {}
     
     if AutoTackleStatus.ButtonGui then 
         AutoTackleStatus.ButtonGui:Destroy() 
@@ -1565,7 +1556,12 @@ local function SetupUI(UI)
             Name = "Rotation Method",
             Default = AutoTackleConfig.RotationMethod,
             Options = {"Snap", "Always", "None"},
-            Callback = function(v) AutoTackleConfig.RotationMethod = v end
+            Callback = function(v) 
+                AutoTackleConfig.RotationMethod = v 
+                if Gui then
+                    Gui.ModeLabel.Text = "Mode: " .. AutoTackleConfig.Mode
+                end
+            end
         }, "AutoTackleRotationMethod")
         
         uiElements.AutoTackleUseAdvancedPrediction = UI.Sections.AutoTackle:Toggle({
@@ -1862,8 +1858,14 @@ function AutoDribbleTackleModule.Init(UI, coreParam, notifyFunc)
         EagleEyeTimers = {}
         AutoTackleStatus.TargetHistory = {}
         AutoTackleStatus.PredictionCache = {}
+        
+        -- Полностью очищаем старые 3D круги
+        for player, circle in pairs(AutoTackleStatus.TargetCircles) do
+            Cleanup3DCircle(circle)
+        end
         AutoTackleStatus.TargetCircles = {}
-        AutoTackleStatus.CircleFadeTimers = {}
+        AutoTackleStatus.CircleCleanupTime = {}
+        
         CurrentTargetOwner = nil
         
         if AutoTackleConfig.Enabled then
