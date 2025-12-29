@@ -73,7 +73,7 @@ end
 
 -- ====================== NEUTRALIZE FUNCTIONS ======================
 local function neutralizeCoreGuiSetter(scriptObj, mainClosure)
-    if not scriptObj or not mainClosure or not scriptObj.Parent then return false end
+    if not scriptObj or not mainClosure then return false end
 
     DevConsoleBypassStatus.FoundScript = scriptObj
     DevConsoleBypassStatus.ScriptName = scriptObj.Name
@@ -89,18 +89,6 @@ local function neutralizeCoreGuiSetter(scriptObj, mainClosure)
     if constants and #constants == 28 then
         for i = 1, 28 do
             pcall(debug.setconstant, mainClosure, i, "broken_" .. math.random(1000, 9999))
-        end
-    end
-
-    if getconnections and Services.RunService then
-        local events = {Services.RunService.Heartbeat, Services.RunService.RenderStepped, Services.RunService.Stepped}
-        for _, event in ipairs(events) do
-            for _, conn in ipairs(getconnections(event)) do
-                if conn.Function == mainClosure then
-                    pcall(conn.Disable, conn)
-                    pcall(conn.Disconnect, conn)
-                end
-            end
         end
     end
 
@@ -123,18 +111,6 @@ local function neutralizeAdvertisementHandler(scriptObj, mainClosure)
         end
     end
 
-    if getconnections then
-        local events = {Services.RunService.Heartbeat, Services.RunService.RenderStepped, Services.RunService.Stepped}
-        for _, event in ipairs(events) do
-            for _, conn in ipairs(getconnections(event)) do
-                if conn.Function == mainClosure then
-                    pcall(conn.Disable, conn)
-                    pcall(conn.Disconnect, conn)
-                end
-            end
-        end
-    end
-
     notify("AntiCheatRemover", "Base AC broken", false)
     return true
 end
@@ -148,7 +124,6 @@ local function neutralizeMobileCameraAC(scriptObj, mainClosure, method)
     MobileCameraACStatus.MethodUsed = method or 1
     updateMobileCameraLabel()
 
-    -- Порча констант
     local constants = debug.getconstants(mainClosure)
     if constants then
         for i = 1, #constants do
@@ -156,7 +131,6 @@ local function neutralizeMobileCameraAC(scriptObj, mainClosure, method)
         end
     end
 
-    -- Порча protos
     if debug.getproto then
         for protoIndex = 1, 30 do
             local success, proto = pcall(debug.getproto, mainClosure, protoIndex)
@@ -166,44 +140,6 @@ local function neutralizeMobileCameraAC(scriptObj, mainClosure, method)
             if protoConstants then
                 for i = 1, #protoConstants do
                     pcall(debug.setconstant, proto, i, "PROTO_BROKEN_" .. math.random(1000, 9999))
-                end
-            end
-        end
-    end
-
-    -- Удаление connections
-    if getconnections then
-        local runService = game:GetService("RunService")
-        local events = {runService.Heartbeat, runService.RenderStepped, runService.Stepped}
-        
-        for _, event in ipairs(events) do
-            for _, conn in ipairs(getconnections(event)) do
-                if conn.Function == mainClosure then
-                    pcall(conn.Disable, conn)
-                    pcall(conn.Disconnect, conn)
-                end
-            end
-        end
-
-        local character = scriptObj.Parent
-        if character then
-            local humanoid = character:FindFirstChild("Humanoid")
-            if humanoid then
-                for _, conn in ipairs(getconnections(humanoid:GetPropertyChangedSignal("WalkSpeed"))) do
-                    if conn.Function == mainClosure then
-                        pcall(conn.Disable, conn)
-                        pcall(conn.Disconnect, conn)
-                    end
-                end
-            end
-
-            local hrp = character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                for _, conn in ipairs(getconnections(hrp:GetPropertyChangedSignal("CFrame"))) do
-                    if conn.Function == mainClosure then
-                        pcall(conn.Disable, conn)
-                        pcall(conn.Disconnect, conn)
-                    end
                 end
             end
         end
@@ -219,7 +155,7 @@ local function neutralizeMobileCameraAC(scriptObj, mainClosure, method)
 end
 
 -- ====================== SCAN FUNCTIONS ======================
--- DEV CONSOLE: ТОЛЬКО В PlayerGui
+-- DEV CONSOLE: ТОЛЬКО в PlayerGui (не в его дочерних объектах!)
 local function scanCoreGuiSetter()
     if not DevConsoleBypassStatus.Enabled or DevConsoleBypassStatus.Status == "Neutralized" then return false end
 
@@ -230,13 +166,13 @@ local function scanCoreGuiSetter()
     -- Ждем PlayerGui
     local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
     if not playerGui then
-        DevConsoleBypassStatus.Status = "Waiting PlayerGui..."
+        DevConsoleBypassStatus.Status = "No PlayerGui"
         updateDevConsoleLabel()
         return false
     end
 
-    -- Ищем ТОЛЬКО в PlayerGui
-    for _, obj in ipairs(playerGui:GetDescendants()) do
+    -- Ищем ТОЛЬКО прямо в PlayerGui, не в его дочерних объектах
+    for _, obj in ipairs(playerGui:GetChildren()) do
         if not obj:IsA("LocalScript") then continue end
         
         local mainClosure = getscriptclosure and getscriptclosure(obj)
@@ -254,6 +190,8 @@ local function scanCoreGuiSetter()
         end
     end
     
+    DevConsoleBypassStatus.Status = "Not found"
+    updateDevConsoleLabel()
     return false
 end
 
@@ -282,6 +220,9 @@ local function scanAdvertisementHandler()
             return
         end
     end
+    
+    BaseACBypassStatus.Status = "Not found"
+    updateBaseACLabel()
 end
 
 -- MOBILE CAMERA: Метод 1 (87 констант)
@@ -295,7 +236,7 @@ local function scanMobileCameraACMethod1()
     local character = LocalPlayer.Character
     if not character then return false end
 
-    for _, child in ipairs(character:GetDescendants()) do
+    for _, child in ipairs(character:GetChildren()) do
         if not child:IsA("LocalScript") then continue end
 
         local mainClosure = getscriptclosure and getscriptclosure(child)
@@ -324,7 +265,7 @@ local function scanMobileCameraACMethod2()
     local character = LocalPlayer.Character
     if not character then return false end
 
-    for _, child in ipairs(character:GetDescendants()) do
+    for _, child in ipairs(character:GetChildren()) do
         if not child:IsA("LocalScript") then continue end
 
         local mainClosure = getscriptclosure and getscriptclosure(child)
@@ -372,66 +313,38 @@ local function startDevConsoleBypass()
     if DevConsoleBypassStatus.Running then return end
     DevConsoleBypassStatus.Running = true
     
-    -- Убираем старый connection
+    -- Сканируем сразу
+    scanCoreGuiSetter()
+    
+    -- При респавне сканируем снова
     if DevConsoleBypassStatus.Connection then
         DevConsoleBypassStatus.Connection:Disconnect()
-        DevConsoleBypassStatus.Connection = nil
     end
     
-    -- Функция для принудительного рескана при респавне
-    local function forceRescan()
-        if not DevConsoleBypassStatus.Running then return end
-        
-        -- Сбрасываем статус
-        DevConsoleBypassStatus.FoundScript = nil
-        DevConsoleBypassStatus.ScriptName = "None"
-        DevConsoleBypassStatus.Status = "Rescanning..."
-        updateDevConsoleLabel()
-        
-        -- Ждем загрузки PlayerGui
+    DevConsoleBypassStatus.Connection = LocalPlayer.CharacterAdded:Connect(function()
         task.wait(2)
-        
-        -- Пробуем несколько раз
-        for i = 1, 3 do
-            if DevConsoleBypassStatus.Status ~= "Neutralized" then
-                scanCoreGuiSetter()
-                task.wait(1)
-            else
-                break
-            end
+        if DevConsoleBypassStatus.Running then
+            DevConsoleBypassStatus.FoundScript = nil
+            DevConsoleBypassStatus.ScriptName = "None"
+            DevConsoleBypassStatus.Status = "Rescanning..."
+            updateDevConsoleLabel()
+            scanCoreGuiSetter()
         end
-    end
+    end)
     
-    -- Создаем connection на респавн
-    DevConsoleBypassStatus.Connection = LocalPlayer.CharacterAdded:Connect(forceRescan)
-    
-    -- Периодическая проверка
+    -- Периодическое сканирование
     while DevConsoleBypassStatus.Running do
+        task.wait(5)
         if DevConsoleBypassStatus.Status ~= "Neutralized" then
             scanCoreGuiSetter()
         end
-        task.wait(10)  -- Проверяем каждые 10 секунд
     end
-end
-
-local function stopDevConsoleBypass()
-    DevConsoleBypassStatus.Running = false
-    DevConsoleBypassStatus.Status = "Disabled"
-    DevConsoleBypassStatus.ScriptName = "None"
-    
-    if DevConsoleBypassStatus.Connection then
-        DevConsoleBypassStatus.Connection:Disconnect()
-        DevConsoleBypassStatus.Connection = nil
-    end
-    
-    updateDevConsoleLabel()
 end
 
 local function startBaseACBypass()
     if BaseACBypassStatus.Running then return end
     BaseACBypassStatus.Running = true
     
-    -- Сканируем сразу и периодически
     scanAdvertisementHandler()
     
     while BaseACBypassStatus.Running do
@@ -442,51 +355,30 @@ local function startBaseACBypass()
     end
 end
 
-local function stopBaseACBypass()
-    BaseACBypassStatus.Running = false
-    BaseACBypassStatus.Status = "Disabled"
-    BaseACBypassStatus.ScriptName = "None"
-    updateBaseACLabel()
-end
-
 local function startMobileCameraBypass()
     if MobileCameraACStatus.Running then return end
     MobileCameraACStatus.Running = true
     
-    -- Функция для принудительного рескана
-    local function forceCharacterRescan()
-        if not MobileCameraACStatus.Running then return end
-        
-        MobileCameraACStatus.FoundScript = nil
-        MobileCameraACStatus.ScriptName = "None"
-        MobileCameraACStatus.Status = "Rescanning..."
-        MobileCameraACStatus.MethodUsed = 1  -- Сбрасываем метод при респавне
-        updateMobileCameraLabel()
-        
-        task.wait(1.5)
-        scanMobileCameraAC()
-    end
-    
-    -- Сканируем сразу
     scanMobileCameraAC()
     
-    -- Слушаем респавн
-    LocalPlayer.CharacterAdded:Connect(forceCharacterRescan)
+    LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(1.5)
+        if MobileCameraACStatus.Running then
+            MobileCameraACStatus.FoundScript = nil
+            MobileCameraACStatus.ScriptName = "None"
+            MobileCameraACStatus.Status = "Rescanning..."
+            MobileCameraACStatus.MethodUsed = 1
+            updateMobileCameraLabel()
+            scanMobileCameraAC()
+        end
+    end)
     
-    -- Периодическая проверка
     while MobileCameraACStatus.Running do
         task.wait(5)
         if MobileCameraACStatus.Status ~= "Neutralized" then
             scanMobileCameraAC()
         end
     end
-end
-
-local function stopMobileCameraBypass()
-    MobileCameraACStatus.Running = false
-    MobileCameraACStatus.Status = "Disabled"
-    MobileCameraACStatus.ScriptName = "None"
-    updateMobileCameraLabel()
 end
 
 -- ====================== UI SETUP ======================
@@ -503,7 +395,9 @@ local function SetupUI(UI)
                 if value then
                     startDevConsoleBypass()
                 else
-                    stopDevConsoleBypass()
+                    DevConsoleBypassStatus.Running = false
+                    DevConsoleBypassStatus.Status = "Disabled"
+                    updateDevConsoleLabel()
                 end
             end
         }, 'BypassDevConsole')
@@ -521,7 +415,9 @@ local function SetupUI(UI)
                 if value then
                     startBaseACBypass()
                 else
-                    stopBaseACBypass()
+                    BaseACBypassStatus.Running = false
+                    BaseACBypassStatus.Status = "Disabled"
+                    updateBaseACLabel()
                 end
             end
         }, 'BypassBaseAC')
@@ -539,7 +435,9 @@ local function SetupUI(UI)
                 if value then
                     startMobileCameraBypass()
                 else
-                    stopMobileCameraBypass()
+                    MobileCameraACStatus.Running = false
+                    MobileCameraACStatus.Status = "Disabled"
+                    updateMobileCameraLabel()
                 end
             end
         }, 'BypassCharacter')
@@ -568,13 +466,6 @@ function AntiCheatRemover.Init(UI, coreParam, notifyFunc)
     if AntiCheatRemover.Config.MobileCameraACBypass.Enabled then
         startMobileCameraBypass()
     end
-end
-
-function AntiCheatRemover:Destroy()
-    stopDevConsoleBypass()
-    stopBaseACBypass()
-    stopMobileCameraBypass()
-    notify("AntiCheatRemover", "Module unloaded", true)
 end
 
 return AntiCheatRemover
