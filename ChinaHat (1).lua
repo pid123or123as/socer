@@ -291,22 +291,21 @@ function ChinaHat.Init(UI, Core, notify)
         
         local rootPart = localCharacter.HumanoidRootPart
         
-        -- Circle еще ниже, на уровне земли
+        -- Circle с работающим YOffset
         local circleHeight
         
         if isShiftLockEnabled then
-            -- В режиме ShiftLock: на самом низу, у самой земли
+            -- В режиме ShiftLock: используем YOffset с дополнительным смещением вниз
             if localCharacter:FindFirstChild("Humanoid") then
                 local humanoid = localCharacter.Humanoid
-                -- Используем больший коэффициент для более низкого расположения
-                circleHeight = rootPart.Position.Y - humanoid.HipHeight * 1.2
+                -- Комбинируем YOffset с высотой бедер для естественного положения
+                circleHeight = rootPart.Position.Y + State.Circle.CircleYOffset.Value - (humanoid.HipHeight * 0.5)
             else
-                -- Очень низкое значение
-                circleHeight = rootPart.Position.Y - 3.5
+                circleHeight = rootPart.Position.Y + State.Circle.CircleYOffset.Value - 1.5
             end
         else
-            -- В обычном режиме: еще ниже чем было
-            circleHeight = rootPart.Position.Y + State.Circle.CircleYOffset.Value - 0.8
+            -- В обычном режиме: просто используем YOffset
+            circleHeight = rootPart.Position.Y + State.Circle.CircleYOffset.Value
         end
         
         local t = tick()
@@ -357,7 +356,7 @@ function ChinaHat.Init(UI, Core, notify)
             return
         end
         
-        -- Привязка Nimb к голове
+        -- Nimb выше, привязан к голове с работающим YOffset
         local head = localCharacter:FindFirstChild("Head")
         if not head then
             for _, quad in ipairs(nimbQuads) do
@@ -366,8 +365,8 @@ function ChinaHat.Init(UI, Core, notify)
             return
         end
         
-        -- Всегда используем позицию головы с небольшим смещением вверх
-        local nimbHeight = head.Position.Y + 0.3
+        -- Nimb выше: используем позицию головы + YOffset
+        local nimbHeight = head.Position.Y + State.Nimb.NimbYOffset.Value
         
         local t = tick()
         local center = Vector3.new(head.Position.X, nimbHeight, head.Position.Z)
@@ -488,17 +487,29 @@ function ChinaHat.Init(UI, Core, notify)
         end
     end
 
-    -- Новая функция синхронизации конфигов
+    -- Функция синхронизации конфигов (только слайдеры)
     local function SynchronizeConfigValues()
         if not uiElements then return end
         
         -- Синхронизация ChinaHat слайдеров
         if uiElements.HatScale and uiElements.HatScale.GetValue then
-            State.ChinaHat.HatScale.Value = uiElements.HatScale:GetValue()
+            local uiValue = uiElements.HatScale:GetValue()
+            if uiValue ~= State.ChinaHat.HatScale.Value then
+                State.ChinaHat.HatScale.Value = uiValue
+                if State.ChinaHat.HatActive.Value then
+                    createHat()
+                end
+            end
         end
         
         if uiElements.HatParts and uiElements.HatParts.GetValue then
-            State.ChinaHat.HatParts.Value = uiElements.HatParts:GetValue()
+            local uiValue = uiElements.HatParts:GetValue()
+            if uiValue ~= State.ChinaHat.HatParts.Value then
+                State.ChinaHat.HatParts.Value = uiValue
+                if State.ChinaHat.HatActive.Value then
+                    createHat()
+                end
+            end
         end
         
         if uiElements.HatGradientSpeed and uiElements.HatGradientSpeed.GetValue then
@@ -511,11 +522,23 @@ function ChinaHat.Init(UI, Core, notify)
         
         -- Синхронизация Circle слайдеров
         if uiElements.CircleRadius and uiElements.CircleRadius.GetValue then
-            State.Circle.CircleRadius.Value = uiElements.CircleRadius:GetValue()
+            local uiValue = uiElements.CircleRadius:GetValue()
+            if uiValue ~= State.Circle.CircleRadius.Value then
+                State.Circle.CircleRadius.Value = uiValue
+                if State.Circle.CircleActive.Value then
+                    createCircle()
+                end
+            end
         end
         
         if uiElements.CircleParts and uiElements.CircleParts.GetValue then
-            State.Circle.CircleParts.Value = uiElements.CircleParts:GetValue()
+            local uiValue = uiElements.CircleParts:GetValue()
+            if uiValue ~= State.Circle.CircleParts.Value then
+                State.Circle.CircleParts.Value = uiValue
+                if State.Circle.CircleActive.Value then
+                    createCircle()
+                end
+            end
         end
         
         if uiElements.CircleGradientSpeed and uiElements.CircleGradientSpeed.GetValue then
@@ -528,11 +551,23 @@ function ChinaHat.Init(UI, Core, notify)
         
         -- Синхронизация Nimb слайдеров
         if uiElements.NimbRadius and uiElements.NimbRadius.GetValue then
-            State.Nimb.NimbRadius.Value = uiElements.NimbRadius:GetValue()
+            local uiValue = uiElements.NimbRadius:GetValue()
+            if uiValue ~= State.Nimb.NimbRadius.Value then
+                State.Nimb.NimbRadius.Value = uiValue
+                if State.Nimb.NimbActive.Value then
+                    createNimb()
+                end
+            end
         end
         
         if uiElements.NimbParts and uiElements.NimbParts.GetValue then
-            State.Nimb.NimbParts.Value = uiElements.NimbParts:GetValue()
+            local uiValue = uiElements.NimbParts:GetValue()
+            if uiValue ~= State.Nimb.NimbParts.Value then
+                State.Nimb.NimbParts.Value = uiValue
+                if State.Nimb.NimbActive.Value then
+                    createNimb()
+                end
+            end
         end
         
         if uiElements.NimbGradientSpeed and uiElements.NimbGradientSpeed.GetValue then
@@ -541,17 +576,6 @@ function ChinaHat.Init(UI, Core, notify)
         
         if uiElements.NimbYOffset and uiElements.NimbYOffset.GetValue then
             State.Nimb.NimbYOffset.Value = uiElements.NimbYOffset:GetValue()
-        end
-        
-        -- Пересоздание визуальных элементов если они активны
-        if State.ChinaHat.HatActive.Value then
-            createHat()
-        end
-        if State.Circle.CircleActive.Value then
-            createCircle()
-        end
-        if State.Nimb.NimbActive.Value then
-            createNimb()
         end
     end
 
@@ -688,7 +712,7 @@ function ChinaHat.Init(UI, Core, notify)
         local circleSection = UI.Sections.Circle or UI.Tabs.Visuals:Section({ Name = "Circle", Side = "Left" })
         UI.Sections.Circle = circleSection
         circleSection:Header({ Name = "Circle" })
-        circleSection:SubLabel({ Text = "Displays a circle at the player feet (Auto-adjusts for ShiftLock)" })
+        circleSection:SubLabel({ Text = "Displays a circle at the player feet" })
         uiElements.CircleEnabled = circleSection:Toggle({
             Name = "Enabled",
             Default = State.Circle.CircleActive.Default,
@@ -783,7 +807,7 @@ function ChinaHat.Init(UI, Core, notify)
         local nimbSection = UI.Sections.Nimb or UI.Tabs.Visuals:Section({ Name = "Nimb", Side = "Right" })
         UI.Sections.Nimb = nimbSection
         nimbSection:Header({ Name = "Nimb" })
-        nimbSection:SubLabel({ Text = "Displays a circle above the player head (Attached to head)" })
+        nimbSection:SubLabel({ Text = "Displays a circle above the player head" })
         uiElements.NimbEnabled = nimbSection:Toggle({
             Name = "Nimb Enabled",
             Default = State.Nimb.NimbActive.Default,
@@ -858,32 +882,22 @@ function ChinaHat.Init(UI, Core, notify)
         uiElements.NimbYOffset = nimbSection:Slider({
             Name = "Y Offset",
             Minimum = 0,
-            Maximum = 2,
-            Default = 0.3,
-            Precision = 2,
+            Maximum = 5,
+            Default = State.Nimb.NimbYOffset.Default,
+            Precision = 1,
             Callback = function(value)
                 State.Nimb.NimbYOffset.Value = value
                 notify("Nimb", "Nimb Y Offset set to: " .. value, false)
             end,
         }, 'NimbYOffset')
-
-        local configSection = UI.Tabs.Config:Section({ Name = "Circle,ChinaHat,Nimb Sync", Side = "Right" })
-        configSection:Header({ Name = "ChinaHat, Circle, Nimb Settings Sync" })
-        configSection:Button({
-            Name = "Sync Config",
-            Callback = function()
-                SynchronizeConfigValues()
-                notify("ChinaHat", "Config synchronized!", true)
-            end
-        })
     end
     
-    -- Таймер для периодической синхронизации конфигов
+    -- Таймер для автоматической синхронизации конфигов
     local synchronizationTimer = 0
     RunService.Heartbeat:Connect(function(deltaTime)
         synchronizationTimer = synchronizationTimer + deltaTime
         
-        if synchronizationTimer >= 1.0 then
+        if synchronizationTimer >= 0.5 then -- Синхронизация каждые 0.5 секунд
             synchronizationTimer = 0
             SynchronizeConfigValues()
         end
