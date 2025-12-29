@@ -91,7 +91,7 @@ local function neutralizeCoreGuiSetter(scriptObj, mainClosure)
         end
     end
 
-    notify("AntiCheatRemover", "CoreGuiSetter disabled and corrupted - DevConsole unlocked", false)
+    notify("AntiCheatRemover", "DevConsole unlocked", false)
     return true
 end
 
@@ -165,7 +165,7 @@ local function neutralizeAdvertisementHandler(scriptObj, mainClosure)
         end
     end)
 
-    notify("AntiCheatRemover", "AdvertisementHandler fully destroyed - ads and base AC broken", false)
+    notify("AntiCheatRemover", "AC broken", false)
     return true
 end
 
@@ -337,3 +337,4 @@ function AntiCheatRemover:Destroy()
 end
 
 return AntiCheatRemover
+
