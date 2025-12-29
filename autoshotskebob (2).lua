@@ -1149,7 +1149,7 @@ local function SetupUI(UI)
             Callback = function(v) 
                 Attacks.SideRicochet.Enabled = v
             end
-        }, "SideRicochetEnabled")
+        }, "SideRicochetEnabled123")
         
         uiElements.SideRicochetMinDist = UI.Sections.Attacks:Slider({ 
             Name = "Min Dist", 
@@ -1258,7 +1258,7 @@ local function SetupUI(UI)
             Callback = function(v) 
                 Attacks.CloseSpin.Enabled = v
             end
-        }, "CloseSpinEnabled")
+        }, "CloseSpinEnabled123")
         
         uiElements.CloseSpinMinDist = UI.Sections.Attacks:Slider({ 
             Name = "Min Dist", 
@@ -1375,7 +1375,7 @@ local function SetupUI(UI)
             Callback = function(v) 
                 Attacks.SmartCorner.Enabled = v
             end
-        }, "SmartCornerEnabled")
+        }, "SmartCornerEnabled154")
         
         uiElements.SmartCornerMinDist = UI.Sections.Attacks:Slider({ 
             Name = "Min Dist", 
@@ -1484,7 +1484,7 @@ local function SetupUI(UI)
             Callback = function(v) 
                 Attacks.SmartCandle.Enabled = v
             end
-        }, "SmartCandleEnabled")
+        }, "SmartCandleEnabled789")
         
         uiElements.SmartCandleMinDist = UI.Sections.Attacks:Slider({ 
             Name = "Min Dist", 
@@ -1601,7 +1601,7 @@ local function SetupUI(UI)
             Callback = function(v) 
                 Attacks.SmartRicochet.Enabled = v
             end
-        }, "SmartRicochetEnabled")
+        }, "SmartRicochetEnabled990")
         
         uiElements.SmartRicochetMinDist = UI.Sections.Attacks:Slider({ 
             Name = "Min Dist", 
@@ -1718,7 +1718,7 @@ local function SetupUI(UI)
             Callback = function(v) 
                 Attacks.SmartSpin.Enabled = v
             end
-        }, "SmartSpinEnabled")
+        }, "SmartSpinEnabled9999")
         
         uiElements.SmartSpinMinDist = UI.Sections.Attacks:Slider({ 
             Name = "Min Dist", 
@@ -1835,7 +1835,7 @@ local function SetupUI(UI)
             Callback = function(v) 
                 Attacks.SmartCandleMid.Enabled = v
             end
-        }, "SmartCandleMidEnabled")
+        }, "SmartCandleMidEnabled9945")
         
         uiElements.SmartCandleMidMinDist = UI.Sections.Attacks:Slider({ 
             Name = "Min Dist", 
@@ -1952,7 +1952,7 @@ local function SetupUI(UI)
             Callback = function(v) 
                 Attacks.FarSmartCandle.Enabled = v
             end
-        }, "FarSmartCandleEnabled")
+        }, "FarSmartCandleEnabled1653")
         
         uiElements.FarSmartCandleMinDist = UI.Sections.Attacks:Slider({ 
             Name = "Min Dist", 
@@ -2428,3 +2428,4 @@ function AutoShootModule:Destroy()
 end
 
 return AutoShootModule
+
