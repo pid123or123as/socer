@@ -108,9 +108,7 @@ local SpeedStatus = {
         LastUse = 0
     },
     InputBeganConnection = nil,
-    TouchBeganConnection = nil,
-    TackleGUI = nil,
-    TackleButton = nil
+    TouchBeganConnection = nil
 }
 
 local InfStaminaStatus = {
@@ -330,7 +328,7 @@ local function activateTackleBoost()
     if not SpeedStatus.TackleBoost.Enabled then return end
     if not canUseTackle() then return end
     
-    local args = {[1] = "Tackle"}
+    local args = {[1] = "TackIe"}
     local success = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Action"):FireServer(unpack(args))
     end)
@@ -342,14 +340,14 @@ local function activateTackleBoost()
         
         SpeedStatus.Speed = SpeedStatus.BaseSpeed * SpeedStatus.TackleBoost.Multiplier
         
-        notify("Speed", "Tackle Boost активирован! Скорость: " .. SpeedStatus.Speed, false)
+        notify("Speed", "Tackle Boost activated! Speed: " .. SpeedStatus.Speed, false)
         
         task.spawn(function()
             task.wait(SpeedStatus.TackleBoost.Duration)
             if SpeedStatus.TackleBoost.Active then
                 SpeedStatus.TackleBoost.Active = false
                 SpeedStatus.Speed = SpeedStatus.BaseSpeed
-                notify("Speed", "Tackle Boost закончился", false)
+                notify("Speed", "Tackle Boost ended", false)
             end
         end)
     end
@@ -370,30 +368,6 @@ local function setupTackleInput()
             activateTackleBoost()
         end
     end)
-    
-    if Services.UserInputService.TouchEnabled then
-        local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "TackleButtonGUI"
-        screenGui.Parent = LocalPlayerObj:WaitForChild("PlayerGui")
-        
-        local tackleButton = Instance.new("TextButton")
-        tackleButton.Name = "TackleButton"
-        tackleButton.Size = UDim2.new(0, 100, 0, 50)
-        tackleButton.Position = UDim2.new(1, -120, 1, -60)
-        tackleButton.Text = "TACKLE"
-        tackleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        tackleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        tackleButton.Font = Enum.Font.SourceSansBold
-        tackleButton.TextSize = 20
-        tackleButton.Parent = screenGui
-        
-        tackleButton.MouseButton1Click:Connect(function()
-            activateTackleBoost()
-        end)
-        
-        SpeedStatus.TackleButton = tackleButton
-        SpeedStatus.TackleGUI = screenGui
-    end
 end
 
 local function initializeAutoGK()
@@ -421,7 +395,7 @@ local function initializeAutoGK()
     end)
     
     if not success then
-        notify("AutoGK", "Ошибка инициализации: " .. tostring(result), true)
+        notify("AutoGK", "Failed to initialize: " .. tostring(result), true)
         return false
     end
     
@@ -480,7 +454,7 @@ local function tryBecomeGK(args, teamName)
     local success = pcall(function()
         AutoGKStatus.TeamChange:FireServer(unpack(args))
         AutoGKStatus.lastFireTime = now
-        notify("AutoGK", "Выбрана команда: " .. teamName, true)
+        notify("AutoGK", "Selected team: " .. teamName, true)
     end)
     
     return success
@@ -504,35 +478,35 @@ end
 
 local function selectGKAway()
     if not initializeAutoGK() then 
-        notify("AutoGK", "Ошибка инициализации AutoGK", true)
+        notify("AutoGK", "Failed to initialize AutoGK", true)
         return 
     end
     
     local slots = getOccupiedGKSlots()
     if slots.away then
-        notify("AutoGK", "AWAY GK уже занят: " .. slots.away, true)
+        notify("AutoGK", "AWAY GK already occupied: " .. slots.away, true)
         return
     end
     
     if tryBecomeGK(AutoGKStatus.AWAY_GK_ARGS, "AWAY") then
-        notify("AutoGK", "Выбрана команда AWAY", false)
+        notify("AutoGK", "Selected AWAY team", false)
     end
 end
 
 local function selectGKHome()
     if not initializeAutoGK() then 
-        notify("AutoGK", "Ошибка инициализации AutoGK", true)
+        notify("AutoGK", "Failed to initialize AutoGK", true)
         return 
     end
     
     local slots = getOccupiedGKSlots()
     if slots.home then
-        notify("AutoGK", "HOME GK уже занят: " .. slots.home, true)
+        notify("AutoGK", "HOME GK already occupied: " .. slots.home, true)
         return
     end
     
     if tryBecomeGK(AutoGKStatus.HOME_GK_ARGS, "HOME") then
-        notify("AutoGK", "Выбрана команда HOME", false)
+        notify("AutoGK", "Selected HOME team", false)
     end
 end
 
@@ -540,7 +514,7 @@ local function startAutoGK()
     if AutoGKStatus.Running then return end
     
     if not initializeAutoGK() then
-        notify("AutoGK", "Не найдены необходимые объекты", true)
+        notify("AutoGK", "Required objects not found", true)
         return
     end
     
@@ -551,7 +525,7 @@ local function startAutoGK()
         attemptGK()
     end)
     
-    notify("AutoGK", "AutoGKSelect запущен", true)
+    notify("AutoGK", "AutoGKSelect started", true)
 end
 
 local function stopAutoGK()
@@ -561,7 +535,7 @@ local function stopAutoGK()
     end
     
     AutoGKStatus.Running = false
-    notify("AutoGK", "AutoGKSelect остановлен", true)
+    notify("AutoGK", "AutoGKSelect stopped", true)
 end
 
 local function initializeJoinTeam()
@@ -583,7 +557,7 @@ local function initializeJoinTeam()
     end)
     
     if not success then
-        notify("JoinTeam", "Ошибка инициализации: " .. tostring(result), true)
+        notify("JoinTeam", "Failed to initialize: " .. tostring(result), true)
         return false
     end
     
@@ -650,39 +624,39 @@ end
 
 local function joinAwayTeam()
     if not initializeJoinTeam() then 
-        notify("JoinTeam", "Ошибка инициализации JoinTeam", true)
+        notify("JoinTeam", "Failed to initialize JoinTeam", true)
         return 
     end
     
     local success = pcall(function()
         JoinTeamStatus.TeamChange:FireServer(unpack(JoinTeamStatus.AWAY_ARGS))
-        notify("JoinTeam", "Присоединился к AWAY", false)
+        notify("JoinTeam", "Joined AWAY team", false)
         
         task.wait(0.1)
         updateTeamLabels()
     end)
     
     if not success then
-        notify("JoinTeam", "Не удалось присоединиться к AWAY", true)
+        notify("JoinTeam", "Failed to join AWAY team", true)
     end
 end
 
 local function joinHomeTeam()
     if not initializeJoinTeam() then 
-        notify("JoinTeam", "Ошибка инициализации JoinTeam", true)
+        notify("JoinTeam", "Failed to initialize JoinTeam", true)
         return 
     end
     
     local success = pcall(function()
         JoinTeamStatus.TeamChange:FireServer(unpack(JoinTeamStatus.HOME_ARGS))
-        notify("JoinTeam", "Присоединился к HOME", false)
+        notify("JoinTeam", "Joined HOME team", false)
         
         task.wait(0.1)
         updateTeamLabels()
     end)
     
     if not success then
-        notify("JoinTeam", "Не удалось присоединиться к HOME", true)
+        notify("JoinTeam", "Failed to join HOME team", true)
     end
 end
 
@@ -716,8 +690,8 @@ local function neutralizeAFKScript(afkScript)
     
     if disabledCount > 0 then
         AntiAFKStatus.foundAndDisabled = true
-        AntiAFKStatus.currentScriptName = afkScript.Name .. " (Нейтрализован)"
-        notify("AntiAFK", "AFKClient найден и нейтрализован! Скрипт: " .. afkScript.Name, false)
+        AntiAFKStatus.currentScriptName = afkScript.Name .. " (Neutralized)"
+        notify("AntiAFK", "AFKClient found and neutralized! Script: " .. afkScript.Name, false)
         
         if AntiAFKStatus.label then
             AntiAFKStatus.label:UpdateName("AntiAFK pointer: " .. AntiAFKStatus.currentScriptName)
@@ -747,15 +721,15 @@ local function startAntiAFK()
     end)
     
     if not success then
-        AntiAFKStatus.currentScriptName = "AFKRemote не найден"
+        AntiAFKStatus.currentScriptName = "AFKRemote not found"
         updateAntiAFKLabel()
-        notify("AntiAFK", "Ошибка инициализации: AFKRemote не найден", true)
+        notify("AntiAFK", "Failed to initialize: AFKRemote not found", true)
         return
     end
     
     AntiAFKStatus.Running = true
     AntiAFKStatus.foundAndDisabled = false
-    AntiAFKStatus.currentScriptName = "Сканирование..."
+    AntiAFKStatus.currentScriptName = "Scanning..."
     updateAntiAFKLabel()
     
     AntiAFKStatus.checkConnection = task.spawn(function()
@@ -779,7 +753,7 @@ local function startAntiAFK()
             end)
             
             if candidateScript then
-                AntiAFKStatus.currentScriptName = candidateScript.Name .. " (Проверка)"
+                AntiAFKStatus.currentScriptName = candidateScript.Name .. " (Checking)"
                 updateAntiAFKLabel()
                 
                 local hasRenderStepped = false
@@ -800,21 +774,21 @@ local function startAntiAFK()
                     updateAntiAFKLabel()
                 end
             else
-                AntiAFKStatus.currentScriptName = "AFK скрипт не найден"
+                AntiAFKStatus.currentScriptName = "No AFK script found"
                 updateAntiAFKLabel()
             end
         end
         
         if AntiAFKStatus.foundAndDisabled then
-            AntiAFKStatus.currentScriptName = AntiAFKStatus.currentScriptName or "Нейтрализован"
-            notify("AntiAFK", "AntiAFK мониторинг завершен успешно", false)
+            AntiAFKStatus.currentScriptName = AntiAFKStatus.currentScriptName or "Neutralized"
+            notify("AntiAFK", "AntiAFK monitoring completed successfully", false)
         else
-            AntiAFKStatus.currentScriptName = "Мониторинг остановлен"
+            AntiAFKStatus.currentScriptName = "Monitoring stopped"
         end
         updateAntiAFKLabel()
     end)
     
-    notify("AntiAFK", "AntiAFK запущен (проверка каждые 3с)", true)
+    notify("AntiAFK", "AntiAFK started (checking every 3s)", true)
 end
 
 local function stopAntiAFK()
@@ -826,10 +800,10 @@ local function stopAntiAFK()
         AntiAFKStatus.checkConnection = nil
     end
     
-    AntiAFKStatus.currentScriptName = "Выключен"
+    AntiAFKStatus.currentScriptName = "Disabled"
     updateAntiAFKLabel()
     
-    notify("AntiAFK", "AntiAFK остановлен", true)
+    notify("AntiAFK", "AntiAFK stopped", true)
 end
 
 local function findCelebrationsGUI()
@@ -852,7 +826,7 @@ local function setupCelebrationsHook()
     
     local mt = getrawmetatable(marketplaceService)
     if not mt then
-        notify("UnlockCelebrations", "Не удалось получить метатаблицу MarketplaceService", true)
+        notify("UnlockCelebrations", "Failed to get MarketplaceService metatable", true)
         return false
     end
     
@@ -869,7 +843,7 @@ local function setupCelebrationsHook()
             
             for _, targetId in ipairs(UnlockCelebrationsStatus.gamePassIds) do
                 if gamePassId == targetId then
-                    notify("UnlockCelebrations", "Разблокирован game pass ID: " .. gamePassId, false)
+                    notify("UnlockCelebrations", "Unlocked game pass ID: " .. gamePassId, false)
                     return true
                 end
             end
@@ -899,40 +873,40 @@ end
 
 local function toggleCelebrationsMenu()
     if not findCelebrationsGUI() then
-        notify("UnlockCelebrations", "GUI Celebrations не найден", true)
+        notify("UnlockCelebrations", "Celebrations GUI not found", true)
         return
     end
     
     if not UnlockCelebrationsStatus.celebrationsFrame then
-        notify("UnlockCelebrations", "Фрейм Celebrations не найден", true)
+        notify("UnlockCelebrations", "Celebrations frame not found", true)
         return
     end
     
     UnlockCelebrationsStatus.celebrationsFrame.Visible = not UnlockCelebrationsStatus.celebrationsFrame.Visible
     
-    local state = UnlockCelebrationsStatus.celebrationsFrame.Visible and "показан" or "скрыт"
-    notify("UnlockCelebrations", "Меню Celebrations " .. state, false)
+    local state = UnlockCelebrationsStatus.celebrationsFrame.Visible and "shown" or "hidden"
+    notify("UnlockCelebrations", "Celebrations menu " .. state, false)
 end
 
 local function startUnlockCelebrations()
     if UnlockCelebrationsStatus.hookApplied then
-        notify("UnlockCelebrations", "Хук уже применен", false)
+        notify("UnlockCelebrations", "Hook already applied", false)
         return
     end
     
     if not setupCelebrationsHook() then
-        notify("UnlockCelebrations", "Не удалось установить хук", true)
+        notify("UnlockCelebrations", "Failed to setup hook", true)
         return
     end
     
     findCelebrationsGUI()
     
-    notify("UnlockCelebrations", "Celebrations разблокированы", false)
+    notify("UnlockCelebrations", "Celebrations unlocked", false)
 end
 
 local function stopUnlockCelebrations()
     removeCelebrationsHook()
-    notify("UnlockCelebrations", "Celebrations заблокированы", true)
+    notify("UnlockCelebrations", "Celebrations lock restored", true)
 end
 
 local function initializeSkinRandomizeRemote()
@@ -944,7 +918,7 @@ local function initializeSkinRandomizeRemote()
     end)
     
     if not success then
-        warn("SkinRandomize: Не удалось найти Avatar remote:", result)
+        warn("SkinRandomize: Failed to find Avatar remote:", result)
         SkinRandomizeStatus.Remote = nil
         return false
     end
@@ -1018,7 +992,7 @@ local function startSkinRandomize()
     if SkinRandomizeStatus.Running then return end
     
     if not initializeSkinRandomizeRemote() then
-        notify("SkinRandomize", "Не удалось найти Avatar remote", true)
+        notify("SkinRandomize", "Failed to find Avatar remote", true)
         return
     end
     
@@ -1029,7 +1003,7 @@ local function startSkinRandomize()
         skinRandomizeLoop()
     end)
     
-    notify("SkinRandomize", "Запущен с интервалом: " .. MovementEnhancements.Config.SkinRandomize.ChangeInterval .. "s", false)
+    notify("SkinRandomize", "Started with interval: " .. MovementEnhancements.Config.SkinRandomize.ChangeInterval .. "s", false)
 end
 
 local function stopSkinRandomize()
@@ -1039,7 +1013,7 @@ local function stopSkinRandomize()
     end
     
     SkinRandomizeStatus.Running = false
-    notify("SkinRandomize", "Остановлен", true)
+    notify("SkinRandomize", "Stopped", true)
 end
 
 local Timer = {}
@@ -1050,8 +1024,8 @@ Timer.Start = function()
         setfflag("SimEnableStepPhysicsSelective", "True")
     end)
     if not success then
-        warn("Timer: Не удалось включить physics флаги")
-        notify("Timer", "Не удалось включить physics simulation.", true)
+        warn("Timer: Failed to enable physics flags")
+        notify("Timer", "Failed to enable physics simulation.", true)
         return
     end
     TimerStatus.Running = true
@@ -1070,7 +1044,7 @@ Timer.Start = function()
             notify("Timer", "Physics step failed. Timer stopped.", true)
         end
     end)
-    notify("Timer", "Запущен со скоростью: " .. TimerStatus.Speed, true)
+    notify("Timer", "Started with speed: " .. TimerStatus.Speed, true)
 end
 
 Timer.Stop = function()
@@ -1079,13 +1053,13 @@ Timer.Stop = function()
         TimerStatus.Connection = nil
     end
     TimerStatus.Running = false
-    notify("Timer", "Остановлен", true)
+    notify("Timer", "Stopped", true)
 end
 
 Timer.SetSpeed = function(newSpeed)
     TimerStatus.Speed = math.clamp(newSpeed, 1, 15)
     MovementEnhancements.Config.Timer.Speed = TimerStatus.Speed
-    notify("Timer", "Скорость установлена: " .. TimerStatus.Speed, false)
+    notify("Timer", "Speed set to: " .. TimerStatus.Speed, false)
 end
 
 local Disabler = {}
@@ -1111,7 +1085,7 @@ Disabler.Start = function()
     if LocalPlayerObj.Character then
         Disabler.DisableSignals(LocalPlayerObj.Character)
     end
-    notify("Disabler", "Запущен", true)
+    notify("Disabler", "Started", true)
 end
 
 Disabler.Stop = function()
@@ -1120,7 +1094,7 @@ Disabler.Stop = function()
         DisablerStatus.Connection = nil
     end
     DisablerStatus.Running = false
-    notify("Disabler", "Остановлен", true)
+    notify("Disabler", "Stopped", true)
 end
 
 local Speed = {}
@@ -1183,7 +1157,7 @@ Speed.Start = function()
         Speed.UpdateMovement(humanoid, rootPart, moveDirection, currentTime, dt)
         Speed.UpdateJumps(humanoid, rootPart, currentTime, moveDirection)
     end)
-    notify("Speed", "Запущен с методом: " .. SpeedStatus.Method, true)
+    notify("Speed", "Started with Method: " .. SpeedStatus.Method, true)
 end
 
 Speed.Stop = function()
@@ -1197,14 +1171,8 @@ Speed.Stop = function()
         SpeedStatus.InputBeganConnection = nil
     end
     
-    if SpeedStatus.TackleGUI then
-        SpeedStatus.TackleGUI:Destroy()
-        SpeedStatus.TackleGUI = nil
-        SpeedStatus.TackleButton = nil
-    end
-    
     SpeedStatus.Running = false
-    notify("Speed", "Остановлен", true)
+    notify("Speed", "Stopped", true)
 end
 
 Speed.SetSpeed = function(newSpeed)
@@ -1217,13 +1185,13 @@ Speed.SetSpeed = function(newSpeed)
     end
     
     MovementEnhancements.Config.Speed.Speed = SpeedStatus.BaseSpeed
-    notify("Speed", "Скорость установлена: " .. SpeedStatus.BaseSpeed, false)
+    notify("Speed", "Speed set to: " .. SpeedStatus.BaseSpeed, false)
 end
 
 Speed.SetMethod = function(newMethod)
     SpeedStatus.Method = newMethod
     MovementEnhancements.Config.Speed.Method = newMethod
-    notify("Speed", "Метод установлен: " .. newMethod, false)
+    notify("Speed", "Method set to: " .. newMethod, false)
     if SpeedStatus.Running then
         Speed.Stop()
         Speed.Start()
@@ -1233,25 +1201,25 @@ end
 Speed.SetPulseTPDistance = function(value)
     SpeedStatus.PulseTPDistance = math.clamp(value, 1, 20)
     MovementEnhancements.Config.Speed.PulseTPDist = SpeedStatus.PulseTPDistance
-    notify("Speed", "Pulse TP Distance установлен: " .. SpeedStatus.PulseTPDistance, false)
+    notify("Speed", "Pulse TP Distance set to: " .. SpeedStatus.PulseTPDistance, false)
 end
 
 Speed.SetPulseTPFrequency = function(value)
     SpeedStatus.PulseTPFrequency = math.clamp(value, 0.1, 2)
     MovementEnhancements.Config.Speed.PulseTPDelay = SpeedStatus.PulseTPFrequency
-    notify("Speed", "Pulse TP Frequency установлен: " .. SpeedStatus.PulseTPFrequency, false)
+    notify("Speed", "Pulse TP Frequency set to: " .. SpeedStatus.PulseTPFrequency, false)
 end
 
 Speed.SetSmoothnessFactor = function(value)
     SpeedStatus.SmoothnessFactor = math.clamp(value, 0, 1)
     MovementEnhancements.Config.Speed.SmoothnessFactor = SpeedStatus.SmoothnessFactor
-    notify("Speed", "Smoothness Factor установлен: " .. SpeedStatus.SmoothnessFactor, false)
+    notify("Speed", "Smoothness Factor set to: " .. SpeedStatus.SmoothnessFactor, false)
 end
 
 Speed.SetTackleBoostEnabled = function(enabled)
     SpeedStatus.TackleBoost.Enabled = enabled
     MovementEnhancements.Config.Speed.TackleBoost.Enabled = enabled
-    notify("Speed", "Tackle Boost " .. (enabled and "включен" or "выключен"), false)
+    notify("Speed", "Tackle Boost " .. (enabled and "enabled" or "disabled"), false)
     
     if enabled then
         setupTackleInput()
@@ -1261,13 +1229,13 @@ end
 Speed.SetTackleBoostDuration = function(value)
     SpeedStatus.TackleBoost.Duration = math.clamp(value, 0.5, 5)
     MovementEnhancements.Config.Speed.TackleBoost.Duration = SpeedStatus.TackleBoost.Duration
-    notify("Speed", "Tackle Boost Duration установлен: " .. SpeedStatus.TackleBoost.Duration .. "s", false)
+    notify("Speed", "Tackle Boost Duration set to: " .. SpeedStatus.TackleBoost.Duration .. "s", false)
 end
 
 Speed.SetTackleBoostMultiplier = function(value)
     SpeedStatus.TackleBoost.Multiplier = math.clamp(value, 1, 5)
     MovementEnhancements.Config.Speed.TackleBoost.Multiplier = SpeedStatus.TackleBoost.Multiplier
-    notify("Speed", "Tackle Boost Multiplier установлен: " .. SpeedStatus.TackleBoost.Multiplier, false)
+    notify("Speed", "Tackle Boost Multiplier set to: " .. SpeedStatus.TackleBoost.Multiplier, false)
     
     if SpeedStatus.TackleBoost.Active then
         SpeedStatus.Speed = SpeedStatus.BaseSpeed * SpeedStatus.TackleBoost.Multiplier
@@ -1277,7 +1245,7 @@ end
 Speed.SetTackleBoostCooldown = function(value)
     SpeedStatus.TackleBoost.Cooldown = math.clamp(value, 1, 10)
     MovementEnhancements.Config.Speed.TackleBoost.Cooldown = SpeedStatus.TackleBoost.Cooldown
-    notify("Speed", "Tackle Boost Cooldown установлен: " .. SpeedStatus.TackleBoost.Cooldown .. "s", false)
+    notify("Speed", "Tackle Boost Cooldown set to: " .. SpeedStatus.TackleBoost.Cooldown .. "s", false)
 end
 
 local InfStamina = {}
@@ -1401,7 +1369,7 @@ InfStamina.Start = function()
     InfStamina.ForceDisableGuiMain()
     InfStamina.UpdateStaminaValues()
     
-    notify("InfStamina", "Запущен", true)
+    notify("InfStamina", "Started", true)
 end
 
 InfStamina.Stop = function()
@@ -1417,14 +1385,100 @@ InfStamina.Stop = function()
     
     InfStaminaStatus.Running = false
     InfStaminaStatus.LastSentSpeed = nil
-    notify("InfStamina", "Остановлен", true)
+    notify("InfStamina", "Stopped", true)
+end
+
+local function SynchronizeConfigValues()
+    if not UIElements then return end
+    
+    if UIElements.Timer.Speed and UIElements.Timer.Speed.GetValue then
+        local uiValue = UIElements.Timer.Speed:GetValue()
+        if uiValue ~= TimerStatus.Speed then
+            TimerStatus.Speed = uiValue
+            MovementEnhancements.Config.Timer.Speed = uiValue
+        end
+    end
+    
+    if UIElements.Speed.Speed and UIElements.Speed.Speed.GetValue then
+        local uiValue = UIElements.Speed.Speed:GetValue()
+        if uiValue ~= SpeedStatus.BaseSpeed then
+            SpeedStatus.BaseSpeed = uiValue
+            MovementEnhancements.Config.Speed.Speed = uiValue
+            
+            if SpeedStatus.TackleBoost.Active then
+                SpeedStatus.Speed = SpeedStatus.BaseSpeed * SpeedStatus.TackleBoost.Multiplier
+            else
+                SpeedStatus.Speed = SpeedStatus.BaseSpeed
+            end
+        end
+    end
+    
+    if UIElements.Speed.JumpInterval and UIElements.Speed.JumpInterval.GetValue then
+        local uiValue = UIElements.Speed.JumpInterval:GetValue()
+        if uiValue ~= SpeedStatus.JumpInterval then
+            SpeedStatus.JumpInterval = uiValue
+            MovementEnhancements.Config.Speed.JumpInterval = uiValue
+        end
+    end
+    
+    if UIElements.Speed.PulseTPDistance and UIElements.Speed.PulseTPDistance.GetValue then
+        local uiValue = UIElements.Speed.PulseTPDistance:GetValue()
+        if uiValue ~= SpeedStatus.PulseTPDistance then
+            SpeedStatus.PulseTPDistance = uiValue
+            MovementEnhancements.Config.Speed.PulseTPDist = uiValue
+        end
+    end
+    
+    if UIElements.Speed.PulseTPFrequency and UIElements.Speed.PulseTPFrequency.GetValue then
+        local uiValue = UIElements.Speed.PulseTPFrequency:GetValue()
+        if uiValue ~= SpeedStatus.PulseTPFrequency then
+            SpeedStatus.PulseTPFrequency = uiValue
+            MovementEnhancements.Config.Speed.PulseTPDelay = uiValue
+        end
+    end
+    
+    if UIElements.Speed.SmoothnessFactor and UIElements.Speed.SmoothnessFactor.GetValue then
+        local uiValue = UIElements.Speed.SmoothnessFactor:GetValue()
+        if uiValue ~= SpeedStatus.SmoothnessFactor then
+            SpeedStatus.SmoothnessFactor = uiValue
+            MovementEnhancements.Config.Speed.SmoothnessFactor = uiValue
+        end
+    end
+    
+    if UIElements.Speed.TackleBoostDuration and UIElements.Speed.TackleBoostDuration.GetValue then
+        local uiValue = UIElements.Speed.TackleBoostDuration:GetValue()
+        if uiValue ~= SpeedStatus.TackleBoost.Duration then
+            SpeedStatus.TackleBoost.Duration = uiValue
+            MovementEnhancements.Config.Speed.TackleBoost.Duration = uiValue
+        end
+    end
+    
+    if UIElements.Speed.TackleBoostMultiplier and UIElements.Speed.TackleBoostMultiplier.GetValue then
+        local uiValue = UIElements.Speed.TackleBoostMultiplier:GetValue()
+        if uiValue ~= SpeedStatus.TackleBoost.Multiplier then
+            SpeedStatus.TackleBoost.Multiplier = uiValue
+            MovementEnhancements.Config.Speed.TackleBoost.Multiplier = uiValue
+            
+            if SpeedStatus.TackleBoost.Active then
+                SpeedStatus.Speed = SpeedStatus.BaseSpeed * SpeedStatus.TackleBoost.Multiplier
+            end
+        end
+    end
+    
+    if UIElements.Speed.TackleBoostCooldown and UIElements.Speed.TackleBoostCooldown.GetValue then
+        local uiValue = UIElements.Speed.TackleBoostCooldown:GetValue()
+        if uiValue ~= SpeedStatus.TackleBoost.Cooldown then
+            SpeedStatus.TackleBoost.Cooldown = uiValue
+            MovementEnhancements.Config.Speed.TackleBoost.Cooldown = uiValue
+        end
+    end
 end
 
 local function SetupUI(UI)
     if UI.Sections.Timer then
         UI.Sections.Timer:Header({ Name = "Timer" })
         UIElements.Timer.Enabled = UI.Sections.Timer:Toggle({
-            Name = "Включен",
+            Name = "Enabled",
             Default = MovementEnhancements.Config.Timer.Enabled,
             Callback = function(value)
                 TimerStatus.Enabled = value
@@ -1434,7 +1488,7 @@ local function SetupUI(UI)
         }, 'TimerToggle')
         
         UIElements.Timer.Speed = UI.Sections.Timer:Slider({
-            Name = "Скорость",
+            Name = "Speed",
             Minimum = 1,
             Maximum = 15,
             Default = MovementEnhancements.Config.Timer.Speed,
@@ -1445,7 +1499,7 @@ local function SetupUI(UI)
         }, 'TimerSpeed123')
         
         UIElements.Timer.Keybind = UI.Sections.Timer:Keybind({
-            Name = "Клавиша переключения",
+            Name = "Toggle Key",
             Default = MovementEnhancements.Config.Timer.ToggleKey,
             Callback = function(value)
                 TimerStatus.Key = value
@@ -1454,7 +1508,7 @@ local function SetupUI(UI)
                 if TimerStatus.Enabled then
                     if TimerStatus.Running then Timer.Stop() else Timer.Start() end
                 else
-                    notify("Timer", "Включите Timer для использования клавиши.", true)
+                    notify("Timer", "Enable Timer to use keybind.", true)
                 end
             end
         }, 'TimerToggle123')
@@ -1463,7 +1517,7 @@ local function SetupUI(UI)
     if UI.Sections.Disabler then
         UI.Sections.Disabler:Header({ Name = "Disabler" })
         UIElements.Disabler.Enabled = UI.Sections.Disabler:Toggle({
-            Name = "Включен",
+            Name = "Enabled",
             Default = MovementEnhancements.Config.Disabler.Enabled,
             Callback = function(value)
                 DisablerStatus.Enabled = value
@@ -1476,7 +1530,7 @@ local function SetupUI(UI)
     if UI.Sections.Speed then
         UI.Sections.Speed:Header({ Name = "Speed" })
         UIElements.Speed.Enabled = UI.Sections.Speed:Toggle({
-            Name = "Включен",
+            Name = "Enabled",
             Default = MovementEnhancements.Config.Speed.Enabled,
             Callback = function(value)
                 SpeedStatus.Enabled = value
@@ -1486,7 +1540,7 @@ local function SetupUI(UI)
         }, 'SpeedToggle')
         
         UIElements.Speed.AutoJump = UI.Sections.Speed:Toggle({
-            Name = "Авто-прыжок",
+            Name = "Auto Jump",
             Default = MovementEnhancements.Config.Speed.AutoJump,
             Callback = function(value)
                 SpeedStatus.AutoJump = value
@@ -1495,7 +1549,7 @@ local function SetupUI(UI)
         }, 'AutoJump')
         
         UIElements.Speed.Method = UI.Sections.Speed:Dropdown({
-            Name = "Метод",
+            Name = "Method",
             Options = {"CFrame", "PulseTP"},
             Default = MovementEnhancements.Config.Speed.Method,
             Callback = function(value)
@@ -1504,7 +1558,7 @@ local function SetupUI(UI)
         }, 'MethodCframe')
         
         UIElements.Speed.Speed = UI.Sections.Speed:Slider({
-            Name = "Скорость",
+            Name = "Speed",
             Minimum = 16,
             Maximum = 250,
             Default = MovementEnhancements.Config.Speed.Speed,
@@ -1515,7 +1569,7 @@ local function SetupUI(UI)
         }, 'Speed')
         
         UIElements.Speed.JumpInterval = UI.Sections.Speed:Slider({
-            Name = "Интервал прыжков",
+            Name = "Jump Interval",
             Minimum = 0.1,
             Maximum = 2,
             Default = MovementEnhancements.Config.Speed.JumpInterval,
@@ -1523,12 +1577,12 @@ local function SetupUI(UI)
             Callback = function(value)
                 SpeedStatus.JumpInterval = value
                 MovementEnhancements.Config.Speed.JumpInterval = value
-                notify("Speed", "Интервал прыжков установлен: " .. value, false)
+                notify("Speed", "Jump Interval set to: " .. value, false)
             end
         }, 'JumpInterval')
         
         UIElements.Speed.PulseTPDistance = UI.Sections.Speed:Slider({
-            Name = "Pulse TP Дистанция",
+            Name = "Pulse TP Distance",
             Minimum = 1,
             Maximum = 20,
             Default = MovementEnhancements.Config.Speed.PulseTPDist,
@@ -1539,7 +1593,7 @@ local function SetupUI(UI)
         }, 'PulseTPDistance')
         
         UIElements.Speed.PulseTPFrequency = UI.Sections.Speed:Slider({
-            Name = "Pulse TP Частота",
+            Name = "Pulse TP Frequency",
             Minimum = 0.1,
             Maximum = 2,
             Default = MovementEnhancements.Config.Speed.PulseTPDelay,
@@ -1550,7 +1604,7 @@ local function SetupUI(UI)
         }, 'PulseTPFrequency')
         
         UIElements.Speed.SmoothnessFactor = UI.Sections.Speed:Slider({
-            Name = "Плавность",
+            Name = "Smoothness Factor",
             Minimum = 0,
             Maximum = 1,
             Default = MovementEnhancements.Config.Speed.SmoothnessFactor,
@@ -1563,7 +1617,7 @@ local function SetupUI(UI)
         UI.Sections.Speed:Header({ Name = "Tackle Boost" })
         
         UIElements.Speed.TackleBoostEnabled = UI.Sections.Speed:Toggle({
-            Name = "Включен",
+            Name = "Enabled",
             Default = MovementEnhancements.Config.Speed.TackleBoost.Enabled,
             Callback = function(value)
                 Speed.SetTackleBoostEnabled(value)
@@ -1571,7 +1625,7 @@ local function SetupUI(UI)
         }, 'TackleBoostEnabled')
         
         UIElements.Speed.TackleBoostDuration = UI.Sections.Speed:Slider({
-            Name = "Длительность (с)",
+            Name = "Duration (s)",
             Minimum = 0.5,
             Maximum = 5,
             Default = MovementEnhancements.Config.Speed.TackleBoost.Duration,
@@ -1582,7 +1636,7 @@ local function SetupUI(UI)
         }, 'TackleBoostDuration')
         
         UIElements.Speed.TackleBoostMultiplier = UI.Sections.Speed:Slider({
-            Name = "Множитель скорости",
+            Name = "Speed Multiplier",
             Minimum = 1,
             Maximum = 5,
             Default = MovementEnhancements.Config.Speed.TackleBoost.Multiplier,
@@ -1593,7 +1647,7 @@ local function SetupUI(UI)
         }, 'TackleBoostMultiplier')
         
         UIElements.Speed.TackleBoostCooldown = UI.Sections.Speed:Slider({
-            Name = "Кулдаун (с)",
+            Name = "Cooldown (s)",
             Minimum = 1,
             Maximum = 10,
             Default = MovementEnhancements.Config.Speed.TackleBoost.Cooldown,
@@ -1602,20 +1656,13 @@ local function SetupUI(UI)
                 Speed.SetTackleBoostCooldown(value)
             end
         }, 'TackleBoostCooldown')
-        
-        UI.Sections.Speed:Button({
-            Name = "Активировать Tackle Boost",
-            Callback = function()
-                activateTackleBoost()
-            end
-        })
     end
 
     if UI.Sections.InfStamina then
         UI.Sections.InfStamina:Header({ Name = "Infinity Stamina" })
         
         UIElements.InfStamina.Enabled = UI.Sections.InfStamina:Toggle({
-            Name = "Включен",
+            Name = "Enabled",
             Default = MovementEnhancements.Config.InfStamina.Enabled,
             Callback = function(value)
                 InfStaminaStatus.Enabled = value
@@ -1625,7 +1672,7 @@ local function SetupUI(UI)
         }, 'InfStaminaEnabled')
         
         UIElements.InfStamina.AlwaysSprint = UI.Sections.InfStamina:Toggle({
-            Name = "Всегда бег",
+            Name = "Always Sprint",
             Default = MovementEnhancements.Config.InfStamina.AlwaysSprint,
             Callback = function(value)
                 InfStaminaStatus.AlwaysSprint = value
@@ -1638,7 +1685,7 @@ local function SetupUI(UI)
         UI.Sections.AutoGKSelect:Header({ Name = "AutoGK Selector" })
         
         UIElements.AutoGKSelect.Enabled = UI.Sections.AutoGKSelect:Toggle({
-            Name = "Включен",
+            Name = "Enabled",
             Default = MovementEnhancements.Config.AutoGKSelect.Enabled,
             Callback = function(value)
                 AutoGKStatus.Enabled = value
@@ -1652,14 +1699,14 @@ local function SetupUI(UI)
         }, 'AutoGKSelectEnabled')
         
         UI.Sections.AutoGKSelect:Button({
-            Name = "Выбрать GK Away",
+            Name = "Select GK Away",
             Callback = function()
                 selectGKAway()
             end
         })
         
         UI.Sections.AutoGKSelect:Button({
-            Name = "Выбрать GK Home",
+            Name = "Select GK Home",
             Callback = function()
                 selectGKHome()
             end
@@ -1670,7 +1717,7 @@ local function SetupUI(UI)
         UI.Sections.AntiAFK:Header({ Name = "AntiAFK" })
         
         UIElements.AntiAFK.Enabled = UI.Sections.AntiAFK:Toggle({
-            Name = "Включен",
+            Name = "Enabled",
             Default = MovementEnhancements.Config.AntiAFK.Enabled,
             Callback = function(value)
                 AntiAFKStatus.Enabled = value
@@ -1700,14 +1747,14 @@ local function SetupUI(UI)
         })
         
         UI.Sections.JoinTeam:Button({
-            Name = "Присоединиться к Away",
+            Name = "Join Away",
             Callback = function()
                 joinAwayTeam()
             end
         })
         
         UI.Sections.JoinTeam:Button({
-            Name = "Присоединиться к Home",
+            Name = "Join Home",
             Callback = function()
                 joinHomeTeam()
             end
@@ -1720,7 +1767,7 @@ local function SetupUI(UI)
         UI.Sections.UnlockCelebrations:Header({ Name = "Unlock Celebrations" })
         
         UIElements.UnlockCelebrations.Enabled = UI.Sections.UnlockCelebrations:Toggle({
-            Name = "Включен",
+            Name = "Enabled",
             Default = MovementEnhancements.Config.UnlockCelebrations.Enabled,
             Callback = function(value)
                 UnlockCelebrationsStatus.Enabled = value
@@ -1734,7 +1781,7 @@ local function SetupUI(UI)
         }, 'UnlockCelebrations')
         
         UI.Sections.UnlockCelebrations:Button({
-            Name = "Показать/скрыть меню",
+            Name = "Show/Hide menu",
             Callback = function()
                 toggleCelebrationsMenu()
             end
@@ -1745,7 +1792,7 @@ local function SetupUI(UI)
         UI.Sections.SkinRandomize:Header({ Name = "Skin Randomizer" })
         
         UIElements.SkinRandomize.Enabled = UI.Sections.SkinRandomize:Toggle({
-            Name = "Включен",
+            Name = "Enabled",
             Default = MovementEnhancements.Config.SkinRandomize.Enabled,
             Callback = function(value)
                 MovementEnhancements.Config.SkinRandomize.Enabled = value
@@ -1758,20 +1805,20 @@ local function SetupUI(UI)
         }, 'SkinRandom124')
         
         UIElements.SkinRandomize.SkinTone = UI.Sections.SkinRandomize:Toggle({
-            Name = "Рандомный Skin Tone",
+            Name = "Random Skin Tone",
             Default = MovementEnhancements.Config.SkinRandomize.SkinTone.Enabled,
             Callback = function(value)
                 MovementEnhancements.Config.SkinRandomize.SkinTone.Enabled = value
-                notify("SkinRandomize", "Рандомизация Skin Tone " .. (value and "включена" or "выключена"), false)
+                notify("SkinRandomize", "Skin tone randomization " .. (value and "enabled" or "disabled"), false)
             end
         }, 'RandomSkiNTone')
         
         UIElements.SkinRandomize.Hair = UI.Sections.SkinRandomize:Toggle({
-            Name = "Рандомный Hair",
+            Name = "Random Hair",
             Default = MovementEnhancements.Config.SkinRandomize.Hair.Enabled,
             Callback = function(value)
                 MovementEnhancements.Config.SkinRandomize.Hair.Enabled = value
-                notify("SkinRandomize", "Рандомизация Hair " .. (value and "включена" or "выключена"), false)
+                notify("SkinRandomize", "Hair randomization " .. (value and "enabled" or "disabled"), false)
             end
         }, 'RandomHair')
     end
@@ -1784,9 +1831,17 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
     notify = notifyFunc
     LocalPlayerObj = PlayerData.LocalPlayer
 
-    _G.setTimerSpeed = Timer.SetSpeed
-    _G.setSpeed = Speed.SetSpeed
-    _G.setInfStaminaSprintKey = function(key) InfStaminaStatus.SprintKey = key end
+    SetupUI(UI)
+    
+    local synchronizationTimer = 0
+    Services.RunService.Heartbeat:Connect(function(deltaTime)
+        synchronizationTimer = synchronizationTimer + deltaTime
+        
+        if synchronizationTimer >= 1.0 then
+            synchronizationTimer = 0
+            SynchronizeConfigValues()
+        end
+    end)
 
     if LocalPlayerObj then
         local function handleCharacterChange()
@@ -1822,8 +1877,6 @@ function MovementEnhancements.Init(UI, coreParam, notifyFunc)
             task.spawn(handleCharacterChange)
         end
     end
-
-    SetupUI(UI)
 end
 
 function MovementEnhancements:Destroy()
@@ -1837,7 +1890,7 @@ function MovementEnhancements:Destroy()
     stopUnlockCelebrations()
     stopSkinRandomize()
     
-    notify("MovementEnhancements", "Все модули остановлены", true)
+    notify("MovementEnhancements", "All modules stopped", true)
 end
 
 return MovementEnhancements
