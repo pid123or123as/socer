@@ -1,5 +1,5 @@
 local AntiCheatRemover = {}
-
+print('2')
 -- ====================== CONFIG ======================
 AntiCheatRemover.Config = {
     DevConsoleBypass = {
@@ -16,7 +16,7 @@ AntiCheatRemover.Config = {
 local DevConsoleBypassStatus = {
     Running = false,
     Enabled = AntiCheatRemover.Config.DevConsoleBypass.Enabled,
-    Status = "Disabled",             -- Disabled / Scanning... / Found / Neutralized
+    Status = "Disabled",
     ScriptName = "None",
     FoundScript = nil,
     label = nil
@@ -49,25 +49,40 @@ end
 
 -- ====================== NEUTRALIZE FUNCTIONS ======================
 local function neutralizeCoreGuiSetter(scriptObj, mainClosure)
-    if not scriptObj or not mainClosure then return false end
+    if not scriptObj or not mainClosure or not scriptObj.Parent then return false end
 
     DevConsoleBypassStatus.FoundScript = scriptObj
     DevConsoleBypassStatus.ScriptName = scriptObj.Name
     DevConsoleBypassStatus.Status = "Neutralized"
     updateDevConsoleLabel()
 
+    -- Отключаем скрипт навсегда (только для DevConsole)
+    pcall(function()
+        scriptObj.Disabled = true
+    end)
+
+    -- Порча всех 28 констант на случайный мусор
     local constants = debug.getconstants(mainClosure)
     if constants and #constants == 28 then
         for i = 1, 28 do
-            local trash = "r" .. string.char(math.random(97, 122)) .. math.random(100, 999)
+            local trash = "z" .. string.char(math.random(97, 122)) .. math.random(100, 999)
             pcall(debug.setconstant, mainClosure, i, trash)
         end
     end
 
-    if getconnections and Services.RunService then
-        local events = {Services.RunService.Heartbeat, Services.RunService.RenderStepped, Services.RunService.Stepped}
+    -- Максимальная отписка от всех событий RunService
+    if getconnections and Services and Services.RunService then
+        local events = {
+            Services.RunService.Heartbeat,
+            Services.RunService.RenderStepped,
+            Services.RunService.Stepped,
+            Services.RunService.PreRender,
+            Services.RunService.PreAnimation,
+            Services.RunService.PostSimulation
+        }
         for _, event in ipairs(events) do
-            for _, conn in ipairs(getconnections(event)) do
+            local connections = getconnections(event)
+            for _, conn in ipairs(connections) do
                 if conn.Function == mainClosure then
                     pcall(conn.Disable, conn)
                     pcall(conn.Disconnect, conn)
@@ -76,12 +91,12 @@ local function neutralizeCoreGuiSetter(scriptObj, mainClosure)
         end
     end
 
-    notify("AntiCheatRemover", "DevConsole unlocked", false)
+    notify("AntiCheatRemover", "CoreGuiSetter disabled and corrupted - DevConsole unlocked", false)
     return true
 end
 
 local function neutralizeAdvertisementHandler(scriptObj, mainClosure)
-    if not scriptObj or not mainClosure then return false end
+    if not scriptObj or not mainClosure or not scriptObj.Parent then return false end
 
     BaseACBypassStatus.FoundScript = scriptObj
     BaseACBypassStatus.ScriptName = scriptObj.Name
@@ -90,16 +105,41 @@ local function neutralizeAdvertisementHandler(scriptObj, mainClosure)
 
     local constants = debug.getconstants(mainClosure)
     if constants and #constants == 35 then
+        -- Прицельная порча ключевых констант
+        pcall(debug.setconstant, mainClosure, 3, nil)              -- game → nil
+        pcall(debug.setconstant, mainClosure, 5, nil)              -- ReplicatedStorage → nil
+        pcall(debug.setconstant, mainClosure, 6, "FakeService")    -- GetService → fake
+        pcall(debug.setconstant, mainClosure, 13, nil)             -- Players → nil
+        pcall(debug.setconstant, mainClosure, 14, nil)             -- PlayerGui → nil
+        pcall(debug.setconstant, mainClosure, 16, nil)             -- TweenService → nil
+        pcall(debug.setconstant, mainClosure, 19, nil)             -- Post → nil
+        pcall(debug.setconstant, mainClosure, 22, nil)             -- spawn → nil
+        pcall(debug.setconstant, mainClosure, 24, nil)             -- wait → nil
+        pcall(debug.setconstant, mainClosure, 26, nil)             -- GetChildren → nil
+        pcall(debug.setconstant, mainClosure, 30, nil)             -- Remotes → nil
+        pcall(debug.setconstant, mainClosure, 31, nil)             -- WaitForChild → nil
+        pcall(debug.setconstant, mainClosure, 35, nil)             -- FireServer → nil
+
+        -- Полная перезапись всех констант на мусор
         for i = 1, 35 do
-            local trash = string.char(math.random(65, 90)) .. math.random(1000, 9999)
-            pcall(debug.setconstant, mainClosure, i, trash)
+            local randomTrash = string.char(math.random(65, 90)) .. math.random(1, 9999)
+            pcall(debug.setconstant, mainClosure, i, randomTrash)
         end
     end
 
-    if getconnections and Services.RunService then
-        local events = {Services.RunService.Heartbeat, Services.RunService.RenderStepped, Services.RunService.Stepped}
+    -- Отписка от всех возможных событий RunService
+    if getconnections and Services and Services.RunService then
+        local events = {
+            Services.RunService.Heartbeat,
+            Services.RunService.RenderStepped,
+            Services.RunService.Stepped,
+            Services.RunService.PreRender,
+            Services.RunService.PreAnimation,
+            Services.RunService.PostSimulation
+        }
         for _, event in ipairs(events) do
-            for _, conn in ipairs(getconnections(event)) do
+            local connections = getconnections(event)
+            for _, conn in ipairs(connections) do
                 if conn.Function == mainClosure then
                     pcall(conn.Disable, conn)
                     pcall(conn.Disconnect, conn)
@@ -108,7 +148,24 @@ local function neutralizeAdvertisementHandler(scriptObj, mainClosure)
         end
     end
 
-    notify("AntiCheatRemover", "Removed", false)
+    -- Замена главной функции на пустую (если upvalues есть)
+    if debug.setupvalue then
+        pcall(function()
+            local empty = function() end
+            debug.setupvalue(mainClosure, 1, empty)
+        end)
+    end
+
+    -- Порча метатаблицы скрипта
+    pcall(function()
+        local mt = getrawmetatable(scriptObj)
+        if mt then
+            mt.__index = nil
+            mt.__newindex = function() end
+        end
+    end)
+
+    notify("AntiCheatRemover", "AdvertisementHandler fully destroyed - ads and base AC broken", false)
     return true
 end
 
@@ -265,7 +322,6 @@ function AntiCheatRemover.Init(UI, coreParam, notifyFunc)
 
     SetupUI(UI)
 
-    -- Автозапуск если в конфиге включено (опционально)
     if AntiCheatRemover.Config.DevConsoleBypass.Enabled then
         startDevConsoleBypass()
     end
