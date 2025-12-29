@@ -28,9 +28,9 @@ MovementEnhancements.Config = {
         SmoothnessFactor = 0.2,
         TackleBoost = {
             Enabled = false,
-            Duration = 1.5,
-            Multiplier = 2,
-            Cooldown = 3
+            Duration = 1,
+            Multiplier = 3.5,
+            Cooldown = 3.5
         }
     },
     InfStamina = {
