@@ -695,6 +695,17 @@ local function IsSpecificTackle(targetPlayer)
     return false
 end
 
+-- Функция для проверки PowerShooting
+local function IsPowerShooting(targetPlayer)
+    if not targetPlayer then return false end
+    local playerFolder = Workspace:FindFirstChild(targetPlayer.Name)
+    if not playerFolder then return false end
+    local bools = playerFolder:FindFirstChild("Bools")
+    if not bools then return false end
+    local powerShootingValue = bools:FindFirstChild("PowerShooting")
+    return powerShootingValue and powerShootingValue.Value == true
+end
+
 local function UpdateDribbleStates()
     local currentTime = tick()
     
@@ -749,7 +760,7 @@ local function UpdateDribbleStates()
     end
 end
 
--- === УЛУЧШЕННЫЙ PREDICT ДЛЯ AUTOTACKLE ===
+-- === УЛУЧШЕННЫЙ ПРЕДИКТ ДЛЯ AUTOTACKLE ===
 local function PredictBallPositionAdvanced(ball, owner)
     if not ball or not ball.Parent or not owner then return ball.Position end
     
@@ -787,6 +798,7 @@ local function PredictBallPositionAdvanced(ball, owner)
         return ball.Position
     end
     
+    -- Улучшенная логика предсказания с учетом расстояния и пинга
     local toBall = (ball.Position - myServerPos)
     local directionToBall = toBall.Unit
     
@@ -796,8 +808,21 @@ local function PredictBallPositionAdvanced(ball, owner)
     local effectiveSpeed = math.max(AutoTackleConfig.TackleSpeed, mySpeedTowardsBall)
     local timeToReach = distanceToTarget / effectiveSpeed
     
-    local totalPredictionTime = timeToReach + AutoTackleStatus.Ping + AutoTackleConfig.TackleLeadTime
+    -- Корректируем предсказание в зависимости от расстояния
+    local distanceFactor = math.clamp(distanceToTarget / AutoTackleConfig.MaxDistance, 0.1, 1.0)
+    local pingFactor = math.clamp(AutoTackleStatus.Ping * 2, 0.1, 0.5)
+    
+    -- Чем ближе цель, тем меньше предсказание
+    local predictionFactor = distanceFactor * 0.8 + pingFactor * 0.2
+    predictionFactor = math.clamp(predictionFactor, 0.1, 0.8) -- Ограничиваем максимальное предсказание
+    
+    local totalPredictionTime = timeToReach * predictionFactor + AutoTackleConfig.TackleLeadTime
     totalPredictionTime = math.min(totalPredictionTime, AutoTackleConfig.MaxPredictionTime)
+    
+    -- При очень близком расстоянии используем минимальное предсказание
+    if distanceToTarget < 5 then
+        totalPredictionTime = math.min(totalPredictionTime, 0.1)
+    end
     
     local predictedPos = ownerRoot.Position
     local currentVelocity = ownerRoot.AssemblyLinearVelocity
@@ -824,7 +849,7 @@ local function PredictBallPositionAdvanced(ball, owner)
             end
             avgAcceleration = avgAcceleration / #recentAccelerations
             
-            avgAcceleration = avgAcceleration * AutoTackleConfig.PredictionSmoothing
+            avgAcceleration = avgAcceleration * AutoTackleConfig.PredictionSmoothing * predictionFactor
             
             predictedPos = predictedPos + currentVelocity * totalPredictionTime + 
                           avgAcceleration * totalPredictionTime * totalPredictionTime * 0.5
@@ -836,7 +861,7 @@ local function PredictBallPositionAdvanced(ball, owner)
     end
     
     if Gui and AutoTackleConfig.Enabled then
-        Gui.PredictionLabel.Text = string.format("Prediction: %.1fs", totalPredictionTime)
+        Gui.PredictionLabel.Text = string.format("Prediction: %.2fs (%.1f%%)", totalPredictionTime, predictionFactor * 100)
     end
     
     AutoTackleStatus.PredictionCache[cacheKey] = predictedPos
@@ -855,10 +880,25 @@ local function PredictBallPositionAdvanced(ball, owner)
     return predictedPos
 end
 
--- ИСПРАВЛЕННАЯ РОТАЦИЯ - ТОЛЬКО ДЛЯ ПЕРВОГО КАДРА В РЕЖИМЕ SNAP
-local function RotateToTarget(predictedPos)
+-- УЛУЧШЕННАЯ РОТАЦИЯ ДЛЯ SNAP РЕЖИМА
+local function RotateToTargetForHit(predictedPos)
     if AutoTackleConfig.RotationType == "CFrame" then
-        HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position, Vector3.new(predictedPos.X, HumanoidRootPart.Position.Y, predictedPos.Z))
+        -- Рассчитываем направление, чтобы долететь в предикт позицию
+        local myPos = HumanoidRootPart.Position
+        local direction = (predictedPos - myPos)
+        
+        -- Учитываем скорость игрока для более точного удара
+        local myVelocity = HumanoidRootPart.AssemblyLinearVelocity
+        local velocityComponent = myVelocity:Dot(direction.Unit)
+        
+        if velocityComponent > 0 then
+            direction = direction + myVelocity * 0.1
+        end
+        
+        -- Поворачиваем только если направление не нулевое
+        if direction.Magnitude > 0.1 then
+            HumanoidRootPart.CFrame = CFrame.new(myPos, myPos + Vector3.new(direction.X, 0, direction.Z))
+        end
     end
 end
 
@@ -1082,9 +1122,11 @@ local function PerformTackle(ball, owner)
         predictedPos = ball.Position
     end
     
-    -- Ротация к предиктнутой позиции ТОЛЬКО ПРИ СНАПЕ
+    -- Улучшенная ротация для Snap режима
     if AutoTackleConfig.RotationMethod == "Snap" then
-        RotateToTarget(predictedPos)
+        RotateToTargetForHit(predictedPos)
+    elseif AutoTackleConfig.RotationMethod == "Always" then
+        RotateToTargetForHit(predictedPos)
     end
     
     pcall(function() ActionRemote:FireServer("TackIe") end)
@@ -1106,7 +1148,7 @@ local function PerformTackle(ball, owner)
                 if AutoTackleConfig.UseAdvancedPrediction then
                     predictedPos = PredictBallPositionAdvanced(ball, owner)
                 end
-                RotateToTarget(predictedPos)
+                RotateToTargetForHit(predictedPos)
             else
                 rotateConnection:Disconnect()
             end
@@ -1165,7 +1207,7 @@ local function ManualTackleAction()
     end
 end
 
--- === ИСПРАВЛЕННЫЙ AUTOTACKLE МОДУЛЬ ===
+-- === ИСПРАВЛЕННЫЙ AUTOTACKLE МОДУЛЬ С УЛУЧШЕННОЙ ЛОГИКОЙ ===
 local AutoTackle = {}
 AutoTackle.Start = function()
     if AutoTackleStatus.Running then return end
@@ -1235,6 +1277,16 @@ AutoTackle.Start = function()
             
             CurrentTargetOwner = owner
             
+            -- НОВАЯ ЛОГИКА: Проверка на PowerShooting
+            local isPowerShooting = IsPowerShooting(owner)
+            if isPowerShooting then
+                PerformTackle(ball, owner)
+                if Gui then
+                    Gui.EagleEyeLabel.Text = "PowerShooting: Immediate Tackle"
+                end
+                return
+            end
+            
             if AutoTackleConfig.Mode == "ManualTackle" then
                 if Gui then
                     Gui.EagleEyeLabel.Text = "ManualTackle: Ready"
@@ -1289,7 +1341,7 @@ AutoTackle.Start = function()
                     end
                     
                 elseif AutoTackleConfig.Mode == "OnlyDribble" then
-                    if inCooldownList then
+                    if isDribbling or inCooldownList then
                         PerformTackle(ball, owner)
                         if Gui then
                             Gui.EagleEyeLabel.Text = "OnlyDribble: Tackling"
@@ -1604,7 +1656,7 @@ local function SetupUI(UI)
         UI.Sections.AutoTackle:Divider()
         UI.Sections.AutoTackle:Paragraph({
             Header = "Information",
-            Body = "OnlyDribble: Tackle when enemy dribble is on cooldown\nEagleEye: Tackle during dribble with random delay\nManualTackle: Only tackle when you press the key"
+            Body = "OnlyDribble: Tackle when enemy dribble is on cooldown\nEagleEye: Tackle during dribble with random delay\nManualTackle: Only tackle when you press the key\nPowerShooting: Immediate tackle when enemy is shooting"
         })
     end
     
@@ -1662,8 +1714,7 @@ local function SetupUI(UI)
             Maximum = 90,
             Default = AutoDribbleConfig.MinAngleForDribble,
             Precision = 0,
-            Callback = function(v) AutoDribbleConfig.MinAngleForDribble = v 
-        end
+            Callback = function(v) AutoDribbleConfig.MinAngleForDribble = v end
         }, "AutoDribbleMinAngleForDribble")
         
         uiElements.AutoDribbleHeadOnAngleThreshold = UI.Sections.AutoDribble:Slider({
@@ -1673,35 +1724,33 @@ local function SetupUI(UI)
             Default = AutoDribbleConfig.HeadOnAngleThreshold,
             Precision = 0,
             Callback = function(v) AutoDribbleConfig.HeadOnAngleThreshold = v end
-        }, "HeadOnAngleThreshold")
+        }, "AutoDribbleHeadOnAngleThreshold")
         
         UI.Sections.AutoDribble:Divider()
         
         uiElements.AutoDribbleUseServerPosition = UI.Sections.AutoDribble:Toggle({
             Name = "Use Server Position",
             Default = AutoDribbleConfig.UseServerPosition,
-            Callback = function(v) AutoDribbleConfig.UseServerPosition = v 
-        end
-        }, "ServerPoston")
+            Callback = function(v) AutoDribbleConfig.UseServerPosition = v end
+        }, "AutoDribbleUseServerPosition")
         
         uiElements.AutoDribblePredictiveDribble = UI.Sections.AutoDribble:Toggle({
             Name = "Predictive Dribble",
             Default = AutoDribbleConfig.PredictiveDribble,
-            Callback = function(v) AutoDribbleConfig.PredictiveDribble = v 
-        end
-        }, "AtiveDribble")
+            Callback = function(v) AutoDribbleConfig.PredictiveDribble = v end
+        }, "AutoDribblePredictiveDribble")
         
         uiElements.AutoDribbleSmartAngleCheck = UI.Sections.AutoDribble:Toggle({
             Name = "Smart Angle Check",
             Default = AutoDribbleConfig.SmartAngleCheck,
             Callback = function(v) AutoDribbleConfig.SmartAngleCheck = v end
-        }, "SmtAngleCheck")
+        }, "AutoDribbleSmartAngleCheck")
         
         uiElements.AutoDribbleHeadOnTackleDetection = UI.Sections.AutoDribble:Toggle({
             Name = "Head-On Detection",
             Default = AutoDribbleConfig.HeadOnTackleDetection,
             Callback = function(v) AutoDribbleConfig.HeadOnTackleDetection = v end
-        }, "HeadOnTack")
+        }, "AutoDribbleHeadOnTackleDetection")
         
         UI.Sections.AutoDribble:Divider()
         UI.Sections.AutoDribble:Paragraph({
@@ -1866,4 +1915,3 @@ function AutoDribbleTackleModule:Destroy()
 end
 
 return AutoDribbleTackleModule
-
