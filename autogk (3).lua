@@ -149,11 +149,14 @@ local moduleState = {
 }
 
 -- ФИКС: Улучшенная функция поиска ворот с поддержкой шифрованных частей
+-- Исправленная функция поиска ворот
 local function UpdateGoal()
-    local myTeam, enemyGoalName = GetMyTeam() -- Функция должна быть определена
-    if not enemyGoalName then return nil, nil end
+    local isHPG = ws.Bools:FindFirstChild("HPG") and ws.Bools.HPG.Value == player
+    local isAPG = ws.Bools:FindFirstChild("APG") and ws.Bools.APG.Value == player
+    if not (isHPG or isAPG) then return nil, nil end
     
-    local goalFolder = Workspace:FindFirstChild(enemyGoalName)
+    local goalName = isHPG and "HomeGoal" or "AwayGoal"
+    local goalFolder = ws:FindFirstChild(goalName)
     if not goalFolder then return nil, nil end
     
     local frame = goalFolder:FindFirstChild("Frame")
@@ -164,47 +167,39 @@ local function UpdateGoal()
     
     -- Поиск зашифрованных стоек
     for _, part in ipairs(frame:GetChildren()) do
-        if part:IsA("BasePart") then
-            -- Проверка на стойку ворот
-            local isPost = false
-            local height = part.Size.Y
+        if part:IsA("BasePart") and part.Name ~= "Crossbar" then
+            local hasSound = false
+            local hasCylinder = false
+            local hasScript = false
             
-            -- Ищем стойки по высоте (обычно высокие)
-            if height > 5 then
-                -- Проверяем наличие характерных свойств
-                for _, child in ipairs(part:GetChildren()) do
-                    if child:IsA("Sound") then
-                        isPost = true
-                        break
-                    end
-                end
-                
-                -- Альтернативная проверка по материалу или цвету
-                if part.Material == Enum.Material.Metal or part.Color == Color3.fromRGB(200, 200, 200) then
-                    isPost = true
-                end
+            for _, child in ipairs(part:GetChildren()) do
+                if child:IsA("Sound") then hasSound = true
+                elseif child:IsA("CylinderMesh") then hasCylinder = true
+                elseif child:IsA("Script") then hasScript = true end
             end
             
-            if isPost then
+            if hasSound and hasCylinder and hasScript then
                 table.insert(foundParts, part)
-            elseif part.Name == "Crossbar" or part.Name:lower():find("crossbar") then
-                crossbarPart = part
             end
+        elseif part:IsA("BasePart") and part.Name == "Crossbar" then
+            crossbarPart = part
         end
     end
     
-    -- Если нашли 2 или больше стоек
     if #foundParts >= 2 then
-        -- Сортируем по позиции X
-        table.sort(foundParts, function(a, b)
-            return a.Position.X < b.Position.X
-        end)
-        
         leftPost = foundParts[1]
-        rightPost = foundParts[#foundParts]
-        
+        rightPost = foundParts[2]
+        if #foundParts > 2 then
+            for i = 3, #foundParts do
+                if foundParts[i].Position.X < leftPost.Position.X then
+                    leftPost = foundParts[i]
+                elseif foundParts[i].Position.X > rightPost.Position.X then
+                    rightPost = foundParts[i]
+                end
+            end
+        end
     else
-        -- Резервный поиск
+        -- Резервный поиск по имени
         for _, child in ipairs(frame:GetChildren()) do
             if child:IsA("BasePart") then
                 local nameLower = child.Name:lower()
@@ -241,7 +236,7 @@ local function UpdateGoal()
     local up = crossbarPart.Position.Y > leftPost.Position.Y and Vector3.yAxis or -Vector3.yAxis
     local rightDir = (rightPost.Position - leftPost.Position).Unit
     
-    -- ФИКС: Убеждаемся, что forward направлен от ворот
+    -- Убеждаемся, что forward направлен от ворот
     if forward.Y > 0.5 then
         forward = Vector3.new(forward.X, 0, forward.Z).Unit
     end
@@ -258,6 +253,11 @@ local function UpdateGoal()
     }
     
     moduleState.isBigGoal = moduleState.GoalWidth > CONFIG.BIG_GOAL_THRESHOLD
+    
+    if moduleState.visualObjects.debugText then
+        moduleState.visualObjects.debugText.Visible = true
+        moduleState.visualObjects.debugText.Text = string.format("Goal Width: %.1f | Big Goal: %s", moduleState.GoalWidth, moduleState.isBigGoal and "YES" or "NO")
+    end
     
     return moduleState.GoalWidth, moduleState.GoalHeight
 end
@@ -1959,3 +1959,4 @@ function AutoGKUltraModule:Destroy()
 end
 
 return AutoGKUltraModule
+
