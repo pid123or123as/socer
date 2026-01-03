@@ -6,7 +6,7 @@ local ts = game:GetService("TweenService")
 local tweenInfo = TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- V50 ADVANCED AI DEFENSE - ENHANCED CONFIGURATION
+-- V50 ADVANCED AI DEFENSE - SIMPLIFIED CONFIGURATION
 local CONFIG = {
     -- === BASIC SETTINGS ===
     ENABLED = false,
@@ -37,6 +37,7 @@ local CONFIG = {
     GATE_COVERAGE = 1.02,
     CENTER_BIAS_DIST = 18,
     LATERAL_MAX_MULT = 0.48,
+    POSITION_CENTER_BIAS = 0.7, -- Исправлено: добавлено значение по умолчанию
     
     -- === COOLDOWNS ===
     DIVE_COOLDOWN = 1.1,
@@ -111,14 +112,9 @@ local CONFIG = {
     USE_SMART_POSITIONING = true,
     USE_INTERCEPT_LOGIC = true,
     
-    -- === GATE DETECTION ===
-    GATE_DETECTION_METHOD = "advanced", -- "simple" or "advanced"
-    
     -- === BIG GATE SETTINGS ===
     BIG_GATE_THRESHOLD = 40, -- Ширина для больших ворот
     USE_DIVE_JUMPS = true, -- Прыжки с дайвом только на больших воротах
-    DIVE_JUMP_LEFT_ENABLED = true,
-    DIVE_JUMP_RIGHT_ENABLED = true,
     
     -- === DEBUG SETTINGS ===
     SHOW_GATE_INFO = true, -- Показывать информацию о воротах
@@ -155,14 +151,13 @@ local moduleState = {
     attackTargetVisible = false,
     colorPickers = {},
     
-    -- Enhanced gate detection
+    -- Gate detection
     gateDetection = {
         leftPost = nil,
         rightPost = nil,
         gateWidth = 0,
         isBigGate = false,
         lastDetectionTime = 0,
-        detectionMethod = "advanced",
         debugText = nil
     },
     
@@ -239,67 +234,58 @@ local function createDebugText()
     moduleState.gateDetection.debugText.Position = CONFIG.DEBUG_POSITION
 end
 
--- Enhanced gate detection function
+-- SIMPLE GATE DETECTION: Ищем Crossbar и 2 части с CylinderMesh и Sound
 local function detectGatePosts(goal)
     if not goal then return nil, nil end
     
-    local leftPost, rightPost = nil, nil
+    local crossbar = goal:FindFirstChild("Crossbar")
+    if not crossbar then
+        -- Пробуем найти в Frame
+        local frame = goal:FindFirstChild("Frame")
+        if frame then
+            crossbar = frame:FindFirstChild("Crossbar")
+        end
+    end
+    
+    if not crossbar then return nil, nil end
+    
+    -- Ищем все части в goal (или Frame)
+    local parent = crossbar.Parent
     local posts = {}
     
-    if CONFIG.GATE_DETECTION_METHOD == "advanced" then
-        -- Advanced detection using part properties
-        for _, part in ipairs(goal:GetDescendants()) do
-            if part:IsA("BasePart") then
-                local hasSound, hasCylinder, hasScript = false, false, false
-                
-                -- Check children for specific properties
-                for _, child in ipairs(part:GetChildren()) do
-                    if child:IsA("Sound") then 
-                        hasSound = true
-                    elseif child:IsA("CylinderMesh") then 
-                        hasCylinder = true
-                    elseif child:IsA("Script") then 
-                        hasScript = true 
-                    end
-                end
-                
-                -- This is likely a goal post if it has at least 2 of these features
-                local score = (hasSound and 1 or 0) + (hasCylinder and 1 or 0) + (hasScript and 1 or 0)
-                if score >= 2 then
-                    table.insert(posts, {
-                        part = part,
-                        position = part.Position,
-                        score = score
-                    })
+    for _, part in ipairs(parent:GetChildren()) do
+        if part:IsA("BasePart") and part ~= crossbar then
+            local hasSound = false
+            local hasCylinder = false
+            local hasScript = false
+            
+            -- Проверяем детей на наличие Sound, CylinderMesh и Script
+            for _, child in ipairs(part:GetChildren()) do
+                if child:IsA("Sound") then 
+                    hasSound = true
+                elseif child:IsA("CylinderMesh") and child.Name == "Mesh" then 
+                    hasCylinder = true
+                elseif child:IsA("Script") and child.Name == "Script" then 
+                    hasScript = true 
                 end
             end
-        end
-        
-        -- If we found posts, sort them by X position
-        if #posts >= 2 then
-            table.sort(posts, function(a, b)
-                return a.position.X < b.position.X
-            end)
             
-            leftPost = posts[1].part
-            rightPost = posts[#posts].part
-        end
-    else
-        -- Simple detection by name
-        leftPost = goal:FindFirstChild("LeftPost") or goal:FindFirstChild("leftpost") or goal:FindFirstChild("Left")
-        rightPost = goal:FindFirstChild("RightPost") or goal:FindFirstChild("rightpost") or goal:FindFirstChild("Right")
-        
-        -- If not found by name, try to find in Frame
-        if not (leftPost and rightPost) then
-            local frame = goal:FindFirstChild("Frame")
-            if frame then
-                leftPost = frame:FindFirstChild("LeftPost") or frame:FindFirstChild("leftpost")
-                rightPost = frame:FindFirstChild("RightPost") or frame:FindFirstChild("rightpost")
+            -- Это штанга если есть CylinderMesh и (Sound или Script)
+            if hasCylinder and (hasSound or hasScript) then
+                table.insert(posts, part)
             end
         end
     end
     
-    return leftPost, rightPost
+    -- Должно быть ровно 2 штанги
+    if #posts ~= 2 then return nil, nil end
+    
+    -- Сортируем по X позиции (левая штанга имеет меньший X)
+    table.sort(posts, function(a, b)
+        return a.Position.X < b.Position.X
+    end)
+    
+    return posts[1], posts[2], crossbar
 end
 
 -- Create enhanced visuals function
@@ -396,10 +382,9 @@ end
 local function updateDebugText()
     if not moduleState.gateDetection.debugText or not CONFIG.SHOW_GATE_INFO then return end
     
-    local text = string.format("Gate Width: %.1f\nBig Gate: %s\nMethod: %s", 
+    local text = string.format("Gate Width: %.1f\nBig Gate: %s", 
         moduleState.gateDetection.gateWidth or 0,
-        moduleState.gateDetection.isBigGate and "YES" or "NO",
-        CONFIG.GATE_DETECTION_METHOD)
+        moduleState.gateDetection.isBigGate and "YES" or "NO")
     
     moduleState.gateDetection.debugText.Text = text
     moduleState.gateDetection.debugText.Visible = moduleState.enabled
@@ -532,7 +517,7 @@ local function checkIfGoalkeeper()
     return moduleState.isGoalkeeper
 end
 
--- Enhanced goal update with improved gate detection
+-- Enhanced goal update with SIMPLE gate detection
 local lastGoalUpdate = 0
 local goalCacheValid = false
 
@@ -574,8 +559,8 @@ local function updateGoals()
     local goal = ws:FindFirstChild(goalName)
     
     if goal then
-        -- Enhanced gate detection
-        local leftPost, rightPost = detectGatePosts(goal)
+        -- SIMPLE gate detection: Ищем Crossbar и штанги
+        local leftPost, rightPost, crossbar = detectGatePosts(goal)
         
         if leftPost and rightPost then
             local gcenter = (leftPost.Position + rightPost.Position) / 2
@@ -929,10 +914,10 @@ end
 local function playJumpAnimation(hum, jumpType)
     pcall(function()
         local anim
-        if jumpType == "left" and CONFIG.DIVE_JUMP_LEFT_ENABLED and moduleState.gateDetection.isBigGate then
+        if jumpType == "left" and CONFIG.USE_DIVE_JUMPS and moduleState.gateDetection.isBigGate then
             anim = hum:LoadAnimation(ReplicatedStorage.Animations.GK.JumpLeftNew)
             moduleState.jumpPhysics.jumpType = "left"
-        elseif jumpType == "right" and CONFIG.DIVE_JUMP_RIGHT_ENABLED and moduleState.gateDetection.isBigGate then
+        elseif jumpType == "right" and CONFIG.USE_DIVE_JUMPS and moduleState.gateDetection.isBigGate then
             anim = hum:LoadAnimation(ReplicatedStorage.Animations.GK.JumpRightNew)
             moduleState.jumpPhysics.jumpType = "right"
         else
@@ -1005,7 +990,7 @@ local function forceJump(hum, targetPosition, jumpType)
     task.delay(0.6, function()
         if hum and hum.Parent then
             hum.JumpPower = oldPower
-            hum.JumpHeight = oldHeight
+            hum.JumpHeight = oldJumpHeight  -- Исправлено: было oldHeight
         end
         moduleState.isJumping = false
         moduleState.jumpPhysics.isJumping = false
@@ -1064,8 +1049,8 @@ local function getSmartPosition(defenseBase, rightVec, lateral, goalWidth, threa
         baseLateral = baseLateral * 1.2
     end
     
-    -- Центральный bias
-    local centerBias = CONFIG.POSITION_CENTER_BIAS
+    -- Центральный bias (исправлено: проверка на nil)
+    local centerBias = CONFIG.POSITION_CENTER_BIAS or 0.7
     baseLateral = baseLateral * (1 - centerBias)
     
     local finalLateral = math.clamp(baseLateral, -maxLateral * CONFIG.GATE_COVERAGE, maxLateral * CONFIG.GATE_COVERAGE)
@@ -1392,19 +1377,13 @@ local function analyzeShotSituation(ballPos, ballVel, endpoint, rootPos, points)
     -- Определяем, является ли мяч высоким
     local isHighBall = ballHeight > CONFIG.HIGH_BALL_THRES
     local isVeryHighBall = ballHeight > CONFIG.HIGH_BALL_THRES + 3
-    local isEndpointHigh = endpoint and endpoint.Y > CONFIG.JUMP_THRES
     
     -- Определяем скорость
     local isFastBall = ballSpeed > CONFIG.JUMP_VEL_THRES
-    local isVeryFast = ballSpeed > CONFIG.JUMP_VEL_THRES + 10
     
     -- Угол полета
     local verticalAngle = math.deg(math.asin(math.clamp(ballVel.Y / math.max(ballSpeed, 0.1), -1, 1)))
     local isHighAngle = verticalAngle > 25
-    local isLowAngle = verticalAngle < 15
-    
-    -- Время реакции
-    local timeToReach = distToBall / math.max(ballSpeed, 1)
     
     -- ПРИОРИТЕТ 1: ВЫСОКИЙ МЯЧ - ПРЫЖОК
     if isHighBall and ballSpeed > 20 and isHighAngle then
@@ -1706,7 +1685,6 @@ local function cleanup()
         gateWidth = 0,
         isBigGate = false,
         lastDetectionTime = 0,
-        detectionMethod = "advanced",
         debugText = nil
     }
 end
@@ -2093,7 +2071,7 @@ local function syncConfig()
         updateVisualColors()
         startHeartbeat()
         if moduleState.notify then
-            moduleState.notify("AutoGK", "Enabled with enhanced gate detection", true)
+            moduleState.notify("AutoGK", "Enabled with simple gate detection", true)
         end
     else
         if moduleState.heartbeatConnection then
@@ -2119,7 +2097,7 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
     moduleState.notify = notifyFunc
     
     if UI.Sections.AutoGoalKeeper then
-        UI.Sections.AutoGoalKeeper:Header({ Name = "AutoGoalKeeper V2.2 - Enhanced Gate Detection" })
+        UI.Sections.AutoGoalKeeper:Header({ Name = "AutoGoalKeeper V2.2 - Simple Gate Detection" })
         
         -- Основные настройки
         moduleState.uiElements.Enabled = UI.Sections.AutoGoalKeeper:Toggle({ 
@@ -2132,7 +2110,7 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
                     createVisuals()
                     updateVisualColors()
                     startHeartbeat()
-                    notifyFunc("AutoGK", "Enhanced Gate Detection Enabled", true)
+                    notifyFunc("AutoGK", "Simple Gate Detection Enabled", true)
                 else
                     if moduleState.heartbeatConnection then
                         moduleState.heartbeatConnection:Disconnect()
@@ -2146,19 +2124,8 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- НАСТРОЙКИ ДЕТЕКЦИИ ВОРОТ
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Gate Detection Settings" })
-        
-        moduleState.uiElements.GATE_DETECTION_METHOD = UI.Sections.AutoGoalKeeper:Dropdown({
-            Name = "Detection Method",
-            Default = CONFIG.GATE_DETECTION_METHOD,
-            Options = {"advanced", "simple"},
-            Callback = function(v) 
-                CONFIG.GATE_DETECTION_METHOD = v 
-                moduleState.gateDetection.detectionMethod = v
-                notifyFunc("AutoGK", "Gate detection method: " .. v, true)
-            end
-        }, 'GateDetectionMethod')
+        -- НАСТРОЙКИ ВОРОТ
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Gate Settings" })
         
         moduleState.uiElements.BIG_GATE_THRESHOLD = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Big Gate Threshold",
@@ -2193,18 +2160,6 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
             end
         }, 'UseDiveJumps')
         
-        moduleState.uiElements.DIVE_JUMP_LEFT_ENABLED = UI.Sections.AutoGoalKeeper:Toggle({
-            Name = "Enable Left Dive Jump",
-            Default = CONFIG.DIVE_JUMP_LEFT_ENABLED,
-            Callback = function(v) CONFIG.DIVE_JUMP_LEFT_ENABLED = v end
-        }, 'DiveJumpLeftEnabled')
-        
-        moduleState.uiElements.DIVE_JUMP_RIGHT_ENABLED = UI.Sections.AutoGoalKeeper:Toggle({
-            Name = "Enable Right Dive Jump",
-            Default = CONFIG.DIVE_JUMP_RIGHT_ENABLED,
-            Callback = function(v) CONFIG.DIVE_JUMP_RIGHT_ENABLED = v end
-        }, 'DiveJumpRightEnabled')
-        
         -- Настройки движения
         UI.Sections.AutoGoalKeeper:Divider()
         UI.Sections.AutoGoalKeeper:Header({ Name = "Movement Settings" })
@@ -2226,6 +2181,15 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
             Precision = 1,
             Callback = function(v) CONFIG.STAND_DIST = v end
         }, 'StandDistanceGK')
+        
+        moduleState.uiElements.POSITION_CENTER_BIAS = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Center Position Bias",
+            Minimum = 0.5,
+            Maximum = 0.9,
+            Default = CONFIG.POSITION_CENTER_BIAS,
+            Precision = 2,
+            Callback = function(v) CONFIG.POSITION_CENTER_BIAS = v end
+        }, 'CenterBiasGK')
         
         -- Настройки прыжков
         UI.Sections.AutoGoalKeeper:Divider()
@@ -2310,30 +2274,29 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
         UI.Sections.AutoGoalKeeper:Header({ Name = "Information" })
         
         UI.Sections.AutoGoalKeeper:Paragraph({
-            Header = "AutoGK V2.2 - ENHANCED GATE DETECTION",
+            Header = "AutoGK V2.2 - SIMPLE GATE DETECTION",
             Body = [[
 УЛУЧШЕНИЯ:
-1. Детект ворот: Ищет leftpost/rightpost по наличию Sound, CylinderMesh, Script
-2. Адаптивность: Работает с любыми воротами, даже с зашифрованными названиями
+1. Простой детект ворот: Ищет Crossbar и 2 части с CylinderMesh и Sound
+2. Адаптивность: Работает с любыми воротами
 3. Большие ворота: Определяет ворота шириной >= 40 как "большие"
 4. Прыжки с дайвом: JumpLeftNew и JumpRightNew только на больших воротах
 5. Дебаг информация: Показывает размер ворот и тип в реальном времени
 
-ОСОБЕННОСТИ:
-- Advanced detection: Ищет части с CylinderMesh + Sound/Script
-- Simple detection: Ищет по имени (LeftPost/RightPost)
-- Big gates: Прыжки с дайвом только при ширине >= 40
-- Adaptive positioning: Учитывает размер ворот при позиционировании
+ДЕТЕКЦИЯ ВОРОТ:
+- Ищет часть "Crossbar" (не зашифрована)
+- Ищет 2 другие части с CylinderMesh (Name="Mesh") и Sound
+- Сортирует их по X позиции (левая/правая)
+- Определяет центр и ширину ворот
 
 АНИМАЦИИ ПРЫЖКОВ:
 1. Обычный прыжок: ReplicatedStorage.Animations.GK.Jump
 2. Дайв влево: ReplicatedStorage.Animations.GK.JumpLeftNew (только большие ворота)
 3. Дайв вправо: ReplicatedStorage.Animations.GK.JumpRightNew (только большие ворота)
 
-ДЕБАГ ИНФОРМАЦИЯ:
-- Показывает ширину ворот
-- Определяет большие/малые ворота
-- Метод детекции
+ИСПРАВЛЕННЫЕ ОШИБКИ:
+- oldHeight -> oldJumpHeight (строка 1008)
+- POSITION_CENTER_BIAS имеет значение по умолчанию
 ]]
         })
     end
