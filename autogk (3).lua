@@ -134,26 +134,26 @@ local moduleState = {
     uiElements = {}
 }
 
--- ==================== UPDATED GOAL DETECTION ====================
+-- ==================== FIXED GOAL DETECTION ====================
 
 local function GetMyTeam()
     local myTeam = nil
-    local enemyGoalName = nil
+    local myGoalName = nil
     
     if ws.Bools:FindFirstChild("HPG") and ws.Bools.HPG.Value == player then
         myTeam = "Home"
-        enemyGoalName = "AwayGoal"
+        myGoalName = "HomeGoal"
     elseif ws.Bools:FindFirstChild("APG") and ws.Bools.APG.Value == player then
         myTeam = "Away"
-        enemyGoalName = "HomeGoal"
+        myGoalName = "AwayGoal"
     end
     
-    return myTeam, enemyGoalName
+    return myTeam, myGoalName
 end
 
 local function UpdateGoal()
-    local myTeam, enemyGoalName = GetMyTeam()
-    if not enemyGoalName then 
+    local myTeam, myGoalName = GetMyTeam()
+    if not myGoalName then 
         moduleState.GoalCFrame = nil
         moduleState.GoalForward = nil
         moduleState.GoalWidth = 0
@@ -162,7 +162,7 @@ local function UpdateGoal()
         return false 
     end
     
-    local goalFolder = Workspace:FindFirstChild(enemyGoalName)
+    local goalFolder = Workspace:FindFirstChild(myGoalName)
     if not goalFolder then 
         moduleState.GoalCFrame = nil
         moduleState.GoalForward = nil
@@ -185,7 +185,7 @@ local function UpdateGoal()
     local leftPost, rightPost, crossbarPart
     local foundParts = {}
     
-    -- Search for posts by criteria
+    -- Search for posts by criteria (Sound + CylinderMesh + Script)
     for _, part in ipairs(frame:GetChildren()) do
         if part:IsA("BasePart") and part.Name ~= "Crossbar" then
             local hasSound = false
@@ -429,6 +429,37 @@ local function drawFlatZone()
     
     if moduleState.visualObjects.LimitCube then
         drawCube(moduleState.visualObjects.LimitCube, flatCF, Vector3.new(moduleState.GoalWidth * CONFIG.ZONE_WIDTH_MULTIPLIER, CONFIG.ZONE_HEIGHT, CONFIG.ZONE_DEPTH), CONFIG.ZONE_COLOR)
+    end
+end
+
+-- Функция для отрисовки endpoint круга
+local function drawEndpoint(pos)
+    if not pos or not moduleState.visualObjects.endpointLines then 
+        if moduleState.visualObjects.endpointLines then
+            for _, l in ipairs(moduleState.visualObjects.endpointLines) do 
+                if l then 
+                    l.Visible = false 
+                end 
+            end 
+        end
+        return 
+    end
+    
+    local cam = ws.CurrentCamera 
+    local step = math.pi * 2 / 24
+    
+    for i = 1, 24 do
+        local a1, a2 = (i-1)*step, i*step
+        local p1 = pos + Vector3.new(math.cos(a1)*moduleState.endpointRadius, 0, math.sin(a1)*moduleState.endpointRadius)
+        local p2 = pos + Vector3.new(math.cos(a2)*moduleState.endpointRadius, 0, math.sin(a2)*moduleState.endpointRadius)
+        local s1, s2 = cam:WorldToViewportPoint(p1), cam:WorldToViewportPoint(p2)
+        local l = moduleState.visualObjects.endpointLines[i]
+        
+        if l then
+            l.From = Vector2.new(s1.X, s1.Y) 
+            l.To = Vector2.new(s2.X, s2.Y) 
+            l.Visible = s1.Z > 0 and s2.Z > 0
+        end
     end
 end
 
@@ -1211,6 +1242,11 @@ local function startHeartbeat()
                     l.Visible = p1.Z > 0 and p2.Z > 0 and distBall < 100
                 end
             end
+            
+            -- Draw endpoint circle
+            if CONFIG.SHOW_ENDPOINT and moduleState.cachedPoints[#moduleState.cachedPoints] then
+                drawEndpoint(moduleState.cachedPoints[#moduleState.cachedPoints])
+            end
         else
             clearTrajAndEndpoint()
         end
@@ -1587,14 +1623,14 @@ ULTRA VERSION - COMPLETELY REWRITTEN:
             Callback = function(v) CONFIG.ZONE_DEPTH = v end
         }, 'AutoGKUltraZoneDepth')
         
-        moduleState.uiElements.ZONE_OFFSET_MULTIPLIER = UI.Sections.AutoGoalKeeper:Slider({
+        moduleState.uiElements.ZONE_OFFSET = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Zone Offset",
             Minimum = 20,
             Maximum = 50,
-            Default = CONFIG.ZONE_OFFSET_MULTIPLIER,
+            Default = CONFIG.ZONE_OFFSET,
             Precision = 1,
-            Callback = function(v) CONFIG.ZONE_OFFSET_MULTIPLIER = v end
-        }, 'AutoGKUltraZoneOffsetMult')
+            Callback = function(v) CONFIG.ZONE_OFFSET = v end
+        }, 'AutoGKUltraZoneOffset')
         
         UI.Sections.AutoGoalKeeper:Divider()
         
@@ -1838,61 +1874,6 @@ ULTRA VERSION - COMPLETELY REWRITTEN:
             Callback = function(v) CONFIG.ANGLING_FACTOR = v end
         }, 'AutoGKUltraAnglingFactor')
         
-        UI.Sections.AutoGoalKeeper:Divider()
-        
-        UI.Sections.AutoGoalKeeper:Button({
-            Name = "Reset to Default",
-            Callback = function()
-                -- Reset all config values to default
-                CONFIG.SPEED = 32
-                CONFIG.AGGRESSIVE_SPEED = 38
-                CONFIG.STAND_DIST = 2.8
-                CONFIG.MIN_DIST = 0.8
-                CONFIG.CLOSE_DISTANCE = 15
-                CONFIG.ATTACK_DISTANCE = 8
-                CONFIG.CLOSE_SPEED_MULT = 1.2
-                CONFIG.AGGRESSION_DISTANCE = 25
-                CONFIG.STEAL_DISTANCE = 4.5
-                CONFIG.DIVE_DIST = 26
-                CONFIG.TOUCH_RANGE = 20
-                CONFIG.NEAR_BALL_DIST = 5.0
-                CONFIG.DIVE_VEL_THRES = 24
-                CONFIG.JUMP_VEL_THRES = 24
-                CONFIG.HIGH_BALL_THRES = 8
-                CONFIG.DIVE_COOLDOWN = 0.9
-                CONFIG.JUMP_COOLDOWN = 0.6
-                CONFIG.SMART_ROTATION_SMOOTH = 0.15
-                CONFIG.MAX_ROTATION_ANGLE = 60
-                CONFIG.MIN_SAFE_ANGLE = 15
-                CONFIG.ROTATION_HEIGHT_FACTOR = 0.08
-                CONFIG.PREDICTION_LOOK_AHEAD = 3
-                CONFIG.BIG_GOAL_THRESHOLD = 40
-                CONFIG.BIG_GOAL_STAND_DIST = 4.0
-                CONFIG.INTERCEPT_DISTANCE = 35
-                CONFIG.INTERCEPT_SPEED_MULT = 1.34
-                CONFIG.JUMP_RADIUS = 40
-                CONFIG.JUMP_MIN_HEIGHT_DIFF = 0.7
-                CONFIG.ZONE_WIDTH_MULTIPLIER = 2.5
-                CONFIG.ZONE_DEPTH = 56
-                CONFIG.ZONE_OFFSET_MULTIPLIER = 35
-                CONFIG.PRESS_DISTANCE = 55
-                CONFIG.PRESSURE_DISTANCE = 40
-                CONFIG.ANGLING_FACTOR = 0.6
-                
-                -- Update UI elements
-                for settingName, value in pairs(CONFIG) do
-                    local element = moduleState.uiElements[settingName]
-                    if element and element.SetValue then
-                        element:SetValue(value)
-                    elseif element and element.SetState then
-                        element:SetState(value)
-                    end
-                end
-                
-                notifyFunc("AutoGK Ultra", "All settings reset to default", true)
-            end
-        }, 'AutoGKUltraResetButton')
-        
     end
     
     if UI.Tabs.Config then
@@ -1904,15 +1885,6 @@ ULTRA VERSION - COMPLETELY REWRITTEN:
             Name = "Sync Configuration Now",
             Callback = function()
                 CONFIG.ENABLED = moduleState.uiElements.Enabled and moduleState.uiElements.Enabled:GetState()
-                
-                -- Sync all settings from UI
-                for settingName, element in pairs(moduleState.uiElements) do
-                    if element and element.GetValue then
-                        CONFIG[settingName] = element:GetValue()
-                    elseif element and element.GetState then
-                        CONFIG[settingName] = element:GetState()
-                    end
-                end
                 
                 moduleState.enabled = CONFIG.ENABLED
                 
@@ -1953,23 +1925,6 @@ ULTRA VERSION - COMPLETELY REWRITTEN:
                 notifyFunc("AutoGK Ultra", "Configuration synchronized", true)
             end
         })
-        
-        syncSection:Button({
-            Name = "Export Configuration",
-            Callback = function()
-                local configStr = "AutoGK Ultra Configuration:\n"
-                for key, value in pairs(CONFIG) do
-                    if type(value) == "boolean" then
-                        configStr = configStr .. string.format("%s = %s\n", key, tostring(value))
-                    elseif type(value) == "number" then
-                        configStr = configStr .. string.format("%s = %.2f\n", key, value)
-                    end
-                end
-                
-                setclipboard(configStr)
-                notifyFunc("AutoGK Ultra", "Configuration copied to clipboard", true)
-            end
-        }, 'AutoGKUltraExportButton')
     end
 end
 
