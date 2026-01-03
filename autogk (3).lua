@@ -6,7 +6,7 @@ local ts = game:GetService("TweenService")
 local tweenInfo = TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- V50 ADVANCED AI DEFENSE - FIXED CONFIGURATION
+-- V50 ADVANCED AI DEFENSE - ENHANCED CONFIGURATION
 local CONFIG = {
     -- === BASIC SETTINGS ===
     ENABLED = false,
@@ -111,14 +111,19 @@ local CONFIG = {
     USE_SMART_POSITIONING = true,
     USE_INTERCEPT_LOGIC = true,
     
-    -- === FIXED SETTINGS ===
-    USE_ENDPOINT_FOLLOWING = false, -- ВЫКЛЮЧЕНО: не следуем за endpoint
-    MIN_JUMP_HEIGHT = 4.0,
-    MAX_JUMP_HEIGHT = 10.0,
-    JUMP_REACTION_TIME = 0.2,
-    POSITION_CENTER_BIAS = 0.7,
-    AVOID_CORNERS = true,
-    CORNER_AVOID_DISTANCE = 2.0
+    -- === GATE DETECTION ===
+    GATE_DETECTION_METHOD = "advanced", -- "simple" or "advanced"
+    
+    -- === BIG GATE SETTINGS ===
+    BIG_GATE_THRESHOLD = 40, -- Ширина для больших ворот
+    USE_DIVE_JUMPS = true, -- Прыжки с дайвом только на больших воротах
+    DIVE_JUMP_LEFT_ENABLED = true,
+    DIVE_JUMP_RIGHT_ENABLED = true,
+    
+    -- === DEBUG SETTINGS ===
+    SHOW_GATE_INFO = true, -- Показывать информацию о воротах
+    DEBUG_FONT_SIZE = 18,
+    DEBUG_POSITION = Vector2.new(10, 100)
 }
 
 -- Module state
@@ -149,6 +154,17 @@ local moduleState = {
     currentAttackTarget = nil,
     attackTargetVisible = false,
     colorPickers = {},
+    
+    -- Enhanced gate detection
+    gateDetection = {
+        leftPost = nil,
+        rightPost = nil,
+        gateWidth = 0,
+        isBigGate = false,
+        lastDetectionTime = 0,
+        detectionMethod = "advanced",
+        debugText = nil
+    },
     
     -- Enhanced decision making
     threatAnalysis = {
@@ -186,7 +202,8 @@ local moduleState = {
     jumpPhysics = {
         isJumping = false,
         jumpStartTime = 0,
-        jumpTarget = nil
+        jumpTarget = nil,
+        jumpType = "normal" -- "normal", "left", "right"
     },
     
     -- Enemy tracking
@@ -206,6 +223,85 @@ local moduleState = {
 local GoalCFrame, GoalForward, GoalWidth, GoalRight = nil, nil, 0, nil
 local maxDistFromGoal = 50
 
+-- Create debug text for gate info
+local function createDebugText()
+    if moduleState.gateDetection.debugText then
+        moduleState.gateDetection.debugText:Remove()
+    end
+    
+    moduleState.gateDetection.debugText = Drawing.new("Text")
+    moduleState.gateDetection.debugText.Visible = false
+    moduleState.gateDetection.debugText.Text = "Gate Info: Detecting..."
+    moduleState.gateDetection.debugText.Color = Color3.new(1, 1, 1)
+    moduleState.gateDetection.debugText.Size = CONFIG.DEBUG_FONT_SIZE
+    moduleState.gateDetection.debugText.Outline = true
+    moduleState.gateDetection.debugText.OutlineColor = Color3.new(0, 0, 0)
+    moduleState.gateDetection.debugText.Position = CONFIG.DEBUG_POSITION
+end
+
+-- Enhanced gate detection function
+local function detectGatePosts(goal)
+    if not goal then return nil, nil end
+    
+    local leftPost, rightPost = nil, nil
+    local posts = {}
+    
+    if CONFIG.GATE_DETECTION_METHOD == "advanced" then
+        -- Advanced detection using part properties
+        for _, part in ipairs(goal:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local hasSound, hasCylinder, hasScript = false, false, false
+                
+                -- Check children for specific properties
+                for _, child in ipairs(part:GetChildren()) do
+                    if child:IsA("Sound") then 
+                        hasSound = true
+                    elseif child:IsA("CylinderMesh") then 
+                        hasCylinder = true
+                    elseif child:IsA("Script") then 
+                        hasScript = true 
+                    end
+                end
+                
+                -- This is likely a goal post if it has at least 2 of these features
+                local score = (hasSound and 1 or 0) + (hasCylinder and 1 or 0) + (hasScript and 1 or 0)
+                if score >= 2 then
+                    table.insert(posts, {
+                        part = part,
+                        position = part.Position,
+                        score = score
+                    })
+                end
+            end
+        end
+        
+        -- If we found posts, sort them by X position
+        if #posts >= 2 then
+            table.sort(posts, function(a, b)
+                return a.position.X < b.position.X
+            end)
+            
+            leftPost = posts[1].part
+            rightPost = posts[#posts].part
+        end
+    else
+        -- Simple detection by name
+        leftPost = goal:FindFirstChild("LeftPost") or goal:FindFirstChild("leftpost") or goal:FindFirstChild("Left")
+        rightPost = goal:FindFirstChild("RightPost") or goal:FindFirstChild("rightpost") or goal:FindFirstChild("Right")
+        
+        -- If not found by name, try to find in Frame
+        if not (leftPost and rightPost) then
+            local frame = goal:FindFirstChild("Frame")
+            if frame then
+                leftPost = frame:FindFirstChild("LeftPost") or frame:FindFirstChild("leftpost")
+                rightPost = frame:FindFirstChild("RightPost") or frame:FindFirstChild("rightpost")
+            end
+        end
+    end
+    
+    return leftPost, rightPost
+end
+
 -- Create enhanced visuals function
 local function createVisuals()
     for _, objList in pairs(moduleState.visualObjects) do
@@ -218,6 +314,11 @@ local function createVisuals()
         end
     end
     moduleState.visualObjects = {}
+    
+    -- Create debug text
+    if CONFIG.SHOW_GATE_INFO then
+        createDebugText()
+    end
     
     if CONFIG.SHOW_GOAL_CUBE then
         moduleState.visualObjects.GoalCube = {}
@@ -291,6 +392,19 @@ local function createVisuals()
     end
 end
 
+-- Update debug text with gate info
+local function updateDebugText()
+    if not moduleState.gateDetection.debugText or not CONFIG.SHOW_GATE_INFO then return end
+    
+    local text = string.format("Gate Width: %.1f\nBig Gate: %s\nMethod: %s", 
+        moduleState.gateDetection.gateWidth or 0,
+        moduleState.gateDetection.isBigGate and "YES" or "NO",
+        CONFIG.GATE_DETECTION_METHOD)
+    
+    moduleState.gateDetection.debugText.Text = text
+    moduleState.gateDetection.debugText.Visible = moduleState.enabled
+end
+
 -- Update all visual colors
 local function updateVisualColors()
     if moduleState.visualObjects.GoalCube then
@@ -352,6 +466,13 @@ local function clearAllVisuals()
     moduleState.visualObjects = {}
     moduleState.attackTargetVisible = false
     moduleState.currentAttackTarget = nil
+    
+    if moduleState.gateDetection.debugText then
+        pcall(function()
+            moduleState.gateDetection.debugText:Remove()
+        end)
+        moduleState.gateDetection.debugText = nil
+    end
 end
 
 local function hideAllVisuals()
@@ -365,6 +486,10 @@ local function hideAllVisuals()
         end
     end
     moduleState.attackTargetVisible = false
+    
+    if moduleState.gateDetection.debugText then
+        moduleState.gateDetection.debugText.Visible = false
+    end
 end
 
 -- Enhanced goalkeeper check
@@ -407,7 +532,7 @@ local function checkIfGoalkeeper()
     return moduleState.isGoalkeeper
 end
 
--- Enhanced goal update
+-- Enhanced goal update with improved gate detection
 local lastGoalUpdate = 0
 local goalCacheValid = false
 
@@ -448,14 +573,13 @@ local function updateGoals()
     local goalName = isHPG and "HomeGoal" or "AwayGoal"
     local goal = ws:FindFirstChild(goalName)
     
-    if goal and goal:FindFirstChild("Frame") then
-        local frame = goal.Frame
-        local left = frame:FindFirstChild("LeftPost")
-        local right = frame:FindFirstChild("RightPost")
+    if goal then
+        -- Enhanced gate detection
+        local leftPost, rightPost = detectGatePosts(goal)
         
-        if left and right then
-            local gcenter = (left.Position + right.Position) / 2
-            local rightDir = (right.Position - left.Position).Unit
+        if leftPost and rightPost then
+            local gcenter = (leftPost.Position + rightPost.Position) / 2
+            local rightDir = (rightPost.Position - leftPost.Position).Unit
             GoalRight = rightDir
             
             local fieldDir = center - gcenter
@@ -489,15 +613,25 @@ local function updateGoals()
             end
             
             GoalCFrame = CFrame.fromMatrix(gcenter, rightDir, Vector3.new(0, 1, 0), -GoalForward)
-            GoalWidth = (right.Position - left.Position).Magnitude
+            GoalWidth = (rightPost.Position - leftPost.Position).Magnitude
             maxDistFromGoal = math.max(34, maxDist - minDist + 15)
+            
+            -- Update gate detection info
+            moduleState.gateDetection.leftPost = leftPost
+            moduleState.gateDetection.rightPost = rightPost
+            moduleState.gateDetection.gateWidth = GoalWidth
+            moduleState.gateDetection.isBigGate = GoalWidth >= CONFIG.BIG_GATE_THRESHOLD
+            moduleState.gateDetection.lastDetectionTime = tick()
+            
+            -- Update debug text
+            updateDebugText()
             
             -- Calculate gate coverage points
             moduleState.positioning.gateCoveragePoints = {
-                left = left.Position,
-                right = right.Position,
-                topLeft = left.Position + Vector3.new(0, CONFIG.GATE_HEIGHT_PROTECTION, 0),
-                topRight = right.Position + Vector3.new(0, CONFIG.GATE_HEIGHT_PROTECTION, 0),
+                left = leftPost.Position,
+                right = rightPost.Position,
+                topLeft = leftPost.Position + Vector3.new(0, CONFIG.GATE_HEIGHT_PROTECTION, 0),
+                topRight = rightPost.Position + Vector3.new(0, CONFIG.GATE_HEIGHT_PROTECTION, 0),
                 center = gcenter,
                 centerTop = gcenter + Vector3.new(0, CONFIG.GATE_HEIGHT_PROTECTION / 2, 0)
             }
@@ -505,6 +639,14 @@ local function updateGoals()
             lastGoalUpdate = tick()
             goalCacheValid = true
             return true
+        else
+            -- Failed to detect posts
+            moduleState.gateDetection.leftPost = nil
+            moduleState.gateDetection.rightPost = nil
+            moduleState.gateDetection.gateWidth = 0
+            moduleState.gateDetection.isBigGate = false
+            updateDebugText()
+            return false
         end
     end
     return false
@@ -783,16 +925,29 @@ local function rotateSmooth(root, targetPos, isOwner, isDivingNow, ballVel)
     game.Debris:AddItem(moduleState.currentGyro, 0.18)
 end
 
--- FIXED: Улучшенная система прыжков
-local function playJumpAnimation(hum)
+-- ENHANCED: Jump animations with dive jumps for big gates
+local function playJumpAnimation(hum, jumpType)
     pcall(function()
-        local anim = hum:LoadAnimation(ReplicatedStorage.Animations.GK.Jump)
-        anim.Priority = Enum.AnimationPriority.Action4
-        anim:Play()
+        local anim
+        if jumpType == "left" and CONFIG.DIVE_JUMP_LEFT_ENABLED and moduleState.gateDetection.isBigGate then
+            anim = hum:LoadAnimation(ReplicatedStorage.Animations.GK.JumpLeftNew)
+            moduleState.jumpPhysics.jumpType = "left"
+        elseif jumpType == "right" and CONFIG.DIVE_JUMP_RIGHT_ENABLED and moduleState.gateDetection.isBigGate then
+            anim = hum:LoadAnimation(ReplicatedStorage.Animations.GK.JumpRightNew)
+            moduleState.jumpPhysics.jumpType = "right"
+        else
+            anim = hum:LoadAnimation(ReplicatedStorage.Animations.GK.Jump)
+            moduleState.jumpPhysics.jumpType = "normal"
+        end
+        
+        if anim then
+            anim.Priority = Enum.AnimationPriority.Action4
+            anim:Play()
+        end
     end)
 end
 
-local function forceJump(hum, targetPosition)
+local function forceJump(hum, targetPosition, jumpType)
     if moduleState.isJumping then 
         return 
     end
@@ -814,20 +969,34 @@ local function forceJump(hum, targetPosition)
     hum:ChangeState(Enum.HumanoidStateType.Jumping)
     
     -- Проигрываем анимацию прыжка
-    playJumpAnimation(hum)
+    playJumpAnimation(hum, jumpType or "normal")
     
-    -- Применяем легкий импульс вперед если прыгаем к мячу
+    -- Применяем импульс в нужном направлении
     if targetPosition then
         local root = hum.Parent:FindFirstChild("HumanoidRootPart")
         if root then
             local dir = (targetPosition - root.Position) * Vector3.new(1, 0, 1)
             if dir.Magnitude > 0.1 then
                 dir = dir.Unit
+                local impulseMultiplier = 12
+                
+                -- Для прыжков с дайвом увеличиваем импульс
+                if jumpType == "left" or jumpType == "right" then
+                    impulseMultiplier = 18
+                    
+                    -- Добавляем боковой импульс для дайва
+                    if jumpType == "left" then
+                        dir = (dir + GoalRight * -0.7).Unit
+                    elseif jumpType == "right" then
+                        dir = (dir + GoalRight * 0.7).Unit
+                    end
+                end
+                
                 local bv = Instance.new("BodyVelocity")
                 bv.Parent = root
                 bv.MaxForce = Vector3.new(20000, 0, 20000)
-                bv.Velocity = dir * 10
-                game.Debris:AddItem(bv, 0.2)
+                bv.Velocity = dir * impulseMultiplier
+                game.Debris:AddItem(bv, 0.25)
             end
         end
     end
@@ -836,23 +1005,30 @@ local function forceJump(hum, targetPosition)
     task.delay(0.6, function()
         if hum and hum.Parent then
             hum.JumpPower = oldPower
-            hum.JumpHeight = oldJumpHeight
+            hum.JumpHeight = oldHeight
         end
         moduleState.isJumping = false
         moduleState.jumpPhysics.isJumping = false
+        moduleState.jumpPhysics.jumpType = "normal"
     end)
     
     -- Безопасный сброс
     task.delay(1.0, function()
         moduleState.isJumping = false
         moduleState.jumpPhysics.isJumping = false
+        moduleState.jumpPhysics.jumpType = "normal"
     end)
 end
 
--- FIXED: Умное позиционирование - НЕ следуем за endpoint
+-- Умное позиционирование с учетом размера ворот
 local function getSmartPosition(defenseBase, rightVec, lateral, goalWidth, threatLateral, enemyLateral, isAggro, ballPos, ballVel, ballHeight)
     local maxLateral = goalWidth * CONFIG.LATERAL_MAX_MULT
-    local baseLateral = 0  -- Начинаем с центра
+    local baseLateral = 0
+    
+    -- Для больших ворот даем больше свободы перемещения
+    if moduleState.gateDetection.isBigGate then
+        maxLateral = maxLateral * 1.3
+    end
     
     -- Если мяч высоко, остаемся в центре
     if ballHeight and ballHeight > CONFIG.HIGH_BALL_THRES then
@@ -861,47 +1037,34 @@ local function getSmartPosition(defenseBase, rightVec, lateral, goalWidth, threa
         return Vector3.new(defenseBase.X, defenseBase.Y, defenseBase.Z)
     end
     
-    -- Основная логика: защищаем центр, а не следуем за endpoint
+    -- Основная логика позиционирования
     if threatLateral ~= 0 then 
-        -- Определяем, насколько угроза смещена от центра
         local centerOffset = math.abs(threatLateral) / (goalWidth / 2)
         
         if centerOffset > 0.7 then
-            -- Если угроза у края ворот, немного смещаемся, но не полностью
             baseLateral = threatLateral * 0.4
         else
-            -- Если угроза в центре, остаемся в центре
             baseLateral = threatLateral * 0.2
         end
     end
     
     -- Учет позиции врага с мячом
     if enemyLateral ~= 0 and isAggro then 
-        -- Блокируем линию удара врага, но не уходим в угол
         local enemyOffset = math.abs(enemyLateral) / (goalWidth / 2)
         
         if enemyOffset > 0.6 then
-            -- Если враг у края, немного смещаемся
             baseLateral = enemyLateral * 0.3
         else
-            -- Если враг в центре, защищаем центр
             baseLateral = enemyLateral * 0.15
         end
     end
     
-    -- Избегаем углов
-    if CONFIG.AVOID_CORNERS and tick() - moduleState.positioning.avoidCornerTimer > 2 then
-        local currentLateral = baseLateral
-        local edgeThreshold = goalWidth * 0.4
-        
-        if math.abs(currentLateral) > edgeThreshold then
-            -- Слишком близко к краю, возвращаемся к центру
-            baseLateral = currentLateral * 0.5
-            moduleState.positioning.avoidCornerTimer = tick()
-        end
+    -- Для больших ворот можно быть более агрессивным
+    if moduleState.gateDetection.isBigGate and isAggro then
+        baseLateral = baseLateral * 1.2
     end
     
-    -- Центральный bias - всегда тянет к центру
+    -- Центральный bias
     local centerBias = CONFIG.POSITION_CENTER_BIAS
     baseLateral = baseLateral * (1 - centerBias)
     
@@ -948,23 +1111,22 @@ local function clearTrajAndEndpoint()
     end
 end
 
--- FIXED: Поиск точки перехвата - не используем endpoint
+-- Поиск точки перехвата с учетом направления для дайва
 local function findBestInterceptPoint(rootPos, ballPos, ballVel, points)
     if not points or #points < 2 then 
-        return nil 
+        return nil, "normal"
     end
     
     local bestPoint = nil
     local bestScore = math.huge
+    local bestJumpType = "normal"
     local ballSpeed = ballVel.Magnitude
     
-    -- Ищем точки, где мяч будет на высоте, доступной для прыжка или касания
     for i = 2, math.min(#points, 60) do
         local point = points[i]
         local pointHeight = point.Y
         
-        -- Нас интересуют только точки на высоте от 2 до 10 единиц
-        if pointHeight >= CONFIG.MIN_JUMP_HEIGHT and pointHeight <= CONFIG.MAX_JUMP_HEIGHT then
+        if pointHeight >= 2 and pointHeight <= 10 then
             local distToPoint = (rootPos - point).Magnitude
             local ballTravelDist = 0
             
@@ -975,22 +1137,34 @@ local function findBestInterceptPoint(rootPos, ballPos, ballVel, points)
             local timeToPoint = ballTravelDist / math.max(1, ballSpeed)
             local timeToReach = distToPoint / CONFIG.SPEED
             
-            -- Нам нужно успеть добраться до точки
-            if timeToReach < timeToPoint - CONFIG.JUMP_REACTION_TIME then
+            if timeToReach < timeToPoint - 0.2 then
                 local score = distToPoint
+                local jumpType = "normal"
                 
-                -- Штрафуем точки далеко от ворот
+                -- Определяем нужен ли дайв-прыжок
                 if GoalCFrame then
                     local toGoal = (point - GoalCFrame.Position)
+                    local lateralDist = toGoal:Dot(GoalRight)
+                    
+                    -- Для больших ворот используем дайв-прыжки
+                    if moduleState.gateDetection.isBigGate and CONFIG.USE_DIVE_JUMPS then
+                        if lateralDist < -GoalWidth * 0.25 and distToPoint < 15 then
+                            jumpType = "left"
+                            score = score - 10  -- Бонус за дайв-прыжки
+                        elseif lateralDist > GoalWidth * 0.25 and distToPoint < 15 then
+                            jumpType = "right"
+                            score = score - 10
+                        end
+                    end
+                    
                     local forwardDist = toGoal:Dot(GoalForward)
                     
                     if forwardDist < 0 then
-                        score = score + 50  -- Тяжелый штраф за точки за воротами
+                        score = score + 50
                     elseif forwardDist > 15 then
-                        score = score + 20  -- Штраф за точки слишком далеко
+                        score = score + 20
                     end
                     
-                    -- Бонус за точки перед воротами
                     if forwardDist > 0 and forwardDist < 8 then
                         score = score - 15
                     end
@@ -999,12 +1173,13 @@ local function findBestInterceptPoint(rootPos, ballPos, ballVel, points)
                 if score < bestScore then
                     bestScore = score
                     bestPoint = point
+                    bestJumpType = jumpType
                 end
             end
         end
     end
     
-    return bestPoint
+    return bestPoint, bestJumpType
 end
 
 -- Проверка зоны защиты
@@ -1193,14 +1368,15 @@ local function smartBlockEnemyView(root, targetPlayer, ball)
     return false
 end
 
--- FIXED: Анализ ситуации для прыжков
+-- Анализ ситуации для прыжков с учетом размера ворот
 local function analyzeShotSituation(ballPos, ballVel, endpoint, rootPos, points)
     local analysis = {
         action = "none",
         confidence = 0,
         reason = "",
         urgency = 0,
-        targetPosition = nil
+        targetPosition = nil,
+        jumpType = "normal"
     }
     
     if not ballPos then 
@@ -1237,11 +1413,27 @@ local function analyzeShotSituation(ballPos, ballVel, endpoint, rootPos, points)
         analysis.urgency = 0.9
         analysis.reason = "ПРЫЖОК: высокий мяч с большой скоростью"
         
+        -- Определяем тип прыжка
+        if GoalCFrame and endpoint then
+            local lateralDist = (endpoint - GoalCFrame.Position):Dot(GoalRight)
+            
+            -- Для больших ворот используем дайв-прыжки
+            if moduleState.gateDetection.isBigGate and CONFIG.USE_DIVE_JUMPS then
+                if lateralDist < -GoalWidth * 0.3 and distToBall < 18 then
+                    analysis.jumpType = "left"
+                    analysis.reason = "ДАЙВ-ПРЫЖОК ВЛЕВО: большой ворота, мяч в левом углу"
+                elseif lateralDist > GoalWidth * 0.3 and distToBall < 18 then
+                    analysis.jumpType = "right"
+                    analysis.reason = "ДАЙВ-ПРЫЖОК ВПРАВО: большой ворота, мяч в правом углу"
+                end
+            end
+        end
+        
         -- Определяем, куда прыгать
         if points then
             for i = 2, math.min(#points, 40) do
                 local point = points[i]
-                if point.Y >= CONFIG.MIN_JUMP_HEIGHT and point.Y <= CONFIG.MAX_JUMP_HEIGHT then
+                if point.Y >= 2 and point.Y <= 10 then
                     local distToPoint = (rootPos - point).Magnitude
                     if distToPoint < 15 then
                         analysis.targetPosition = point
@@ -1505,11 +1697,21 @@ local function cleanup()
     moduleState.jumpPhysics = {
         isJumping = false,
         jumpStartTime = 0,
-        jumpTarget = nil
+        jumpTarget = nil,
+        jumpType = "normal"
+    }
+    moduleState.gateDetection = {
+        leftPost = nil,
+        rightPost = nil,
+        gateWidth = 0,
+        isBigGate = false,
+        lastDetectionTime = 0,
+        detectionMethod = "advanced",
+        debugText = nil
     }
 end
 
--- FIXED: Основной цикл с плавной визуализацией
+-- Основной цикл с плавной визуализацией
 local function startHeartbeat()
     if moduleState.heartbeatConnection then
         moduleState.heartbeatConnection:Disconnect()
@@ -1587,6 +1789,9 @@ local function startHeartbeat()
             if CONFIG.SHOW_ZONE then 
                 drawFlatZone() 
             end
+            
+            -- Обновляем debug текст
+            updateDebugText()
         end
 
         local hasWeld = ball:FindFirstChild("playerWeld")
@@ -1759,7 +1964,7 @@ local function startHeartbeat()
             drawCube(moduleState.visualObjects.BallBox, nil) 
         end
 
-        -- FIXED: Логика позиционирования (НЕ следуем за endpoint)
+        -- Логика позиционирования
         if not smartBlockActive then
             local rightVec = GoalRight
             local defenseBase = GoalCFrame.Position + GoalForward * CONFIG.STAND_DIST
@@ -1784,7 +1989,6 @@ local function startHeartbeat()
                     local targetDist = math.max(1.8, enemyDistFromLine - 1.5)
                     defenseBase = GoalCFrame.Position + GoalForward * targetDist
                     
-                    -- НЕ следуем полностью за врагом, защищаем центр
                     local bestPos = getSmartPosition(defenseBase, rightVec, enemyLateral * 0.3, GoalWidth, 0, enemyLateral, true, ball.Position, ball.Velocity, ball.Position.Y)
                     moveToTarget(root, bestPos)
                 elseif not hasWeld then
@@ -1793,7 +1997,6 @@ local function startHeartbeat()
                     local advanceDist = math.min(5.0, distBall * 0.1 + advanceMultiplier * 2.0)
                     defenseBase = GoalCFrame.Position + GoalForward * advanceDist
                     
-                    -- НЕ используем threatLateral для позиционирования
                     local bestPos = getSmartPosition(defenseBase, rightVec, 0, GoalWidth, 0, 0, false, ball.Position, ball.Velocity, ball.Position.Y)
                     moveToTarget(root, bestPos)
                 else
@@ -1820,7 +2023,7 @@ local function startHeartbeat()
             rotateSmooth(root, ball.Position, isMyBall, moduleState.isDiving, ball.Velocity)
         end
 
-        -- FIXED: УМНЫЕ ДЕЙСТВИЯ С ПРАВИЛЬНЫМИ ПРЫЖКАМИ
+        -- УМНЫЕ ДЕЙСТВИЯ С ПРАВИЛЬНЫМИ ПРЫЖКАМИ
         if not isMyBall and not moduleState.isDiving and not moduleState.isJumping then
             
             -- Анализ ситуации
@@ -1831,24 +2034,18 @@ local function startHeartbeat()
                 touchBall(char, ball)
             end
             
-            -- ПРЫЖОК: исправленная логика
+            -- ПРЫЖОК: исправленная логика с учетом дайв-прыжков
             if shotAnalysis.action == "jump" and tick() - moduleState.lastJumpTime > CONFIG.JUMP_COOLDOWN then
                 local ballHeight = ball.Position.Y
                 local ballSpeed = ball.Velocity.Magnitude
                 
-                -- Условия для прыжка:
-                -- 1. Мяч выше порога
-                -- 2. Мяч движется с достаточной скоростью
-                -- 3. Мы не прыгали недавно
-                -- 4. Мяч направлен в сторону ворот
                 if ballHeight > CONFIG.HIGH_BALL_THRES and ballSpeed > 20 then
                     local toGoal = (GoalCFrame.Position - ball.Position).Unit
                     local ballDir = ball.Velocity.Unit
                     local angleToGoal = math.deg(math.acos(math.clamp(ballDir:Dot(toGoal), -1, 1)))
                     
-                    -- Прыгаем только если мяч летит в сторону ворот
                     if angleToGoal < 60 then
-                        forceJump(hum, shotAnalysis.targetPosition)
+                        forceJump(hum, shotAnalysis.targetPosition, shotAnalysis.jumpType)
                     end
                 end
             end
@@ -1896,7 +2093,7 @@ local function syncConfig()
         updateVisualColors()
         startHeartbeat()
         if moduleState.notify then
-            moduleState.notify("AutoGK", "Enabled with fixed positioning", true)
+            moduleState.notify("AutoGK", "Enabled with enhanced gate detection", true)
         end
     else
         if moduleState.heartbeatConnection then
@@ -1922,7 +2119,7 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
     moduleState.notify = notifyFunc
     
     if UI.Sections.AutoGoalKeeper then
-        UI.Sections.AutoGoalKeeper:Header({ Name = "AutoGoalKeeper V2.1 - Fixed Positioning" })
+        UI.Sections.AutoGoalKeeper:Header({ Name = "AutoGoalKeeper V2.2 - Enhanced Gate Detection" })
         
         -- Основные настройки
         moduleState.uiElements.Enabled = UI.Sections.AutoGoalKeeper:Toggle({ 
@@ -1935,7 +2132,7 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
                     createVisuals()
                     updateVisualColors()
                     startHeartbeat()
-                    notifyFunc("AutoGK", "Fixed Positioning Enabled", true)
+                    notifyFunc("AutoGK", "Enhanced Gate Detection Enabled", true)
                 else
                     if moduleState.heartbeatConnection then
                         moduleState.heartbeatConnection:Disconnect()
@@ -1949,34 +2146,67 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
         
         UI.Sections.AutoGoalKeeper:Divider()
         
-        -- ФИКСИРОВАННЫЕ НАСТРОЙКИ ПОЗИЦИОНИРОВАНИЯ
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Fixed Positioning Settings" })
+        -- НАСТРОЙКИ ДЕТЕКЦИИ ВОРОТ
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Gate Detection Settings" })
         
-        moduleState.uiElements.USE_ENDPOINT_FOLLOWING = UI.Sections.AutoGoalKeeper:Toggle({
-            Name = "Follow Endpoint (DISABLED)",
-            Default = CONFIG.USE_ENDPOINT_FOLLOWING,
+        moduleState.uiElements.GATE_DETECTION_METHOD = UI.Sections.AutoGoalKeeper:Dropdown({
+            Name = "Detection Method",
+            Default = CONFIG.GATE_DETECTION_METHOD,
+            Options = {"advanced", "simple"},
             Callback = function(v) 
-                CONFIG.USE_ENDPOINT_FOLLOWING = false -- Всегда выключено
-                notifyFunc("AutoGK", "Endpoint following DISABLED for better defense", true)
+                CONFIG.GATE_DETECTION_METHOD = v 
+                moduleState.gateDetection.detectionMethod = v
+                notifyFunc("AutoGK", "Gate detection method: " .. v, true)
             end
-        }, 'EndpointFollowingGK')
+        }, 'GateDetectionMethod')
         
-        moduleState.uiElements.AVOID_CORNERS = UI.Sections.AutoGoalKeeper:Toggle({
-            Name = "Avoid Corners",
-            Default = CONFIG.AVOID_CORNERS,
-            Callback = function(v) CONFIG.AVOID_CORNERS = v end
-        }, 'AvoidCornersGK')
+        moduleState.uiElements.BIG_GATE_THRESHOLD = UI.Sections.AutoGoalKeeper:Slider({
+            Name = "Big Gate Threshold",
+            Minimum = 30,
+            Maximum = 50,
+            Default = CONFIG.BIG_GATE_THRESHOLD,
+            Precision = 1,
+            Callback = function(v) CONFIG.BIG_GATE_THRESHOLD = v end
+        }, 'BigGateThreshold')
         
-        moduleState.uiElements.POSITION_CENTER_BIAS = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Center Position Bias",
-            Minimum = 0.5,
-            Maximum = 0.9,
-            Default = CONFIG.POSITION_CENTER_BIAS,
-            Precision = 2,
-            Callback = function(v) CONFIG.POSITION_CENTER_BIAS = v end
-        }, 'CenterBiasGK')
+        moduleState.uiElements.SHOW_GATE_INFO = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Show Gate Info",
+            Default = CONFIG.SHOW_GATE_INFO,
+            Callback = function(v) 
+                CONFIG.SHOW_GATE_INFO = v 
+                if moduleState.enabled then
+                    createVisuals()
+                end
+            end
+        }, 'ShowGateInfo')
+        
+        -- Настройки прыжков с дайвом
+        UI.Sections.AutoGoalKeeper:Divider()
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Dive Jump Settings (Big Gates Only)" })
+        
+        moduleState.uiElements.USE_DIVE_JUMPS = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Enable Dive Jumps",
+            Default = CONFIG.USE_DIVE_JUMPS,
+            Callback = function(v) 
+                CONFIG.USE_DIVE_JUMPS = v 
+                notifyFunc("AutoGK", v and "Dive jumps enabled for big gates" or "Dive jumps disabled", true)
+            end
+        }, 'UseDiveJumps')
+        
+        moduleState.uiElements.DIVE_JUMP_LEFT_ENABLED = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Enable Left Dive Jump",
+            Default = CONFIG.DIVE_JUMP_LEFT_ENABLED,
+            Callback = function(v) CONFIG.DIVE_JUMP_LEFT_ENABLED = v end
+        }, 'DiveJumpLeftEnabled')
+        
+        moduleState.uiElements.DIVE_JUMP_RIGHT_ENABLED = UI.Sections.AutoGoalKeeper:Toggle({
+            Name = "Enable Right Dive Jump",
+            Default = CONFIG.DIVE_JUMP_RIGHT_ENABLED,
+            Callback = function(v) CONFIG.DIVE_JUMP_RIGHT_ENABLED = v end
+        }, 'DiveJumpRightEnabled')
         
         -- Настройки движения
+        UI.Sections.AutoGoalKeeper:Divider()
         UI.Sections.AutoGoalKeeper:Header({ Name = "Movement Settings" })
         
         moduleState.uiElements.SPEED = UI.Sections.AutoGoalKeeper:Slider({
@@ -1999,7 +2229,7 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
         
         -- Настройки прыжков
         UI.Sections.AutoGoalKeeper:Divider()
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Jump Settings (FIXED)" })
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Jump Settings" })
         
         moduleState.uiElements.JUMP_POWER = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Jump Power",
@@ -2028,15 +2258,6 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
             Callback = function(v) CONFIG.HIGH_BALL_THRES = v end
         }, 'HighBallGk')
         
-        moduleState.uiElements.JUMP_VEL_THRES = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Jump Velocity Threshold",
-            Minimum = 20,
-            Maximum = 50,
-            Default = CONFIG.JUMP_VEL_THRES,
-            Precision = 1,
-            Callback = function(v) CONFIG.JUMP_VEL_THRES = v end
-        }, 'JumpVelocityGK')
-        
         moduleState.uiElements.JUMP_COOLDOWN = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Jump Cooldown",
             Minimum = 0.5,
@@ -2045,24 +2266,6 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
             Precision = 1,
             Callback = function(v) CONFIG.JUMP_COOLDOWN = v end
         }, 'JMPCDGK')
-        
-        moduleState.uiElements.MIN_JUMP_HEIGHT = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Min Jump Height",
-            Minimum = 3.0,
-            Maximum = 6.0,
-            Default = CONFIG.MIN_JUMP_HEIGHT,
-            Precision = 1,
-            Callback = function(v) CONFIG.MIN_JUMP_HEIGHT = v end
-        }, 'MinJumpHeightGK')
-        
-        moduleState.uiElements.MAX_JUMP_HEIGHT = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Max Jump Height",
-            Minimum = 8.0,
-            Maximum = 15.0,
-            Default = CONFIG.MAX_JUMP_HEIGHT,
-            Precision = 1,
-            Callback = function(v) CONFIG.MAX_JUMP_HEIGHT = v end
-        }, 'MaxJumpHeightGK')
         
         -- Настройки ныряния
         UI.Sections.AutoGoalKeeper:Divider()
@@ -2077,24 +2280,6 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
             Callback = function(v) CONFIG.DIVE_DIST = v end
         }, 'DiveDistanceGK')
         
-        moduleState.uiElements.DIVE_SPEED = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Dive Speed",
-            Minimum = 20,
-            Maximum = 60,
-            Default = CONFIG.DIVE_SPEED,
-            Precision = 1,
-            Callback = function(v) CONFIG.DIVE_SPEED = v end
-        }, 'DiveSpeedGK')
-        
-        moduleState.uiElements.DIVE_VEL_THRES = UI.Sections.AutoGoalKeeper:Slider({
-            Name = "Dive Velocity Threshold",
-            Minimum = 10,
-            Maximum = 40,
-            Default = CONFIG.DIVE_VEL_THRES,
-            Precision = 1,
-            Callback = function(v) CONFIG.DIVE_VEL_THRES = v end
-        }, 'DiveVelocityGK')
-        
         moduleState.uiElements.DIVE_COOLDOWN = UI.Sections.AutoGoalKeeper:Slider({
             Name = "Dive Cooldown",
             Minimum = 0.5,
@@ -2106,7 +2291,7 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
         
         -- Визуальные настройки
         UI.Sections.AutoGoalKeeper:Divider()
-        UI.Sections.AutoGoalKeeper:Header({ Name = "Visual Settings (Full FPS)" })
+        UI.Sections.AutoGoalKeeper:Header({ Name = "Visual Settings" })
         
         moduleState.uiElements.SHOW_TRAJECTORY = UI.Sections.AutoGoalKeeper:Toggle({
             Name = "Show Trajectory",
@@ -2120,44 +2305,35 @@ function GKHelperModule.Init(UI, coreParam, notifyFunc)
             end
         }, 'SHOWTRAJECTORYGK')
         
-        moduleState.uiElements.SHOW_ENDPOINT = UI.Sections.AutoGoalKeeper:Toggle({
-            Name = "Show Endpoint",
-            Default = CONFIG.SHOW_ENDPOINT,
-            Callback = function(v) 
-                CONFIG.SHOW_ENDPOINT = v 
-                if moduleState.enabled then
-                    createVisuals()
-                    updateVisualColors()
-                end
-            end
-        }, 'SHOWENDPOINTGK')
-        
         -- Информация
         UI.Sections.AutoGoalKeeper:Divider()
         UI.Sections.AutoGoalKeeper:Header({ Name = "Information" })
         
         UI.Sections.AutoGoalKeeper:Paragraph({
-            Header = "AutoGK V2.1 - FIXED POSITIONING",
+            Header = "AutoGK V2.2 - ENHANCED GATE DETECTION",
             Body = [[
-ИСПРАВЛЕННЫЕ ПРОБЛЕМЫ:
-1. Позиционирование: НЕ следуем за endpoint, защищаем центр ворот
-2. Прыжки: Правильно реагируем на высокие мячи
-3. Углы: Избегаем застревания в углах ворот
-4. Реакция: Быстрее реагируем на удары
-5. Визуализация: Полный FPS рендеринг
+УЛУЧШЕНИЯ:
+1. Детект ворот: Ищет leftpost/rightpost по наличию Sound, CylinderMesh, Script
+2. Адаптивность: Работает с любыми воротами, даже с зашифрованными названиями
+3. Большие ворота: Определяет ворота шириной >= 40 как "большие"
+4. Прыжки с дайвом: JumpLeftNew и JumpRightNew только на больших воротах
+5. Дебаг информация: Показывает размер ворот и тип в реальном времени
 
-ОСНОВНЫЕ ИЗМЕНЕНИЯ:
-- Отключено следование за endpoint (была главная проблема)
-- Усилена защита центра ворот
-- Улучшена логика прыжков для высоких мячей
-- Добавлено избегание углов ворот
-- Визуализация работает на полном FPS
+ОСОБЕННОСТИ:
+- Advanced detection: Ищет части с CylinderMesh + Sound/Script
+- Simple detection: Ищет по имени (LeftPost/RightPost)
+- Big gates: Прыжки с дайвом только при ширине >= 40
+- Adaptive positioning: Учитывает размер ворот при позиционировании
 
-НАСТРОЙКИ:
-1. Center Position Bias: Насколько сильно тянет к центру (0.7 рекомендовано)
-2. Avoid Corners: Избегать позиций в углах ворот
-3. High Ball Threshold: Высота мяча для прыжка
-4. Jump Power/Height: Сила и высота прыжка
+АНИМАЦИИ ПРЫЖКОВ:
+1. Обычный прыжок: ReplicatedStorage.Animations.GK.Jump
+2. Дайв влево: ReplicatedStorage.Animations.GK.JumpLeftNew (только большие ворота)
+3. Дайв вправо: ReplicatedStorage.Animations.GK.JumpRightNew (только большие ворота)
+
+ДЕБАГ ИНФОРМАЦИЯ:
+- Показывает ширину ворот
+- Определяет большие/малые ворота
+- Метод детекции
 ]]
         })
     end
